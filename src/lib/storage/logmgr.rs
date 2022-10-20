@@ -1,3 +1,3 @@
-struct LogManagera{
+struct LogManager{
 
 }

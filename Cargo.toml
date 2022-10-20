@@ -15,4 +15,4 @@ path = "src/bin/main.rs"
 
 [dependencies]
 positioned-io2 = "0.3.4"
-disk-types = "0.1.5"
+nix = "0.25.0"

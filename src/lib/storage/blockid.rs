@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::fmt::format;
+use std::fmt::{Display, format, Formatter};
 use std::hash::Hash;
 
 pub struct BlockId{
@@ -24,3 +24,9 @@ impl ToString for BlockId{
         format!("{},{}",self.filename,self.block_num)
     }
 }
+
+// impl Display for BlockId {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!("{},{}",self.filename,self.block_num)
+//     }
+// }
