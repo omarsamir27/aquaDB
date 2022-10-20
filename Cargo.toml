@@ -1,0 +1,18 @@
+[package]
+name = "aquaDB"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "aqua"
+path = "src/lib/lib.rs"
+
+[[bin]]
+name = "aquaDB"
+path = "src/bin/main.rs"
+
+[dependencies]
+positioned-io2 = "0.3.4"
+disk-types = "0.1.5"
