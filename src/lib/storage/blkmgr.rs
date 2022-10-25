@@ -6,14 +6,14 @@ use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-struct FileManager {
+pub struct BlockManager {
     db_dir: PathBuf,
-    block_size: u64,
+    block_size: usize,
     open_files: HashMap<String, File>,
 }
-impl FileManager {
-    fn new(db_dir: &str, block_size: u64) -> Self {
-        FileManager {
+impl BlockManager {
+    pub fn new(db_dir: &str, block_size: usize) -> Self {
+        BlockManager {
             db_dir: PathBuf::from(db_dir),
             block_size,
             open_files: HashMap::new(),
@@ -22,14 +22,14 @@ impl FileManager {
     fn read(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size ;
         let file = self.get_file(blockid.filename.as_str());
-        file.read_at(blockid.block_num * blk_size , &mut page.payload)
+        file.read_at(blockid.block_num * blk_size as u64 , &mut page.payload)
             .unwrap();
     }
 
     fn write(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size ;
         let file = self.get_file(blockid.filename.as_str());
-        file.write_at(blockid.block_num * blk_size, &page.payload)
+        file.write_at(blockid.block_num * blk_size as u64, &page.payload)
             .unwrap();
         file.sync_all().unwrap()
     }
@@ -38,7 +38,7 @@ impl FileManager {
         let blk_size = self.block_size ;
         let file = self.get_file(filename);
         file.seek(SeekFrom::End(0)).unwrap();
-        let size = vec![0 as u8; blk_size as usize];
+        let size = vec![0 as u8; blk_size];
         file.write(size.as_slice()).unwrap();
         file.sync_all().unwrap();
     }

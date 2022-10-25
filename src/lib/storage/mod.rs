@@ -1,5 +1,5 @@
 pub mod page;
 pub mod blockid;
-mod filemgr;
-mod buffermgr;
-mod logmgr;
+pub mod blkmgr;
+pub mod buffermgr;
+pub mod logmgr;
