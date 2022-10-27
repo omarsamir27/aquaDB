@@ -1,4 +1,5 @@
-use nix::sys::timerfd::ClockId;
+use chrono::prelude::Utc;
+use std::thread::sleep;
 use super::page::Page;
 use super::blockid::BlockId;
 
@@ -53,21 +54,61 @@ impl BufferManager{
             page_size
         }
     }
-    //  pin a block to a frame
-    pub fn pin(){}
-
-    // remove pin from frame
-    pub fn unpin(){}
-
-    // find a frame that is not pinned by any tx
-    pub fn find_unused_frame(){}
-
-    // find if a block exists in the frame pool and returns it
-    pub fn locate_existing_block(){}
 
     /// try to find if an unpinned page is still in memory and has not been replaced out
     /// if it still exists , pin it and return its contents,
     /// else load it into memory and pin it then return its contents
-    pub fn try_pin(){}
+    pub fn try_pin(&mut self, blk : &BlockId) -> Option<usize>{
+        let mut idx = self.locate_existing_block(blk);
+        if idx.is_none(){
+            idx = self.find_unused_frame();
+            if idx.is_none(){
+                return None
+            }
+        }
+        let idx = idx.unwrap();
+        let mut frame = self.frame_pool.get_mut(idx).unwrap();
+        if frame.num_pins == 0{
+            self.available_slots -= 1;
+        }
+        frame.num_pins += 1;
+        Some(idx)
+    }
+
+    //  pin a block to a frame
+    pub fn pin(&mut self, blk: BlockId) -> Option<&mut Frame>{
+        let time_stamp = Utc::now().timestamp_millis();
+        let mut idx = self.try_pin(&blk);
+        while idx.is_none() && !self.timeout(time_stamp){
+            //sleep(1);
+            idx = self.try_pin(&blk);
+        }
+        if idx.is_none(){
+            return None;
+        }
+        self.frame_pool.get_mut(idx.unwrap())
+    }
+
+    pub fn timeout(&self, starttime: i64) -> bool{
+        Utc::now().timestamp_millis()-starttime > 10000
+    }
+
+    // remove pin from frame
+    pub fn unpin(&mut self, mut frame : Frame){
+        frame.num_pins -= 1;
+        if frame.num_pins == 0{
+            self.available_slots += 1;
+        }
+    }
+
+    // find a frame that is not pinned by any tx
+    pub fn find_unused_frame(&self) -> Option<usize>{
+        self.frame_pool.iter().position(|frame| frame.num_pins == 0)
+    }
+
+    // find if a block exists in the frame pool and returns it
+    pub fn locate_existing_block(&self, blk : &BlockId) -> Option<usize>{
+        self.frame_pool.iter().position(|frame| frame.blockid.as_ref() == Some(blk))
+    }
 
 }
