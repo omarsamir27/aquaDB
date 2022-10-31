@@ -1,3 +1,5 @@
+use std::char::MAX;
+use std::cmp::min;
 use chrono::prelude::Utc;
 use std::thread::sleep;
 use super::page::Page;
@@ -8,6 +10,7 @@ struct Frame{
     num_pins : u32,
     blockid : Option<BlockId>,
     transaction_num : Option<u32> ,
+    timestamp: Option<i64>,
     //garbage_frame : bool
     // log sequence number
 }
@@ -19,6 +22,7 @@ impl Frame {
             num_pins : 0 ,
             blockid : None,
             transaction_num : None ,
+            timestamp: None,
         }
     }
 }
@@ -72,6 +76,7 @@ impl BufferManager{
             self.available_slots -= 1;
         }
         frame.num_pins += 1;
+        frame.timestamp = Some(Utc::now().timestamp_millis());
         Some(idx)
     }
 
@@ -103,7 +108,15 @@ impl BufferManager{
 
     // find a frame that is not pinned by any tx
     pub fn find_unused_frame(&self) -> Option<usize>{
-        self.frame_pool.iter().position(|frame| frame.num_pins == 0)
+        //self.frame_pool.iter().position(|frame| frame.num_pins == 0)
+        let mut minimum_index = None;
+        let mut minimum = Some(i64::MAX);
+        for i in 0..self.frame_pool.len(){
+            if self.frame_pool[i].num_pins == 0 && self.frame_pool[i].timestamp < minimum {
+                minimum_index = Some(i);
+            }
+        }
+        minimum_index
     }
 
     // find if a block exists in the frame pool and returns it
@@ -111,4 +124,8 @@ impl BufferManager{
         self.frame_pool.iter().position(|frame| frame.blockid.as_ref() == Some(blk))
     }
 
+    pub fn lru_replacement(&self, blk: &BlockId){
+        // search for the smallest timestamp in frames
+
+    }
 }
