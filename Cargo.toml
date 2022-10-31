@@ -15,5 +15,5 @@ path = "src/bin/main.rs"
 
 [dependencies]
 positioned-io2 = "0.3.4"
-nix = "0.25.0"
+# nix = "0.25.0"
 chrono = "0.4.22"
