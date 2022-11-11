@@ -4,8 +4,10 @@ use chrono::prelude::Utc;
 use std::char::MAX;
 use std::cmp::min;
 use std::thread::sleep;
+use crate::storage::blkmgr;
+use crate::storage::blkmgr::BlockManager;
 
-struct Frame {
+pub struct Frame {
     page: Page,
     num_pins: u32,
     blockid: Option<BlockId>,
@@ -44,11 +46,11 @@ impl Frame {
 //     }
 // }
 
-pub struct BufferManager {
+pub struct BufferManager<>  {
     frame_pool: Vec<Frame>,
     max_slots: u32,
     available_slots: u32,
-    page_size: usize,
+    page_size: usize
     //timeout : Chrono Time
 }
 impl BufferManager {
@@ -61,14 +63,14 @@ impl BufferManager {
             frame_pool,
             max_slots,
             available_slots: max_slots,
-            page_size,
+            page_size
         }
     }
 
     /// try to find if an unpinned page is still in memory and has not been replaced out
     /// if it still exists , pin it and return its contents,
     /// else load it into memory and pin it then return its contents
-    pub fn try_pin(&mut self, blk: &BlockId) -> Option<usize> {
+    pub fn try_pin(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) -> Option<usize> {
         let mut idx = self.locate_existing_block(blk);
         if idx.is_none() {
             idx = self.find_unused_frame();
@@ -78,6 +80,7 @@ impl BufferManager {
         }
         let idx = idx.unwrap();
         let mut frame = self.frame_pool.get_mut(idx).unwrap();
+        blkmgr.read(blk,&mut frame.page);
         if frame.is_free() {
             self.available_slots -= 1;
         }
@@ -87,12 +90,12 @@ impl BufferManager {
     }
 
     //  pin a block to a frame
-    pub fn pin(&mut self, blk: BlockId) -> Option<&mut Frame> {
+    pub fn pin(&mut self, blk: BlockId , blkmgr:&mut BlockManager) -> Option<&mut Frame> {
         let time_stamp = Utc::now().timestamp_millis();
-        let mut idx = self.try_pin(&blk);
+        let mut idx = self.try_pin(&blk,blkmgr);
         while idx.is_none() && !self.timeout(time_stamp) {
             //sleep(1);
-            idx = self.try_pin(&blk);
+            idx = self.try_pin(&blk,blkmgr);
         }
         if idx.is_none() {
             return None;
@@ -105,7 +108,7 @@ impl BufferManager {
     }
 
     // remove pin from frame
-    pub fn unpin(&mut self, mut frame: Frame) {
+    pub fn unpin(&mut self, frame: &mut Frame) {
         frame.num_pins -= 1;
         if frame.is_free() {
             self.available_slots += 1;
@@ -132,7 +135,7 @@ impl BufferManager {
             .position(|frame| frame.blockid.as_ref() == Some(blk))
     }
 
-    pub fn lru_replacement(&self, blk: &BlockId) {
-        // search for the smallest timestamp in frames
-    }
+    // pub fn lru_replacement(&self, blk: &BlockId) {
+    //     // search for the smallest timestamp in frames
+    // }
 }

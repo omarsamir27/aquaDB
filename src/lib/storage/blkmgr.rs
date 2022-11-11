@@ -19,14 +19,14 @@ impl BlockManager {
             open_files: HashMap::new(),
         }
     }
-    fn read(&mut self, blockid: &BlockId, page: &mut Page) {
+    pub fn read(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size ;
         let file = self.get_file(blockid.filename.as_str());
         file.read_at(blockid.block_num * blk_size as u64 , &mut page.payload)
             .unwrap();
     }
 
-    fn write(&mut self, blockid: &BlockId, page: &mut Page) {
+    pub fn write(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size ;
         let file = self.get_file(blockid.filename.as_str());
         file.write_at(blockid.block_num * blk_size as u64, &page.payload)
@@ -34,7 +34,7 @@ impl BlockManager {
         file.sync_all().unwrap()
     }
 
-    fn extend_file(&mut self, filename: &str) {
+    pub fn extend_file(&mut self, filename: &str) {
         let blk_size = self.block_size ;
         let file = self.get_file(filename);
         file.seek(SeekFrom::End(0)).unwrap();
