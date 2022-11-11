@@ -6,45 +6,8 @@ use std::cmp::min;
 use std::thread::sleep;
 use crate::storage::blkmgr;
 use crate::storage::blkmgr::BlockManager;
+use crate::storage::frame::Frame;
 
-pub struct Frame {
-    page: Page,
-    num_pins: u32,
-    blockid: Option<BlockId>,
-    dirty:bool,
-    transaction_num: Option<u32>,
-    timestamp: Option<i64>,
-    //garbage_frame : bool
-    // log sequence number
-}
-
-impl Frame {
-    fn new(page_size: usize) -> Self {
-        Frame {
-            page: Page::new(page_size),
-            num_pins: 0,
-            blockid: None,
-            dirty: false,
-            transaction_num: None,
-            timestamp: None,
-        }
-    }
-    #[inline(always)]
-    fn is_free(&self) -> bool {
-        self.num_pins == 0
-    }
-}
-
-// impl Clone for Frame {
-//     fn clone(&self) -> Self {
-//         Frame{
-//             page : Page::new(page_size),
-//             num_pins : self.num_pins ,
-//             blockid : self.blockid,
-//             transaction_num : self.transaction_num ,
-//         }
-//     }
-// }
 
 pub struct BufferManager<>  {
     frame_pool: Vec<Frame>,
@@ -67,6 +30,15 @@ impl BufferManager {
         }
     }
 
+    #[inline(always)]
+    pub fn get_frame(&mut self,idx:usize)-> Option<&mut Frame>{
+        self.frame_pool.get_mut(idx)
+    }
+
+    pub fn flush_frame(&mut self,frame_idx:usize,blk_mgr:&mut BlockManager){
+        self.frame_pool[frame_idx].flush(blk_mgr);
+    }
+
     /// try to find if an unpinned page is still in memory and has not been replaced out
     /// if it still exists , pin it and return its contents,
     /// else load it into memory and pin it then return its contents
@@ -80,7 +52,7 @@ impl BufferManager {
         }
         let idx = idx.unwrap();
         let mut frame = self.frame_pool.get_mut(idx).unwrap();
-        blkmgr.read(blk,&mut frame.page);
+        frame.load_block(blk,blkmgr);
         if frame.is_free() {
             self.available_slots -= 1;
         }
@@ -90,17 +62,14 @@ impl BufferManager {
     }
 
     //  pin a block to a frame
-    pub fn pin(&mut self, blk: BlockId , blkmgr:&mut BlockManager) -> Option<&mut Frame> {
+    pub fn pin(&mut self, blk: BlockId, blkmgr:&mut BlockManager) -> Option<usize> {
         let time_stamp = Utc::now().timestamp_millis();
         let mut idx = self.try_pin(&blk,blkmgr);
         while idx.is_none() && !self.timeout(time_stamp) {
             //sleep(1);
             idx = self.try_pin(&blk,blkmgr);
         }
-        if idx.is_none() {
-            return None;
-        }
-        self.frame_pool.get_mut(idx.unwrap())
+       idx
     }
 
     pub fn timeout(&self, starttime: i64) -> bool {
@@ -108,7 +77,8 @@ impl BufferManager {
     }
 
     // remove pin from frame
-    pub fn unpin(&mut self, frame: &mut Frame) {
+    pub fn unpin(&mut self, frame_idx:usize) {
+        let frame = self.get_frame(frame_idx).unwrap();
         frame.num_pins -= 1;
         if frame.is_free() {
             self.available_slots += 1;
@@ -125,6 +95,7 @@ impl BufferManager {
                 minimum_index = Some(i);
             }
         }
+        log::debug!("chosen frame index for replacement:{}",minimum_index.unwrap());
         minimum_index
     }
 

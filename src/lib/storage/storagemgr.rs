@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use crate::storage::{logmgr::LogManager, buffermgr::BufferManager, blkmgr::BlockManager};
 use crate::storage::blockid::BlockId;
-use crate::storage::buffermgr::Frame;
+use crate::storage::frame::Frame;
 
 static MAX_BUFFER_SLOTS : u32 = 100 ;
 
@@ -16,16 +16,16 @@ impl DatabaseInfo{
     }
 }
 
-struct Database{
+pub struct StorageManager{
     database_info : DatabaseInfo,
     buffer_manager : BufferManager,
-    block_manager : BlockManager,
+    pub block_manager : BlockManager,
     log_manager : LogManager
 }
 
-impl Database {
-    fn new(db_dir:&str,block_size:usize) -> Self{
-        Database{
+impl StorageManager {
+    pub fn new(db_dir:&str,block_size:usize) -> Self{
+        Self{
             database_info : DatabaseInfo::new(db_dir,block_size),
             buffer_manager : BufferManager::new(block_size,MAX_BUFFER_SLOTS),
             block_manager : BlockManager::new(db_dir,block_size) ,
@@ -33,13 +33,29 @@ impl Database {
         }
     }
 
-    fn pin(&mut self,blk:BlockId){
-        self.buffer_manager.pin(blk, &mut self.block_manager);
-        todo!()
+    pub fn pin(&mut self, blk:BlockId) -> Option<usize> {
+        self.buffer_manager.pin(blk, &mut self.block_manager)
     }
 
-    fn unpin(&mut self, frame:&mut Frame){
-        self.buffer_manager.unpin(frame);
-        todo!()
+    pub fn unpin(&mut self, frame_idx:usize){
+        self.buffer_manager.unpin(frame_idx);
+    }
+
+    pub fn extend_file(&mut self,filename:&str){
+        self.block_manager.extend_file(filename);
+    }
+
+
+    fn get_frame(&mut self,idx:usize) -> Option<&mut Frame>{
+        self.buffer_manager.get_frame(idx)
+    }
+
+    pub fn flush_frame(&mut self,frame_idx:usize){
+        self.buffer_manager.flush_frame(frame_idx,&mut self.block_manager);
+    }
+
+    pub fn write_frame(&mut self,frame_idx:usize,data:&[u8]){
+        let frame = self.get_frame(frame_idx).unwrap();
+        frame.write(data);
     }
 }

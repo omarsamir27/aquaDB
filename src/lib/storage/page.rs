@@ -1,3 +1,5 @@
+use positioned_io2::WriteAt;
+
 pub struct Page {
     pub payload: Vec<u8>,
 }
@@ -5,15 +7,16 @@ pub struct Page {
 impl Page {
     pub fn new(page_size: usize) -> Self {
         Page {
-            payload: Vec::with_capacity(page_size),
+            payload: vec![0;page_size],
         }
     }
+
+    pub fn write_bytes(&mut self,data:&[u8],offset:u64){
+        self.payload.write_at(offset,data).unwrap();
+    }
+
+
+
 }
 
-// impl Default for Page{
-//     fn default() -> Self {
-//         Page{
-//             payload : vec![1;]
-//         }
-//     }
-// }
+

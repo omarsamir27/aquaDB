@@ -1,8 +1,10 @@
 pub struct LogManager{
-
+    dummy:u8
 }
 impl LogManager{
     pub fn new() -> Self{
-        todo!()
+       Self{
+           dummy:0
+       }
     }
 }

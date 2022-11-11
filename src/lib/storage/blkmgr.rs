@@ -48,7 +48,7 @@ impl BlockManager {
             .entry(filename.to_string())
             .or_insert_with(|| {
                 File::create(filename).unwrap();
-                File::open(filename).unwrap()
+                File::options().read(true).write(true).open(filename).unwrap()
 
             })
     }

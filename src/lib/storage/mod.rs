@@ -6,3 +6,4 @@ pub mod blkmgr;
 pub mod buffermgr;
 pub mod logmgr;
 pub mod storagemgr;
+mod frame;

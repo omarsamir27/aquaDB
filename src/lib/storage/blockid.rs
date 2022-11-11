@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::{Display, format, Formatter};
 use std::hash::Hash;
 
+#[derive(Clone)]
 pub struct BlockId{
     pub filename: String,
     pub block_num: u64
@@ -24,6 +25,8 @@ impl ToString for BlockId{
         format!("{},{}",self.filename,self.block_num)
     }
 }
+
+
 
 // impl Display for BlockId {
 //     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
