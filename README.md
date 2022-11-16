@@ -1,4 +1,4 @@
-# AquadDB
+# AquaDB
 ## SQL Relational Database Management System in Rust
 ### Authors :
 @Abouelhassen
