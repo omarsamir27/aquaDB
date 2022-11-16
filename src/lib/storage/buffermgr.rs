@@ -1,16 +1,20 @@
+use std::cell::RefCell;
 use super::blockid::BlockId;
 use super::page::Page;
 use chrono::prelude::Utc;
 use std::char::MAX;
 use std::cmp::min;
+use std::rc::Rc;
 use std::thread::sleep;
 use crate::storage::blkmgr;
 use crate::storage::blkmgr::BlockManager;
 use crate::storage::frame::Frame;
 
+pub type FrameRef = Rc<RefCell<Frame>>;
+
 
 pub struct BufferManager<>  {
-    frame_pool: Vec<Frame>,
+    frame_pool: Vec<FrameRef>,
     max_slots: u32,
     available_slots: u32,
     page_size: usize
@@ -20,7 +24,7 @@ impl BufferManager {
     pub fn new(page_size: usize, max_slots: u32) -> Self {
         let mut frame_pool = Vec::with_capacity(max_slots as usize);
         for _ in 0..max_slots {
-            frame_pool.push(Frame::new(page_size));
+            frame_pool.push(FrameRef::new(RefCell::new(Frame::new(page_size))));
         }
         BufferManager {
             frame_pool,
@@ -31,12 +35,14 @@ impl BufferManager {
     }
 
     #[inline(always)]
-    pub fn get_frame(&mut self,idx:usize)-> Option<&mut Frame>{
-        self.frame_pool.get_mut(idx)
+    pub fn get_frame(&mut self, idx:usize) -> Option<FrameRef> {
+        let frame = self.frame_pool.get(idx).unwrap().clone();
+        Some(frame)
+
     }
 
     pub fn flush_frame(&mut self,frame_idx:usize,blk_mgr:&mut BlockManager){
-        self.frame_pool[frame_idx].flush(blk_mgr);
+        self.frame_pool[frame_idx].try_borrow_mut().unwrap().flush(blk_mgr);
     }
 
     /// try to find if an unpinned page is still in memory and has not been replaced out
@@ -52,6 +58,7 @@ impl BufferManager {
         }
         let idx = idx.unwrap();
         let mut frame = self.frame_pool.get_mut(idx).unwrap();
+        let mut frame = frame.try_borrow_mut().unwrap();
         frame.load_block(blk,blkmgr);
         if frame.is_free() {
             self.available_slots -= 1;
@@ -62,14 +69,19 @@ impl BufferManager {
     }
 
     //  pin a block to a frame
-    pub fn pin(&mut self, blk: BlockId, blkmgr:&mut BlockManager) -> Option<usize> {
+    pub fn pin(&mut self, blk: BlockId, blkmgr:&mut BlockManager) -> Option<FrameRef> {
         let time_stamp = Utc::now().timestamp_millis();
         let mut idx = self.try_pin(&blk,blkmgr);
         while idx.is_none() && !self.timeout(time_stamp) {
             //sleep(1);
             idx = self.try_pin(&blk,blkmgr);
         }
-       idx
+       match idx{
+           None => { None }
+           Some(idx) => {
+               Some(self.frame_pool.get(idx).unwrap().clone())
+           }
+       }
     }
 
     pub fn timeout(&self, starttime: i64) -> bool {
@@ -77,8 +89,8 @@ impl BufferManager {
     }
 
     // remove pin from frame
-    pub fn unpin(&mut self, frame_idx:usize) {
-        let frame = self.get_frame(frame_idx).unwrap();
+    pub fn unpin(&mut self, frame:FrameRef) {
+        let mut frame = frame.borrow_mut();
         frame.num_pins -= 1;
         if frame.is_free() {
             self.available_slots += 1;
@@ -90,8 +102,9 @@ impl BufferManager {
         let mut minimum_index = None;
         let mut minimum = Some(i64::MAX);
         for i in 0..self.frame_pool.len() {
-            if self.frame_pool[i].is_free() && self.frame_pool[i].timestamp < minimum {
-                minimum = self.frame_pool[i].timestamp ;
+            let frame = self.frame_pool[i].borrow_mut();
+            if frame.is_free() && frame.timestamp < minimum {
+                minimum = frame.timestamp ;
                 minimum_index = Some(i);
             }
         }
@@ -101,9 +114,15 @@ impl BufferManager {
 
     // find if a block exists in the frame pool and returns it
     pub fn locate_existing_block(&self, blk: &BlockId) -> Option<usize> {
-        self.frame_pool
-            .iter()
-            .position(|frame| frame.blockid.as_ref() == Some(blk))
+    //     self.frame_pool
+    //         .iter()
+    //         .position(|&frame:FrameRef| frame.borrow_mut().blockid.as_ref() == Some(blk))
+    // }
+        for i in 0..self.frame_pool.len(){
+            if self.frame_pool[i].borrow().blockid.as_ref() == Some(blk)
+            { return Some(i); }
+        }
+        None
     }
 
     // pub fn lru_replacement(&self, blk: &BlockId) {

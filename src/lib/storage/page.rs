@@ -15,6 +15,10 @@ impl Page {
         self.payload.write_at(offset,data).unwrap();
     }
 
+    fn format(&mut self){
+
+    }
+
 
 
 }
