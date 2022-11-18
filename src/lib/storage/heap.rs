@@ -2,8 +2,9 @@ struct HeapPage{
 
 }
 
-impl RecordPage {
+impl HeapPage {
     fn new() -> Self{
+
         todo!()
     }
     fn get_field(){
