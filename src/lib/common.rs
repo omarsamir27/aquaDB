@@ -1,6 +1,9 @@
 pub mod numerical{
+    use std::intrinsics::size_of;
+
     pub trait ByteMagic {
         // TODO - Add Monetary types
+        fn extract_usize(&self,offset:usize) -> usize;
         fn extract_u16(&self,offset:usize) -> u16;
         fn extract_u32(&self,offset:usize) -> u32;
         fn extract_u64(&self,offset:usize) -> u64;
@@ -9,6 +12,13 @@ pub mod numerical{
     }
 
     impl ByteMagic for &[u8]{
+        fn extract_usize(&self, offset: usize) -> usize {
+            let size = size_of::<usize>() - 1 ;
+            let bytes = &self[offset ..(offset + size)];
+            usize::from_ne_bytes(bytes.try_into().unwrap())
+        }
+
+
         fn extract_u16(&self,offset:usize) -> u16 {
             let bytes = [self[offset],self[offset + 1]];
             u16::from_ne_bytes(bytes)
