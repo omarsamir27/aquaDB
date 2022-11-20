@@ -84,8 +84,7 @@ impl HeapPage {
         frame.page.payload[offset..(offset+size as usize)].to_vec()
     }
     fn init_heap(frame:FrameRef) {
-        let header = [4_u16.to_ne_bytes(),4_u16.to_ne_bytes()];
-        let header = header.concat();
+        let header = [4_u16.to_ne_bytes(),4_u16.to_ne_bytes()].concat();
         frame.borrow_mut().page.write_bytes(header.as_slice(),0)
     }
     fn insert_tuple() {
