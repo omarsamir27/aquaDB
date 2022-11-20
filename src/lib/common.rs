@@ -2,7 +2,7 @@
 const USIZE_LENGTH :usize = 4 ;
 
 #[cfg(target_pointer_width = "64")]
-const USIZE_LENGTH :usize = 4 ;
+const USIZE_LENGTH :usize = 8 ;
 
 pub mod numerical{
     use crate::common::USIZE_LENGTH;
