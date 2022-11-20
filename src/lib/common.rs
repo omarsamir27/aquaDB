@@ -2,7 +2,7 @@
 const USIZE_LENGTH :usize = 4 ;
 
 #[cfg(target_pointer_width = "64")]
-const USIZE_LENGTH :usize = 4 ;
+const USIZE_LENGTH :usize = 8 ;
 
 pub mod numerical{
     use crate::common::USIZE_LENGTH;
@@ -19,7 +19,7 @@ pub mod numerical{
 
     impl ByteMagic for &[u8]{
         fn extract_usize(&self, offset: usize) -> usize {
-            let size = USIZE_LENGTH - 1 ;
+            let size = USIZE_LENGTH  ;
             let bytes = &self[offset ..(offset + size)];
             usize::from_ne_bytes(bytes.try_into().unwrap())
         }
@@ -31,22 +31,22 @@ pub mod numerical{
         }
 
         fn extract_u32(&self, offset: usize) -> u32 {
-            let bytes = &self[offset..(offset+3)];
+            let bytes = &self[offset..(offset+4)];
             u32::from_ne_bytes(bytes.try_into().unwrap())
         }
 
         fn extract_u64(&self, offset: usize) -> u64 {
-            let bytes = &self[offset..(offset+7)];
+            let bytes = &self[offset..(offset+8)];
             u64::from_ne_bytes(bytes.try_into().unwrap())
         }
 
         fn extract_f32(&self, offset: usize) -> f32 {
-            let bytes = &self[offset..(offset+3)];
+            let bytes = &self[offset..(offset+4)];
             f32::from_ne_bytes(bytes.try_into().unwrap())
         }
 
         fn extract_f64(&self, offset: usize) -> f64 {
-            let bytes = &self[offset..(offset+7)];
+            let bytes = &self[offset..(offset+8)];
             f64::from_ne_bytes(bytes.try_into().unwrap())
         }
     }
