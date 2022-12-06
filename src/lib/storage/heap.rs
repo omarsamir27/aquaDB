@@ -1,3 +1,4 @@
+// use core::slice::SlicePattern;
 use crate::common::numerical::ByteMagic;
 use crate::schema::schema::Layout;
 use crate::storage::blockid::BlockId;
@@ -5,6 +6,10 @@ use crate::storage::buffermgr::FrameRef;
 use positioned_io2::WriteAt;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::collections::BTreeMap;
+use btreemultimap::BTreeMultiMap;
+use log::__log_format_args;
+
 
 // #[cfg(target_pointer_width = "32")]
 // const USIZE_LENGTH :usize = 4 ;
@@ -26,12 +31,18 @@ impl PageHeader {
     }
 }
 
+#[derive(Clone)]
 struct TuplePointer {
     offset: usize,
     size: u16,
 }
 
 impl TuplePointer {
+
+    pub fn new(offset: usize, size: u16) -> Self {
+        Self { offset, size }
+    }
+
     fn read_pointer(payload: &[u8], offset: usize) -> TuplePointer {
         let tuple_offset = payload.extract_u16(offset);
         let size = payload.extract_u16(offset + 2);
@@ -39,6 +50,15 @@ impl TuplePointer {
             offset: tuple_offset as usize,
             size,
         }
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
+        let mut tuple_pointer = Vec::new();
+        let offset_bytes = (self.offset as u16).to_ne_bytes();
+        let size_bytes = (self.size).to_ne_bytes();
+        tuple_pointer.extend(offset_bytes);
+        tuple_pointer.extend(size_bytes);
+        tuple_pointer
     }
 }
 
@@ -102,15 +122,33 @@ impl HeapPage {
         let header = [4_u16.to_ne_bytes(), 4_u16.to_ne_bytes()].concat();
         frame.borrow_mut().page.write_bytes(header.as_slice(), 0)
     }
-    fn insert_tuple(&mut self, tuple: Vec<(String, Vec<u8>)>) {
+    fn insert_tuple(&mut self, tuple: Tuple) {
         // put metadata
-        let tuple = Tuple::new(tuple,self.layout.clone()).to_bytes();
+        let tuple_size = tuple.tuple_size();
         // ask free map where to put
         // search for empty tuple pointer and modify it
         // if no empty , add new tuple pointer
         // write tuple at  SPACE_END - tuple.length
-
+        let pointer_pos = self.tuple_pointers.iter_mut().position(|pointer| pointer.size == 0);
+        let (tuple_pointer_bytes , index) = if pointer_pos.is_some() {
+            let tuple_pointer = self.tuple_pointers.get_mut(pointer_pos.unwrap()).unwrap();
+            tuple_pointer.offset = self.header.space_end - tuple_size as usize;
+            tuple_pointer.size = tuple_size;
+            (tuple_pointer.clone().to_bytes(), pointer_pos.unwrap())
+        } else {
+            let mut tuple_pointer = TuplePointer::new(self.header.space_end -
+                                                          tuple_size as usize, tuple_size);
+            self.header.space_start += 4;
+            self.tuple_pointers.push(tuple_pointer.clone());
+            (tuple_pointer.to_bytes(), self.tuple_pointers.len())
+        };
+        let mut borrowed_frame = self.frame.borrow_mut();
+        borrowed_frame.page.write_bytes(tuple_pointer_bytes.as_slice(),
+                                        (index*4 + 4) as u64);
+        borrowed_frame.page.write_bytes(tuple.to_bytes().as_slice(),
+                                        self.header.space_end as u64 - tuple_size as u64)
     }
+
     fn vacuum() {
         todo!()
     }
@@ -196,5 +234,42 @@ impl Tuple {
             curr_string_start += field.1.len() as u16;
         }
         tuple
+    }
+}
+
+struct HeapFile {
+    free_space: FreeMap,
+    pages: Vec<HeapPage>,
+    layout: Rc<Layout>,
+}
+
+impl HeapFile {
+    pub fn new(free_space: FreeMap, pages: Vec<HeapPage>, layout: Rc<Layout>) -> Self {
+        Self { free_space, pages, layout }
+    }
+    pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Vec<u8>)>){
+        let tuple = Tuple::new(tuple_bytes, self.layout.clone());
+        let target_page = self.free_space.get_best_fit_block(tuple.tuple_size());
+        let mut target_page = self.pages.iter_mut().find(|page| page.blk == *target_page.as_ref().unwrap()).unwrap();
+        target_page.insert_tuple(tuple);
+    }
+}
+
+struct FreeMap {
+    btree: BTreeMultiMap<u16, BlockId>,
+}
+
+impl FreeMap {
+    pub fn new(btree: BTreeMultiMap<u16, BlockId>) -> Self {
+        Self { btree }
+    }
+
+    pub fn get_best_fit_block(&mut self, tuple_size: u16) -> Option<BlockId> {
+        let mut iterator = self.btree.iter_mut();
+        let value = iterator.find(|(&k, _)| k >= tuple_size);
+        match value {
+            Some((_, blk)) => Some(blk.to_owned()),
+            None => None
+        }
     }
 }
