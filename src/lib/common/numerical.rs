@@ -4,9 +4,6 @@ const USIZE_LENGTH :usize = 4 ;
 #[cfg(target_pointer_width = "64")]
 const USIZE_LENGTH :usize = 8 ;
 
-pub mod numerical{
-    use crate::common::USIZE_LENGTH;
-
     pub trait ByteMagic {
         // TODO - Add Monetary types
         fn extract_usize(&self,offset:usize) -> usize;
@@ -50,7 +47,9 @@ pub mod numerical{
             f64::from_ne_bytes(bytes.try_into().unwrap())
         }
     }
-}
+
+
+
 
 #[cfg(test)]
 mod tests{
@@ -58,7 +57,6 @@ mod tests{
 
     #[test]
     fn test_extract_u16(){
-        use super::numerical::ByteMagic;
         let v  = [0_u8,2,1,44,1,5,6,7];
         let result = v.as_slice().extract_u16(3);
         assert_eq!(result,300_u16)

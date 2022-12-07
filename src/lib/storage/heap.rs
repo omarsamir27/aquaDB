@@ -1,4 +1,3 @@
-// use core::slice::SlicePattern;
 use crate::common::numerical::ByteMagic;
 use crate::schema::schema::Layout;
 use crate::storage::blockid::BlockId;
@@ -8,7 +7,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::collections::BTreeMap;
 use btreemultimap::BTreeMultiMap;
-use log::__log_format_args;
 
 
 // #[cfg(target_pointer_width = "32")]
