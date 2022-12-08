@@ -235,7 +235,7 @@ impl Tuple {
     }
 }
 
-struct HeapFile {
+pub struct HeapFile {
     free_space: FreeMap,
     pages: Vec<HeapPage>,
     layout: Rc<Layout>,

@@ -7,4 +7,4 @@ pub mod buffermgr;
 pub mod logmgr;
 pub mod storagemgr;
 mod frame;
-mod heap;
+pub mod heap;

@@ -1,4 +1,4 @@
 pub mod numerical;
-mod btree_multimap;
+pub mod btree_multimap;
 
 
