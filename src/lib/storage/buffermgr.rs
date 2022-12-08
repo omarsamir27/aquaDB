@@ -1,24 +1,22 @@
-use std::cell::RefCell;
 use super::blockid::BlockId;
 use super::page::Page;
+use crate::storage::blkmgr;
+use crate::storage::blkmgr::BlockManager;
+use crate::storage::frame::Frame;
 use chrono::prelude::Utc;
+use std::cell::RefCell;
 use std::char::MAX;
 use std::cmp::min;
 use std::rc::Rc;
 use std::thread::sleep;
-use crate::storage::blkmgr;
-use crate::storage::blkmgr::BlockManager;
-use crate::storage::frame::Frame;
 
 pub type FrameRef = Rc<RefCell<Frame>>;
 
-
-pub struct BufferManager<>  {
+pub struct BufferManager {
     frame_pool: Vec<FrameRef>,
     max_slots: u32,
     available_slots: u32,
-    page_size: usize
-    //timeout : Chrono Time
+    page_size: usize, //timeout : Chrono Time
 }
 impl BufferManager {
     pub fn new(page_size: usize, max_slots: u32) -> Self {
@@ -30,19 +28,21 @@ impl BufferManager {
             frame_pool,
             max_slots,
             available_slots: max_slots,
-            page_size
+            page_size,
         }
     }
 
     #[inline(always)]
-    pub fn get_frame(&mut self, idx:usize) -> Option<FrameRef> {
+    pub fn get_frame(&mut self, idx: usize) -> Option<FrameRef> {
         let frame = self.frame_pool.get(idx).unwrap().clone();
         Some(frame)
-
     }
 
-    pub fn flush_frame(&mut self,frame_idx:usize,blk_mgr:&mut BlockManager){
-        self.frame_pool[frame_idx].try_borrow_mut().unwrap().flush(blk_mgr);
+    pub fn flush_frame(&mut self, frame_idx: usize, blk_mgr: &mut BlockManager) {
+        self.frame_pool[frame_idx]
+            .try_borrow_mut()
+            .unwrap()
+            .flush(blk_mgr);
     }
 
     /// try to find if an unpinned page is still in memory and has not been replaced out
@@ -59,7 +59,7 @@ impl BufferManager {
         let idx = idx.unwrap();
         let mut frame = self.frame_pool.get_mut(idx).unwrap();
         let mut frame = frame.try_borrow_mut().unwrap();
-        frame.load_block(blk,blkmgr);
+        frame.load_block(blk, blkmgr);
         if frame.is_free() {
             self.available_slots -= 1;
         }
@@ -69,19 +69,17 @@ impl BufferManager {
     }
 
     //  pin a block to a frame
-    pub fn pin(&mut self, blk: BlockId, blkmgr:&mut BlockManager) -> Option<FrameRef> {
+    pub fn pin(&mut self, blk: BlockId, blkmgr: &mut BlockManager) -> Option<FrameRef> {
         let time_stamp = Utc::now().timestamp_millis();
-        let mut idx = self.try_pin(&blk,blkmgr);
+        let mut idx = self.try_pin(&blk, blkmgr);
         while idx.is_none() && !self.timeout(time_stamp) {
             //sleep(1);
-            idx = self.try_pin(&blk,blkmgr);
+            idx = self.try_pin(&blk, blkmgr);
         }
-       match idx{
-           None => { None }
-           Some(idx) => {
-               Some(self.frame_pool.get(idx).unwrap().clone())
-           }
-       }
+        match idx {
+            None => None,
+            Some(idx) => Some(self.frame_pool.get(idx).unwrap().clone()),
+        }
     }
 
     pub fn timeout(&self, starttime: i64) -> bool {
@@ -89,7 +87,7 @@ impl BufferManager {
     }
 
     // remove pin from frame
-    pub fn unpin(&mut self, frame:FrameRef) {
+    pub fn unpin(&mut self, frame: FrameRef) {
         let mut frame = frame.borrow_mut();
         frame.num_pins -= 1;
         if frame.is_free() {
@@ -104,23 +102,27 @@ impl BufferManager {
         for i in 0..self.frame_pool.len() {
             let frame = self.frame_pool[i].borrow_mut();
             if frame.is_free() && frame.timestamp < minimum {
-                minimum = frame.timestamp ;
+                minimum = frame.timestamp;
                 minimum_index = Some(i);
             }
         }
-        log::debug!("chosen frame index for replacement:{}",minimum_index.unwrap());
+        log::debug!(
+            "chosen frame index for replacement:{}",
+            minimum_index.unwrap()
+        );
         minimum_index
     }
 
     // find if a block exists in the frame pool and returns it
     pub fn locate_existing_block(&self, blk: &BlockId) -> Option<usize> {
-    //     self.frame_pool
-    //         .iter()
-    //         .position(|&frame:FrameRef| frame.borrow_mut().blockid.as_ref() == Some(blk))
-    // }
-        for i in 0..self.frame_pool.len(){
-            if self.frame_pool[i].borrow().blockid.as_ref() == Some(blk)
-            { return Some(i); }
+        //     self.frame_pool
+        //         .iter()
+        //         .position(|&frame:FrameRef| frame.borrow_mut().blockid.as_ref() == Some(blk))
+        // }
+        for i in 0..self.frame_pool.len() {
+            if self.frame_pool[i].borrow().blockid.as_ref() == Some(blk) {
+                return Some(i);
+            }
         }
         None
     }

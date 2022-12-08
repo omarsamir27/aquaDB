@@ -1,10 +1,12 @@
 use crate::storage;
 
-pub mod page;
-pub mod blockid;
 pub mod blkmgr;
+pub mod blockid;
 pub mod buffermgr;
-pub mod logmgr;
-pub mod storagemgr;
 mod frame;
+pub mod free_space;
 pub mod heap;
+pub mod logmgr;
+pub mod page;
+pub mod storagemgr;
+pub mod tuple;

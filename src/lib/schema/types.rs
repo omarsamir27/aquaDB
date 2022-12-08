@@ -26,15 +26,15 @@ impl NumericType {
     }
 
     #[inline(always)]
-    pub fn read_from_tuple(self, tuple: &[u8],start_byte:u16) -> &[u8] {
+    pub fn read_from_tuple(self, tuple: &[u8], start_byte: u16) -> &[u8] {
         let start_byte = start_byte as usize;
         match self {
-            NumericType::SmallInt => &tuple[start_byte..start_byte+2],
-            NumericType::Integer => &tuple[start_byte..start_byte+4],
-            NumericType::BigInt => &tuple[start_byte..start_byte+8],
-            NumericType::Single => &tuple[start_byte..start_byte+4],
-            NumericType::Double => &tuple[start_byte..start_byte+8],
-            NumericType::Serial => &tuple[start_byte..start_byte+4]
+            NumericType::SmallInt => &tuple[start_byte..start_byte + 2],
+            NumericType::Integer => &tuple[start_byte..start_byte + 4],
+            NumericType::BigInt => &tuple[start_byte..start_byte + 8],
+            NumericType::Single => &tuple[start_byte..start_byte + 4],
+            NumericType::Double => &tuple[start_byte..start_byte + 8],
+            NumericType::Serial => &tuple[start_byte..start_byte + 4],
         }
     }
 }
@@ -49,11 +49,11 @@ impl CharType {
     pub fn needs_pointer(self) -> bool {
         self == VarChar
     }
-    pub fn read_from_tuple(self,tuple:&[u8],start_byte:u16) -> &[u8]{
+    pub fn read_from_tuple(self, tuple: &[u8], start_byte: u16) -> &[u8] {
         let start_byte = start_byte as usize;
         let string_offset = tuple.extract_u16(start_byte) as usize;
-        let length = tuple.extract_u16(start_byte+2);
-        &tuple[string_offset..string_offset+length as usize]
+        let length = tuple.extract_u16(start_byte + 2);
+        &tuple[string_offset..string_offset + length as usize]
     }
 }
 
@@ -80,10 +80,10 @@ impl Type {
     }
 
     #[inline(always)]
-    pub fn read_from_tuple(self,tuple:&[u8],start_byte:u16) -> &[u8]{
+    pub fn read_from_tuple(self, tuple: &[u8], start_byte: u16) -> &[u8] {
         match self {
-            Type::Numeric(num) => num.read_from_tuple(tuple,start_byte),
-            Type::Character(char) => char.read_from_tuple(tuple,start_byte)
+            Type::Numeric(num) => num.read_from_tuple(tuple, start_byte),
+            Type::Character(char) => char.read_from_tuple(tuple, start_byte),
         }
     }
 }

@@ -6,7 +6,7 @@ pub struct Frame {
     pub page: Page,
     pub num_pins: u32,
     pub blockid: Option<BlockId>,
-    pub dirty:bool,
+    pub dirty: bool,
     pub transaction_num: Option<u32>,
     pub timestamp: Option<i64>,
     //garbage_frame : bool
@@ -29,30 +29,30 @@ impl Frame {
         self.num_pins == 0
     }
 
-    pub fn load_block(&mut self,blk:&BlockId,blkmgr:&mut BlockManager){
+    pub fn load_block(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) {
         if self.dirty {
             self.flush(blkmgr);
         }
-        blkmgr.read(&blk,&mut self.page);
+        blkmgr.read(&blk, &mut self.page);
         self.blockid = Some(blk.clone());
         self.num_pins = 0;
     }
 
-    pub fn flush(&mut self,blkmgr:&mut BlockManager){
-            // log manager flush here
-            let blk = self.blockid.as_ref().unwrap();
-            blkmgr.write(blk,&mut self.page);
-            self.transaction_num = None;
-            self.dirty = false;
+    pub fn flush(&mut self, blkmgr: &mut BlockManager) {
+        // log manager flush here
+        let blk = self.blockid.as_ref().unwrap();
+        blkmgr.write(blk, &mut self.page);
+        self.transaction_num = None;
+        self.dirty = false;
     }
 
-    pub fn write(&mut self,data:&[u8]){
-        self.write_at(data,0);
+    pub fn write(&mut self, data: &[u8]) {
+        self.write_at(data, 0);
     }
 
-    pub fn write_at(&mut self,data:&[u8],offset:u64){
+    pub fn write_at(&mut self, data: &[u8], offset: u64) {
         // check if data.len > page.len
-        self.page.write_bytes(data,offset);
+        self.page.write_bytes(data, offset);
         self.dirty = true;
     }
 }
