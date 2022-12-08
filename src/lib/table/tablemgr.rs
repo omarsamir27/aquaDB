@@ -73,5 +73,35 @@ impl TableManager {
             storage_mgr.unpin(frame);
         }
     }
+
+    fn heapscan_iter(&self) -> TableIter {
+        TableIter{
+            table_blocks:&self.table_blocks,
+            storage_mgr:self.storage_mgr.clone(),
+            layout:self.layout.clone(),
+            current_block:0,
+            current_page : None
+        }
+    }
 }
 
+struct TableIter<'tblmgr> {
+    table_blocks: &'tblmgr Vec<BlockId>,
+    storage_mgr: Rc<RefCell<StorageManager>>,
+    layout: Rc<Layout>,
+    current_block : usize,
+    current_page : Option<HeapPage>
+}
+impl<'tblmgr> TableIter<'tblmgr>{
+    // fn next(&mut self) -> Option<Vec<u8>>{
+    //     if self.current_page.is_none(){
+    //         let frame = self.storage_mgr.borrow_mut().pin(self.table_blocks.)
+    //     }
+    //     todo!()
+    // }
+}
+
+// trait HeapScan{
+//     type Item;
+//     fn next(&mut self) -> Option<Self::Item>;
+// }

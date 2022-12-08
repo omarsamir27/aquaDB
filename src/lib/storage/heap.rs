@@ -199,23 +199,32 @@ impl HeapPage {
         self.header.space_start = space_start as usize;
         self.header.space_end = space_end as usize;
     }
+    fn page_iter(&self) -> PageIter{
+        PageIter{
+            current_slot:0,
+            page:&self
+        }
+    }
+}
 
-    /*
-       VACUUM:
-           in a page:
-               create new page
-               for tuple pointers:
-                   read tuple pointer -> temp
-                   goto associated tuple and read active flag
-                   if active
-                       add tuple to new page
-                       add temp to new page tuple pointers with appropirate modification
-                   else deleted
-                       add temp to new page tuple pointers in dead form
-               modify PAGE HEADER SPACE END to point to last written to location
-    */
+struct PageIter<'page> {
+    current_slot : u16,
+    page : &'page HeapPage
+}
 
-    //fn search()
+impl<'page> PageIter<'page> {
+    pub fn next(&mut self) -> Option<Vec<u8>>{
+        if self.current_slot == (self.page.tuple_pointers.len() - 1) as u16{ return None}
+        while self.current_slot != self.page.tuple_pointers.len() as u16  {
+            if self.page.tuple_pointers[self.current_slot as usize].size != 0 {
+                return Some(self.page.get_tuple(self.current_slot as usize))
+            }
+            self.current_slot += 1;
+
+        }
+        None
+    }
+
 }
 
 // pub struct HeapFile {
