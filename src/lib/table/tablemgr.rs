@@ -2,7 +2,7 @@ use crate::common::numerical::ByteMagic;
 use crate::schema::schema::Layout;
 use crate::storage::blockid::BlockId;
 use crate::storage::free_space::FreeMap;
-use crate::storage::heap::HeapPage;
+use crate::storage::heap::{HeapPage, PageIter};
 use crate::storage::storagemgr::StorageManager;
 use crate::storage::tuple::Tuple;
 use std::cell::RefCell;
@@ -75,13 +75,11 @@ impl TableManager {
     }
 
     fn heapscan_iter(&self) -> TableIter {
-        TableIter{
-            table_blocks:&self.table_blocks,
-            storage_mgr:self.storage_mgr.clone(),
-            layout:self.layout.clone(),
-            current_block:0,
-            current_page : None
-        }
+        TableIter::new(
+            &self.table_blocks,
+            self.storage_mgr.clone(),
+            self.layout.clone()
+        )
     }
 }
 
@@ -89,19 +87,47 @@ struct TableIter<'tblmgr> {
     table_blocks: &'tblmgr Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
     layout: Rc<Layout>,
-    current_block : usize,
-    current_page : Option<HeapPage>
+    current_block_index : usize,
+    current_page : HeapPage,
+    current_tuple_index: usize,
+    current_page_pointer_count : usize
 }
 impl<'tblmgr> TableIter<'tblmgr>{
-    // fn next(&mut self) -> Option<Vec<u8>>{
-    //     if self.current_page.is_none(){
-    //         let frame = self.storage_mgr.borrow_mut().pin(self.table_blocks.)
-    //     }
-    //     todo!()
-    // }
-}
+    pub fn new(table_blocks:&'tblmgr  Vec<BlockId>,storage_mgr:Rc<RefCell<StorageManager>>,layout:Rc<Layout>)-> Self{
+        let frame = storage_mgr.borrow_mut().pin(table_blocks[0].clone()).unwrap();
+        let heap_page = HeapPage::new(frame,&table_blocks[0],layout.clone());
+        Self{
+            table_blocks,
+            storage_mgr,
+            layout,
+            current_block_index:0,
+            current_tuple_index :0,
+            current_page_pointer_count : heap_page.pointer_count(),
+            current_page : heap_page,
+        }
+    }
 
-// trait HeapScan{
-//     type Item;
-//     fn next(&mut self) -> Option<Self::Item>;
-// }
+    fn next(&mut self) -> Option<Vec<u8>>{
+        while self.current_block_index != (self.table_blocks.len() -1) {
+            while self.current_tuple_index < self.current_page_pointer_count {
+                let (pointer_exist, tuple_exist) =
+                    self.current_page.pointer_and_tuple_exist(self.current_tuple_index);
+                if tuple_exist{
+                    let tuple = self.current_page.get_tuple(self.current_tuple_index);
+                    self.current_tuple_index += 1;
+                    return Some(tuple)
+                }
+                self.current_tuple_index += 1;
+            }
+            self.current_tuple_index = 0;
+            self.current_block_index +=1;
+            let mut storage_mgr = self.storage_mgr.borrow_mut();
+            storage_mgr.unpin(self.current_page.frame.clone());
+            let block = &self.table_blocks[self.current_block_index];
+            let frame = storage_mgr.pin(block.clone()).unwrap();
+            self.current_page = HeapPage::new(frame,block,self.layout.clone());
+        }
+        None
+    }
+
+}

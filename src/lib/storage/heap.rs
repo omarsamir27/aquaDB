@@ -65,7 +65,7 @@ impl TuplePointer {
 pub struct HeapPage {
     //tx_id,layout,schema
     blk: BlockId,
-    frame: FrameRef,
+    pub frame: FrameRef,
     header: PageHeader,
     tuple_pointers: Vec<TuplePointer>,
     layout: Rc<Layout>,
@@ -125,6 +125,18 @@ impl HeapPage {
     pub fn new_from_empty(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>) -> Self {
         HeapPage::init_heap(&frame);
         HeapPage::new(frame, blk, layout)
+    }
+
+    pub fn pointer_and_tuple_exist(&self,tuple_pointer:usize) -> (bool,bool){
+        match self.tuple_pointers.get(tuple_pointer){
+            None => (false,false),
+            Some(tuple) => (true,tuple.size != 0)
+        }
+
+    }
+
+    pub fn pointer_count(&self) -> usize{
+        self.tuple_pointers.len()
     }
     pub fn insert_tuple(&mut self, tuple: Tuple) {
         // put metadata
@@ -199,7 +211,7 @@ impl HeapPage {
         self.header.space_start = space_start as usize;
         self.header.space_end = space_end as usize;
     }
-    fn page_iter(&self) -> PageIter{
+    pub fn page_iter(&self) -> PageIter{
         PageIter{
             current_slot:0,
             page:&self
@@ -207,7 +219,7 @@ impl HeapPage {
     }
 }
 
-struct PageIter<'page> {
+pub struct PageIter<'page> {
     current_slot : u16,
     page : &'page HeapPage
 }
@@ -217,12 +229,17 @@ impl<'page> PageIter<'page> {
         if self.current_slot == (self.page.tuple_pointers.len() - 1) as u16{ return None}
         while self.current_slot != self.page.tuple_pointers.len() as u16  {
             if self.page.tuple_pointers[self.current_slot as usize].size != 0 {
-                return Some(self.page.get_tuple(self.current_slot as usize))
+                let tuple =  Some(self.page.get_tuple(self.current_slot as usize));
+                self.current_slot += 1;
+                return tuple
             }
             self.current_slot += 1;
 
         }
         None
+    }
+    pub fn has_next(&self) -> bool{
+        self.current_slot != (self.page.tuple_pointers.len() -1 ) as u16
     }
 
 }
