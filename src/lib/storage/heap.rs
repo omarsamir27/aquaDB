@@ -69,13 +69,15 @@ pub struct HeapPage {
     header: PageHeader,
     tuple_pointers: Vec<TuplePointer>,
     layout: Rc<Layout>,
+    vacuuming:bool
 }
 
 impl HeapPage {
     pub fn new(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>) -> Self {
         let blk = blk.clone();
         let heap_frame = frame.clone();
-        let frame_ref = heap_frame.borrow();
+        let mut frame_ref = heap_frame.borrow_mut();
+        frame_ref.update_replace_stats();
         let header = PageHeader::new(frame_ref.page.payload.as_slice());
         let mut current_offset = 4_usize;
         let mut tuple_pointers: Vec<TuplePointer> = Vec::new();
@@ -94,6 +96,7 @@ impl HeapPage {
             header,
             tuple_pointers,
             layout,
+            vacuuming:false
         }
     }
 
@@ -101,26 +104,33 @@ impl HeapPage {
     pub fn get_field(&self, field_name: &str, index: u16) -> Vec<u8> {
         let (field_type, start_byte) = self.layout.field_data(field_name);
         let pointer = &self.tuple_pointers[index as usize];
-        let frame = self.frame.borrow_mut();
+        let mut frame = self.frame.borrow_mut();
+        frame.update_replace_stats();
         let tuple = &frame.page.payload[pointer.offset..(pointer.offset + pointer.size as usize)];
         field_type.read_from_tuple(tuple, start_byte).to_vec()
     }
     pub fn mark_delete(&self, slot_num: usize) {
         let pointer = &self.tuple_pointers[slot_num];
         let mut frame = self.frame.borrow_mut();
+        frame.update_replace_stats();
         let offset = pointer.offset;
         frame.page.payload[offset] = 1_u8;
     }
     pub fn get_tuple(&self, slot_num: usize) -> Vec<u8> {
         let pointer = &self.tuple_pointers[slot_num];
-        let frame = self.frame.borrow();
+        let mut frame = self.frame.borrow_mut();
+        if !self.vacuuming {
+            frame.update_replace_stats();
+        }
         let offset = pointer.offset;
         let size = pointer.size;
         frame.page.payload[offset..(offset + size as usize)].to_vec()
     }
     pub fn init_heap(frame: &FrameRef) {
         let header = [4_u16.to_ne_bytes(), 4_u16.to_ne_bytes()].concat();
-        frame.borrow_mut().page.write_bytes(header.as_slice(), 0)
+        let mut frame = frame.borrow_mut();
+        frame.update_replace_stats();
+        frame.page.write_bytes(header.as_slice(), 0);
     }
     pub fn new_from_empty(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>) -> Self {
         HeapPage::init_heap(&frame);
@@ -162,6 +172,7 @@ impl HeapPage {
             (tuple_pointer.to_bytes(), self.tuple_pointers.len())
         };
         let mut borrowed_frame = self.frame.borrow_mut();
+        borrowed_frame.update_replace_stats();
         borrowed_frame
             .page
             .write_bytes(tuple_pointer_bytes.as_slice(), (index * 4 + 4) as u64);
@@ -171,6 +182,7 @@ impl HeapPage {
         )
     }
     pub fn vacuum(&mut self) {
+        self.vacuuming = true;
         let mut new_page = Page::new(4096);
         let mut space_start = 4_u16;
         let mut space_end = 4095_u16;

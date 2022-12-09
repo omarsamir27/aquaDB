@@ -1,3 +1,4 @@
+use chrono::Utc;
 use crate::storage::blkmgr::BlockManager;
 use crate::storage::blockid::BlockId;
 use crate::storage::page::Page;
@@ -27,6 +28,11 @@ impl Frame {
     #[inline(always)]
     pub fn is_free(&self) -> bool {
         self.num_pins == 0
+    }
+
+    #[inline(always)]
+    pub fn update_replace_stats(&mut self){
+        self.timestamp = Some(Utc::now().timestamp_millis());
     }
 
     pub fn load_block(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) {
