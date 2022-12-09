@@ -1,3 +1,4 @@
+use std::cmp::max;
 use chrono::Utc;
 use crate::storage::blkmgr::BlockManager;
 use crate::storage::blockid::BlockId;
@@ -9,7 +10,9 @@ pub struct Frame {
     pub blockid: Option<BlockId>,
     pub dirty: bool,
     pub transaction_num: Option<u32>,
-    pub timestamp: Option<i64>,
+    pub last_access_time:i64,
+    pub second_last_access_time : i64,
+    pub reuse_distance : i64,
     //garbage_frame : bool
     // log sequence number
 }
@@ -22,7 +25,9 @@ impl Frame {
             blockid: None,
             dirty: false,
             transaction_num: None,
-            timestamp: None,
+            last_access_time: -1,
+            second_last_access_time : -1 ,
+            reuse_distance : -1
         }
     }
     #[inline(always)]
@@ -32,7 +37,27 @@ impl Frame {
 
     #[inline(always)]
     pub fn update_replace_stats(&mut self){
-        self.timestamp = Some(Utc::now().timestamp_millis());
+        // self.timestamp = Some(Utc::now().timestamp_millis());
+        if self.last_access_time == -1{
+            self.reuse_distance = i64::MAX;
+        }
+        else{
+            self.reuse_distance = self.last_access_time - self.second_last_access_time ;
+        }
+        self.second_last_access_time = self.last_access_time;
+        self.last_access_time = Utc::now().timestamp_millis();
+    }
+
+    #[inline(always)]
+    pub fn reset_time_stats(&mut self){
+        self.second_last_access_time = -1;
+        self.last_access_time = -1;
+        self.reuse_distance = -1;
+    }
+
+    #[inline(always)]
+    pub fn lirs_weight(&self,utc_now:i64) -> i64{
+        max(self.reuse_distance,utc_now - self.last_access_time)
     }
 
     pub fn load_block(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) {
@@ -42,6 +67,7 @@ impl Frame {
         blkmgr.read(&blk, &mut self.page);
         self.blockid = Some(blk.clone());
         self.num_pins = 0;
+        self.reset_time_stats();
     }
 
     pub fn flush(&mut self, blkmgr: &mut BlockManager) {

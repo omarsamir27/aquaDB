@@ -51,7 +51,7 @@ impl BufferManager {
     pub fn try_pin(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) -> Option<usize> {
         let mut idx = self.locate_existing_block(blk);
         if idx.is_none() {
-            idx = self.find_unused_frame();
+            idx = self.find_victim_page();
             if idx.is_none() {
                 return None;
             }
@@ -64,7 +64,7 @@ impl BufferManager {
             self.available_slots -= 1;
         }
         frame.num_pins += 1;
-        frame.timestamp = Some(Utc::now().timestamp_millis());
+        // frame.timestamp = Some(Utc::now().timestamp_millis());
         Some(idx)
     }
 
@@ -96,21 +96,41 @@ impl BufferManager {
     }
 
     // find a frame that is not pinned by any tx
-    pub fn find_unused_frame(&self) -> Option<usize> {
-        let mut minimum_index = None;
-        let mut minimum = Some(i64::MAX);
-        for i in 0..self.frame_pool.len() {
-            let frame = self.frame_pool[i].borrow_mut();
-            if frame.is_free() && frame.timestamp < minimum {
-                minimum = frame.timestamp;
-                minimum_index = Some(i);
-            }
+    // pub fn find_unused_frame(&self) -> Option<usize> {
+    //     let mut minimum_index = None;
+    //     let mut minimum = Some(i64::MAX);
+    //     for i in 0..self.frame_pool.len() {
+    //         let frame = self.frame_pool[i].borrow_mut();
+    //         if frame.is_free() && frame.timestamp < minimum {
+    //             minimum = frame.timestamp;
+    //             minimum_index = Some(i);
+    //         }
+    //     }
+    //     log::debug!(
+    //         "chosen frame index for replacement:{}",
+    //         minimum_index.unwrap()
+    //     );
+    //     minimum_index
+    // }
+
+    pub fn find_clean_frame(&self) -> Option<usize>{
+        self.frame_pool.iter().position(|frame| frame.borrow().blockid.is_none())
+    }
+
+    pub fn find_victim_page(&self)-> Option<usize>{
+        let clean_frame = self.find_clean_frame();
+        if clean_frame.is_some(){
+            clean_frame
         }
-        log::debug!(
-            "chosen frame index for replacement:{}",
-            minimum_index.unwrap()
-        );
-        minimum_index
+        else{
+            self.lirs_victim()
+        }
+    }
+
+    pub fn lirs_victim(&self) -> Option<usize>{
+        let now = Utc::now().timestamp_millis();
+        let (idx,_) = self.frame_pool.iter().enumerate().max_by_key(|&(x,y)| y.borrow().lirs_weight(now)).unwrap();
+        Some(idx)
     }
 
     // find if a block exists in the frame pool and returns it
