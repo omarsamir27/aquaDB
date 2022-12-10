@@ -84,17 +84,15 @@ fn replacement_test(){
 }
 
 
-/// this function should not compile
-/// frame is consumed by unpinning it to prevent the user from attempting to double unpin
-#[test]
-fn double_unpin(){
-    let test_file = "replacement_test";
-    let BLK_SIZE = 4096;
-    let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE,3);
-    let mut blks = utils::create_blockids(3, test_file);
-    let frame = storagemgr.pin(blks.pop().unwrap()).unwrap();
-    storagemgr.unpin(frame);
-    storagemgr.unpin(frame)
-
-
-}
+// this function should not compile
+// frame is consumed by unpinning it to prevent the user from attempting to double unpin
+// #[test]
+// fn double_unpin(){
+//     let test_file = "replacement_test";
+//     let BLK_SIZE = 4096;
+//     let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE,3);
+//     let mut blks = utils::create_blockids(3, test_file);
+//     let frame = storagemgr.pin(blks.pop().unwrap()).unwrap();
+//     storagemgr.unpin(frame);
+//     storagemgr.unpin(frame)
+// }

@@ -4,6 +4,29 @@ use std::collections::HashMap;
 pub struct Schema {
     fields: Vec<Field>,
 }
+impl Schema {
+    pub fn new() -> Self {
+        Self { fields: vec![] }
+    }
+    pub fn add_field(
+        &mut self,
+        name: &str,
+        field_type: Type,
+        nullable: bool,
+        char_limit: Option<u32>,
+    ) {
+        self.fields.push(Field::new(
+            name,
+            field_type,
+            nullable,
+            char_limit,
+        ))
+    }
+    pub fn to_layout(&self) -> Layout{
+        Layout::new(self)
+    }
+}
+
 
 struct Field {
     name: String,
@@ -12,6 +35,17 @@ struct Field {
     char_limit: Option<u32>,
 }
 
+impl Field {
+    pub fn new(name: &str, field_type: Type, nullable: bool, char_limit: Option<u32>) -> Self {
+        Self {
+            name:name.to_string(),
+            field_type,
+            nullable,
+            char_limit,
+        }
+    }
+}
+#[derive(Debug)]
 pub struct Layout {
     map: HashMap<String, (Type, u16)>,
 }
