@@ -6,7 +6,6 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::path::PathBuf;
 
-static MAX_BUFFER_SLOTS: u32 = 100;
 
 struct DatabaseInfo {
     db_dir: PathBuf,
@@ -30,10 +29,10 @@ pub struct StorageManager {
 }
 
 impl StorageManager {
-    pub fn new(db_dir: &str, block_size: usize) -> Self {
+    pub fn new(db_dir: &str, block_size: usize,max_buffer_slots:u32) -> Self {
         Self {
             database_info: DatabaseInfo::new(db_dir, block_size),
-            buffer_manager: BufferManager::new(block_size, MAX_BUFFER_SLOTS),
+            buffer_manager: BufferManager::new(block_size, max_buffer_slots),
             block_manager: BlockManager::new(db_dir, block_size),
             log_manager: LogManager::new(),
         }

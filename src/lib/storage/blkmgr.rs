@@ -22,7 +22,9 @@ impl BlockManager {
 
     pub fn read_raw(&mut self, blockid: &BlockId, byte_count: usize) -> Vec<u8> {
         let blk_size = self.block_size;
-        let file = self.get_file(blockid.filename.as_str());
+        let mut filepath = String::from(self.db_dir.to_str().unwrap());
+        filepath.push_str(&blockid.filename.as_str());
+        let file = self.get_file(filepath.as_str());
         let mut vec = vec![0_u8; byte_count];
         file.read_exact(vec.as_mut_slice());
         vec
@@ -30,14 +32,18 @@ impl BlockManager {
 
     pub fn read(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size;
-        let file = self.get_file(blockid.filename.as_str());
+        let mut filepath = String::from(self.db_dir.to_str().unwrap());
+        filepath.push_str(&blockid.filename.as_str());
+        let file = self.get_file(filepath.as_str());
         file.read_at(blockid.block_num * blk_size as u64, &mut page.payload)
             .unwrap();
     }
 
     pub fn write(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size;
-        let file = self.get_file(blockid.filename.as_str());
+        let mut filepath = String::from(self.db_dir.to_str().unwrap());
+        filepath.push_str(&blockid.filename.as_str());
+        let file = self.get_file(filepath.as_str());
         file.write_at(blockid.block_num * blk_size as u64, &page.payload)
             .unwrap();
         file.sync_all().unwrap()
@@ -45,7 +51,9 @@ impl BlockManager {
 
     pub fn extend_file(&mut self, filename: &str) -> BlockId {
         let blk_size = self.block_size;
-        let file = self.get_file(filename);
+        let mut filepath = String::from(self.db_dir.to_str().unwrap());
+        filepath.push_str(filename);
+        let file = self.get_file(filepath.as_str());
         file.seek(SeekFrom::End(0)).unwrap();
         let size = vec![0 as u8; blk_size];
         file.write(size.as_slice()).unwrap();
