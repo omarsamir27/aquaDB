@@ -65,6 +65,7 @@ impl BufferManager {
         }
         frame.num_pins += 1;
         // frame.timestamp = Some(Utc::now().timestamp_millis());
+        debug_print::debug_println!("buffer position chosen : {}",idx);
         Some(idx)
     }
 

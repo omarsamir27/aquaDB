@@ -61,3 +61,40 @@ fn overload_buffer(){
     }
 }
 
+
+#[test]
+fn replacement_test(){
+    let test_file = "replacement_test";
+    let BLK_SIZE = 4096;
+    let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE,100);
+    (0..200).for_each(|_| { storagemgr.extend_file(test_file); });
+    let mut blks = utils::create_blockids(200, test_file);
+    let mut frames = Vec::new();
+    for i in 0..100{
+        let frame = storagemgr.pin(blks.pop().unwrap()).unwrap();
+        frames.push(frame);
+    }
+    for i in 0..100{
+        let out = frames.pop().unwrap();
+        storagemgr.unpin(out);
+        let frame = storagemgr.pin(blks.pop().unwrap()).unwrap();
+        frames.push(frame);
+    }
+    println!("{}",blks.len());
+}
+
+
+/// this function should not compile
+/// frame is consumed by unpinning it to prevent the user from attempting to double unpin
+#[test]
+fn double_unpin(){
+    let test_file = "replacement_test";
+    let BLK_SIZE = 4096;
+    let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE,3);
+    let mut blks = utils::create_blockids(3, test_file);
+    let frame = storagemgr.pin(blks.pop().unwrap()).unwrap();
+    storagemgr.unpin(frame);
+    storagemgr.unpin(frame)
+
+
+}
