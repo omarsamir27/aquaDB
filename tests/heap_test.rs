@@ -139,7 +139,3 @@ fn write_read_tuples() {
     assert_eq!(retrieved_name,"Omar".to_string())
 }
 
-#[test]
-fn vacuum(){
-
-}

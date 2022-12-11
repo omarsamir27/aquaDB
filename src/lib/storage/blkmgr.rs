@@ -64,6 +64,20 @@ impl BlockManager {
         }
     }
 
+    pub fn extend_file_many(&mut self, filename: &str,count:u32) -> Vec<BlockId> {
+        let blk_size = self.block_size;
+        let mut filepath = String::from(self.db_dir.to_str().unwrap());
+        filepath.push_str(filename);
+        let file = self.get_file(filepath.as_str());
+        file.seek(SeekFrom::End(0)).unwrap();
+        let size = vec![0 as u8; blk_size*count as usize];
+        file.write(size.as_slice()).unwrap();
+        file.sync_all().unwrap();
+        let idx_first_new =  (file.metadata().unwrap().len() / blk_size as u64) - 1 ;
+        (idx_first_new..(idx_first_new + count as u64)).map(|idx|
+            BlockId::new(filepath.as_str(),idx)).collect()
+    }
+
     fn get_file(&mut self, filename: &str) -> &mut File {
         self.open_files
             .entry(filename.to_string())

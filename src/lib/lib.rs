@@ -9,4 +9,4 @@ pub mod common;
 mod database;
 pub mod schema;
 pub mod storage;
-mod table;
+pub mod table;

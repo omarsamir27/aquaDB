@@ -50,6 +50,10 @@ impl StorageManager {
         self.block_manager.extend_file(filename)
     }
 
+    pub fn extend_file_many(&mut self,filename:&str,count:u32) -> Vec<BlockId>{
+        self.block_manager.extend_file_many(filename,count)
+    }
+
     pub fn read_raw(&mut self, blockid: &BlockId, byte_count: usize) -> Vec<u8> {
         self.block_manager.read_raw(blockid, byte_count)
     }

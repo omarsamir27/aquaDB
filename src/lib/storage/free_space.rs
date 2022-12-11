@@ -1,6 +1,6 @@
 use crate::common::btree_multimap::BTreeMultimap;
 use crate::storage::blockid::BlockId;
-
+#[derive(Debug)]
 pub struct FreeMap {
     btree: BTreeMultimap<u16, BlockId>,
 }

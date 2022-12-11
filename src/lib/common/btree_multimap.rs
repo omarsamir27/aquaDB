@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
 use std::ops::Range;
 
+#[derive(Debug)]
 pub struct BTreeMultimap<T, U> {
     btreemap: BTreeMap<T, Vec<U>>,
 }

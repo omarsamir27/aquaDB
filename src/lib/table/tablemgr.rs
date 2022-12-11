@@ -9,8 +9,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-struct TableManager {
-    free_map: FreeMap,
+pub struct TableManager {
+    pub free_map: FreeMap,
     // heap_pages: HashMap<BlockId, HeapPage>,
     table_blocks: Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
@@ -18,7 +18,7 @@ struct TableManager {
 }
 
 impl TableManager {
-    fn new(
+    pub fn new(
         blocks: Vec<BlockId>,
         storage_mgr: Rc<RefCell<StorageManager>>,
         free_map: Option<FreeMap>,
