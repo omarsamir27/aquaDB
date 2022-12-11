@@ -25,10 +25,14 @@ impl Schema {
     pub fn to_layout(&self) -> Layout{
         Layout::new(self)
     }
+
+    pub fn fields(&self) -> Vec<Field> {
+        self.fields.to_vec()
+    }
 }
 
-
-struct Field {
+#[derive(Clone)]
+pub struct Field {
     name: String,
     field_type: Type,
     nullable: bool,
@@ -43,6 +47,18 @@ impl Field {
             nullable,
             char_limit,
         }
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn field_type(&self) -> Type {
+        self.field_type
+    }
+    pub fn nullable(&self) -> bool {
+        self.nullable
+    }
+    pub fn char_limit(&self) -> Option<u32> {
+        self.char_limit
     }
 }
 #[derive(Debug)]

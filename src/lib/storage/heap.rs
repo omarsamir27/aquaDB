@@ -18,9 +18,10 @@ use crate::storage::tuple::Tuple;
 // #[cfg(target_pointer_width = "64")]
 // const USIZE_LENGTH :usize = 4 ;
 
-struct PageHeader {
-    space_start: usize,
-    space_end: usize,
+#[derive(Debug, PartialEq)]
+pub struct PageHeader {
+    pub space_start: usize,
+    pub space_end: usize,
 }
 
 impl PageHeader {
@@ -32,7 +33,7 @@ impl PageHeader {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TuplePointer {
     offset: usize,
     size: u16,
@@ -62,11 +63,12 @@ impl TuplePointer {
     }
 }
 
+#[derive(Debug)]
 pub struct HeapPage {
     //tx_id,layout,schema
     blk: BlockId,
     pub frame: FrameRef,
-    header: PageHeader,
+    pub header: PageHeader,
     tuple_pointers: Vec<TuplePointer>,
     layout: Rc<Layout>,
     vacuuming:bool
@@ -126,9 +128,9 @@ impl HeapPage {
         let size = pointer.size;
         frame.page.payload[offset..(offset + size as usize)].to_vec()
     }
-    pub fn init_heap(frame: &FrameRef) {
-        let header = [4_u16.to_ne_bytes(), 4_u16.to_ne_bytes()].concat();
+    fn init_heap(frame: &FrameRef) {
         let mut frame = frame.borrow_mut();
+        let header = [4_u16.to_ne_bytes(), ((frame.page.payload.len()-1) as u16).to_ne_bytes()].concat();
         frame.update_replace_stats();
         frame.page.write_bytes(header.as_slice(), 0);
     }
@@ -163,23 +165,30 @@ impl HeapPage {
             let tuple_pointer = self.tuple_pointers.get_mut(pointer_pos.unwrap()).unwrap();
             tuple_pointer.offset = self.header.space_end - tuple_size as usize;
             tuple_pointer.size = tuple_size;
+            self.header.space_end = tuple_pointer.offset;
             (tuple_pointer.clone().to_bytes(), pointer_pos.unwrap())
         } else {
             let mut tuple_pointer =
                 TuplePointer::new(self.header.space_end - tuple_size as usize, tuple_size);
             self.header.space_start += 4;
+            self.header.space_end = tuple_pointer.offset;
             self.tuple_pointers.push(tuple_pointer.clone());
             (tuple_pointer.to_bytes(), self.tuple_pointers.len())
         };
         let mut borrowed_frame = self.frame.borrow_mut();
         borrowed_frame.update_replace_stats();
         borrowed_frame
-            .page
-            .write_bytes(tuple_pointer_bytes.as_slice(), (index * 4 + 4) as u64);
-        borrowed_frame.page.write_bytes(
+            .write_at(tuple_pointer_bytes.as_slice(), (index * 4) as u64);
+        // borrowed_frame.page.write_bytes(
+        //     tuple.to_bytes().as_slice(),
+        //     self.header.space_end as u64 - tuple_size as u64,
+        // );
+        borrowed_frame.write_at(
             tuple.to_bytes().as_slice(),
-            self.header.space_end as u64 - tuple_size as u64,
-        )
+            self.header.space_end as u64 - tuple_size as u64);
+        borrowed_frame.write_at((self.header.space_start as u16).to_ne_bytes().as_slice(), 0);
+        borrowed_frame.write_at((self.header.space_end as u16).to_ne_bytes().as_slice(), 2);
+
     }
     pub fn vacuum(&mut self) {
         self.vacuuming = true;
@@ -222,6 +231,7 @@ impl HeapPage {
             .write_bytes(new_page.payload.as_slice(), 0);
         self.header.space_start = space_start as usize;
         self.header.space_end = space_end as usize;
+        self.vacuuming = false;
     }
     pub fn page_iter(&self) -> PageIter{
         PageIter{

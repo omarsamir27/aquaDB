@@ -4,6 +4,7 @@ use crate::storage::blkmgr::BlockManager;
 use crate::storage::blockid::BlockId;
 use crate::storage::page::Page;
 
+#[derive(Debug)]
 pub struct Frame {
     pub page: Page,
     pub num_pins: u32,

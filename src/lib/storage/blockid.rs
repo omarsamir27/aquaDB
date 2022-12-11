@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::{format, Display, Formatter};
 use std::hash::Hash;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BlockId {
     pub filename: String,
     pub block_num: u64,

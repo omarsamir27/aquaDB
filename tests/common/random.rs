@@ -1,4 +1,3 @@
-use std::ffi::c_int;
 use aqua::schema::types::{CharType, NumericType, Type};
 use aqua::schema::schema::Schema;
 use rand::{Rng, thread_rng};
@@ -42,10 +41,15 @@ impl RandomTypeBytes for Type{
     }
 }
 
-fn generate_random_tuple(schema:&Vec<(&str,Type)>) -> Vec<(String,Vec<u8>)>{
+fn generate_random_tuple(schema:&Vec<(String,Type)>) -> Vec<(String,Vec<u8>)>{
     schema.iter().map(|(name,fldtype)| (name.to_string(),fldtype.random())).collect()
 }
 
-pub fn generate_random_tuples(schema:&Vec<(&str,Type)>,count:u32) -> Vec<Vec<(String,Vec<u8>)>>{
+pub fn generate_random_tuples(schema:&Vec<(String,Type)>,count:u32) -> Vec<Vec<(String,Vec<u8>)>>{
     vec![ generate_random_tuple(schema);count as usize ]
+}
+
+pub fn distill_schema(schema: Schema) -> Vec<(String,Type)> {
+    let fields = schema.fields();
+    fields.into_iter().map(|field| (field.name().to_string(), field.field_type())).collect()
 }

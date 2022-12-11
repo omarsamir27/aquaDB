@@ -7,17 +7,17 @@ use common::random;
 use aqua::schema::types::Type;
 
 // #[test]
-// fn tuple_creation(){
-//     let schema = vec![
-//         ("id",Type::Numeric(SmallInt)),
-//         ("name",Type::Character(VarChar)),
-//         ("salary",Type::Numeric(Integer))
-//     ];
-//     let tups = random::generate_random_tuples(&schema,100);
-//     for t in tups{
-//         println!("{:?}",&t);
-//     }
-// }
+fn tuple_creation(){
+    let schema = vec![
+        ("id",Type::Numeric(SmallInt)),
+        ("name",Type::Character(VarChar)),
+        ("salary",Type::Numeric(Integer))
+    ];
+    let tups = random::generate_random_tuples(&schema,100);
+    for t in tups{
+        println!("{:?}",&t);
+    }
+}
 
 #[test]
 fn layout_test(){

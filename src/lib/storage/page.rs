@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter, Pointer};
 use positioned_io2::WriteAt;
 
 pub struct Page {
@@ -16,4 +17,10 @@ impl Page {
     }
 
     fn format(&mut self) {}
+}
+
+impl Debug for Page {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
+    }
 }
