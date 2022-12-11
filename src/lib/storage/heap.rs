@@ -179,13 +179,9 @@ impl HeapPage {
         borrowed_frame.update_replace_stats();
         borrowed_frame
             .write_at(tuple_pointer_bytes.as_slice(), (index * 4) as u64);
-        // borrowed_frame.page.write_bytes(
-        //     tuple.to_bytes().as_slice(),
-        //     self.header.space_end as u64 - tuple_size as u64,
-        // );
         borrowed_frame.write_at(
             tuple.to_bytes().as_slice(),
-            self.header.space_end as u64 - tuple_size as u64);
+            self.header.space_end as u64);
         borrowed_frame.write_at((self.header.space_start as u16).to_ne_bytes().as_slice(), 0);
         borrowed_frame.write_at((self.header.space_end as u16).to_ne_bytes().as_slice(), 2);
 
@@ -266,98 +262,4 @@ impl<'page> PageIter<'page> {
 
 }
 
-// pub struct HeapFile {
-//     free_space: FreeMap,
-//     pages: Vec<HeapPage>,
-//     layout: Rc<Layout>,
-//     filename: String,
-// }
-//
-// impl HeapFile {
-//     pub fn new(
-//         free_space: FreeMap,
-//         pages: Vec<HeapPage>,
-//         layout: Rc<Layout>,
-//         filename: String,
-//     ) -> Self {
-//         Self {
-//             free_space,
-//             pages,
-//             layout,
-//             filename,
-//         }
-//     }
-//     pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Vec<u8>)>) {
-//         let tuple = Tuple::new(tuple_bytes, self.layout.clone());
-//         let target_page = self.free_space.get_best_fit_block(tuple.tuple_size());
-//         let mut target_page = self
-//             .pages
-//             .iter_mut()
-//             .find(|page| page.blk == *target_page.as_ref().unwrap())
-//             .unwrap();
-//         target_page.insert_tuple(tuple);
-//     }
-//
-//     fn vacuum(&mut self, heap_page: &mut HeapPage) {
-//         let mut new_page = Page::new(4096);
-//         let mut space_start = 4_u16;
-//         let mut space_end = 4095_u16;
-//         for mut tuple_pointer_index in 0..heap_page.tuple_pointers.len() {
-//             let tuple = heap_page.get_tuple(tuple_pointer_index);
-//             if tuple[0] == 1 {
-//                 heap_page.tuple_pointers[tuple_pointer_index].offset = 0;
-//                 heap_page.tuple_pointers[tuple_pointer_index].size = 0;
-//                 new_page.write_bytes(
-//                     heap_page.tuple_pointers[tuple_pointer_index]
-//                         .clone()
-//                         .to_bytes()
-//                         .as_slice(),
-//                     space_start as u64,
-//                 );
-//                 space_start += 4;
-//             } else {
-//                 let tuple_len = tuple.len() as u16;
-//                 new_page.write_bytes(tuple.as_slice(), (space_end - tuple_len) as u64);
-//                 heap_page.tuple_pointers[tuple_pointer_index].offset =
-//                     (space_end - tuple_len) as usize;
-//                 new_page.write_bytes(
-//                     heap_page.tuple_pointers[tuple_pointer_index]
-//                         .clone()
-//                         .to_bytes()
-//                         .as_slice(),
-//                     space_start as u64,
-//                 );
-//                 space_start += 4;
-//                 space_end -= tuple_len;
-//             }
-//         }
-//         new_page.write_bytes(space_start.to_ne_bytes().as_slice(), 0);
-//         new_page.write_bytes(space_end.to_ne_bytes().as_slice(), 2);
-//         heap_page
-//             .frame
-//             .borrow_mut()
-//             .page
-//             .write_bytes(new_page.payload.as_slice(), 0);
-//         heap_page.header.space_start = space_start as usize;
-//         heap_page.header.space_end = space_end as usize;
-//     }
-// }
 
-// pub struct FreeMap {
-//     btree: BTreeMultiMap<u16, BlockId>,
-// }
-//
-// impl FreeMap {
-//     pub fn new(btree: BTreeMultiMap<u16, BlockId>) -> Self {
-//         Self { btree }
-//     }
-//
-//     pub fn get_best_fit_block(&mut self, tuple_size: u16) -> Option<BlockId> {
-//         let mut iterator = self.btree.iter_mut();
-//         let value = iterator.find(|(&k, _)| k >= tuple_size);
-//         match value {
-//             Some((_, blk)) => Some(blk.to_owned()),
-//             None => None,
-//         }
-//     }
-// }

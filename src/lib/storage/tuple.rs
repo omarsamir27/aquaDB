@@ -33,9 +33,7 @@ impl Tuple {
 
     pub(crate) fn to_bytes(self) -> Vec<u8> {
         let size = self.tuple_size() + 1;
-        let mut tuple = vec![0_u8; size as usize];
-        tuple[0] = 0;
-
+        let mut tuple = vec![0;size as usize];
         let (constants, varchars): (Vec<(String, Vec<u8>)>, Vec<(String, Vec<u8>)>) = self
             .data
             .into_iter()
@@ -52,10 +50,10 @@ impl Tuple {
         for field in varchars {
             let (fieldtype, offset) = self.layout.field_data(field.0.as_str());
             tuple.write_at(offset as u64, curr_string_start.to_ne_bytes().as_slice());
-            tuple.write_at((offset + 2) as u64, field.1.len().to_ne_bytes().as_slice());
+            tuple.write_at((offset + 2) as u64, (field.1.len() as u16).to_ne_bytes().as_slice());
             tuple.write_at(curr_string_start as u64, field.1.as_slice());
             curr_string_start += field.1.len() as u16;
-        }
+        };
         tuple
     }
 }

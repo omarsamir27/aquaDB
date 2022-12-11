@@ -122,19 +122,19 @@ fn write_read_tuples() {
             ("salary".to_string(), 5000_u32.to_ne_bytes().to_vec()),
             ("job".to_string(), "Engineer".to_string().as_bytes().to_vec())
         ],
-        // vec![
-        //     ("id".to_string(), 101_u16.to_ne_bytes().to_vec()),
-        //     ("name".to_string(), "Abdallah".to_string().as_bytes().to_vec()),
-        //     ("salary".to_string(), 5000_u32.to_ne_bytes().to_vec()),
-        //     ("job".to_string(), "Student".to_string().as_bytes().to_vec())
-        // ]
+        vec![
+            ("id".to_string(), 101_u16.to_ne_bytes().to_vec()),
+            ("name".to_string(), "Abdallah".to_string().as_bytes().to_vec()),
+            ("salary".to_string(), 5000_u32.to_ne_bytes().to_vec()),
+            ("job".to_string(), "Student".to_string().as_bytes().to_vec())
+        ]
     ];
     for tuple in tuples {
         let tuple = Tuple::new(tuple, layout.clone());
         heap_page.insert_tuple(tuple)
     }
     storagemgr.flush_frame(heap_page.frame.clone());
-    println!("{:?}", heap_page);
-    let retrieved_name = heap_page.get_field("job", 0);
-    println!("{:?}", retrieved_name);
+    // println!("{:?}", heap_page);
+    let retrieved_name = heap_page.get_field("name", 1);
+    println!("{:?}", String::from_utf8(retrieved_name).unwrap());
 }
