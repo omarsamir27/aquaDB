@@ -89,7 +89,7 @@ fn filling_page(){
 
 #[test]
 fn write_read_tuples() {
-    let test_file = "filling_page";
+    let test_file = "write_read_tuples";
     let BLK_SIZE = 4096;
     let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE,100);
     let blk = BlockId {
@@ -114,7 +114,7 @@ fn write_read_tuples() {
     let layout = schema.to_layout();
     let layout = Rc::new(layout);
     let frame = storagemgr.pin(blk.clone()).unwrap();
-    let mut heap_page = HeapPage::new_from_empty(frame, &blk, layout.clone());
+    let mut heap_page = HeapPage::new_from_empty(frame.clone(), &blk, layout.clone());
     let tuples = vec![
         vec![
             ("id".to_string(), 100_u16.to_ne_bytes().to_vec()),
@@ -122,19 +122,24 @@ fn write_read_tuples() {
             ("salary".to_string(), 5000_u32.to_ne_bytes().to_vec()),
             ("job".to_string(), "Engineer".to_string().as_bytes().to_vec())
         ],
-        // vec![
-        //     ("id".to_string(), 101_u16.to_ne_bytes().to_vec()),
-        //     ("name".to_string(), "Abdallah".to_string().as_bytes().to_vec()),
-        //     ("salary".to_string(), 5000_u32.to_ne_bytes().to_vec()),
-        //     ("job".to_string(), "Student".to_string().as_bytes().to_vec())
-        // ]
+        vec![
+            ("id".to_string(), 101_u16.to_ne_bytes().to_vec()),
+            ("name".to_string(), "Abdallah".to_string().as_bytes().to_vec()),
+            ("salary".to_string(), 5000_u32.to_ne_bytes().to_vec()),
+            ("job".to_string(), "Student".to_string().as_bytes().to_vec())
+        ]
     ];
     for tuple in tuples {
         let tuple = Tuple::new(tuple, layout.clone());
         heap_page.insert_tuple(tuple)
     }
-    storagemgr.flush_frame(heap_page.frame.clone());
-    println!("{:?}", heap_page);
-    let retrieved_name = heap_page.get_field("job", 0);
-    println!("{:?}", retrieved_name);
+    storagemgr.flush_frame(frame.clone());
+    let retrieved_name = heap_page.get_field("name", 0);
+    let retrieved_name = String::from_utf8(retrieved_name).unwrap();
+    assert_eq!(retrieved_name,"Omar".to_string())
+}
+
+#[test]
+fn vacuum(){
+
 }
