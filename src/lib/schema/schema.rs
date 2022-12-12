@@ -86,6 +86,9 @@ impl Layout {
     pub fn field_data(&self, field_name: &str) -> (Type, u16) {
         self.map.get(field_name).unwrap().clone()
     }
+    pub fn fields_count(&self) -> usize {
+        self.map.keys().len()
+    }
 }
 /*
    layout hashmap creation

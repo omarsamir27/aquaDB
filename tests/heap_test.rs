@@ -117,16 +117,16 @@ fn write_read_tuples() {
     let mut heap_page = HeapPage::new_from_empty(frame.clone(), &blk, layout.clone());
     let tuples = vec![
         vec![
-            ("id".to_string(), 100_u16.to_ne_bytes().to_vec()),
-            ("name".to_string(), "Omar".to_string().as_bytes().to_vec()),
-            ("salary".to_string(), 5000_u32.to_ne_bytes().to_vec()),
-            ("job".to_string(), "Engineer".to_string().as_bytes().to_vec())
+            ("id".to_string(), Some(100_u16.to_ne_bytes().to_vec())),
+            ("name".to_string(), Some("Omar".to_string().as_bytes().to_vec())),
+            ("salary".to_string(), Some(5000_u32.to_ne_bytes().to_vec())),
+            ("job".to_string(), Some("Engineer".to_string().as_bytes().to_vec()))
         ],
         vec![
-            ("id".to_string(), 101_u16.to_ne_bytes().to_vec()),
-            ("name".to_string(), "Abdallah".to_string().as_bytes().to_vec()),
-            ("salary".to_string(), 5000_u32.to_ne_bytes().to_vec()),
-            ("job".to_string(), "Student".to_string().as_bytes().to_vec())
+            ("id".to_string(), Some(101_u16.to_ne_bytes().to_vec())),
+            ("name".to_string(), Some("Abdallah".to_string().as_bytes().to_vec())),
+            ("salary".to_string(), Some(5000_u32.to_ne_bytes().to_vec())),
+            ("job".to_string(), Some("Student".to_string().as_bytes().to_vec()))
         ]
     ];
     for tuple in tuples {

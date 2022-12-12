@@ -41,11 +41,11 @@ impl RandomTypeBytes for Type{
     }
 }
 
-fn generate_random_tuple(schema:&Vec<(String,Type)>) -> Vec<(String,Vec<u8>)>{
+fn generate_random_tuple(schema:&Vec<(String,Type)>) -> Vec<(String,Option<Vec<u8>>)>{
     schema.iter().map(|(name,fldtype)| (name.to_string(),fldtype.random())).collect()
 }
 
-pub fn generate_random_tuples(schema:&Vec<(String,Type)>,count:u32) -> Vec<Vec<(String,Vec<u8>)>>{
+pub fn generate_random_tuples(schema:&Vec<(String,Type)>,count:u32) -> Vec<Vec<(String,Option<Vec<u8>>)>>{
     vec![ generate_random_tuple(schema);count as usize ]
 }
 
