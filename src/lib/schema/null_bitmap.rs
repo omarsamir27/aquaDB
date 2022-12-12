@@ -17,7 +17,22 @@ impl NullBitMap {
     pub fn set_null_field(&mut self, fld_index: usize) {
         self.bitmap[fld_index/8] |= 1 << fld_index;
     }
+
     pub fn bitmap(&mut self) -> &mut Vec<u8> {
         &mut self.bitmap
+    }
+
+    pub fn get_null_indexes(&self) -> Vec<u8> {
+        let mut index = 0_u8;
+        let mut indexes = Vec::new();
+        for byte in self.bitmap {
+            for bit in byte {
+                if ((byte >> bit) & 1) == 1 {
+                    indexes.push(index);
+                }
+                index += 1;
+            }
+        }
+        indexes
     }
 }

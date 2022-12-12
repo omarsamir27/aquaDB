@@ -108,6 +108,9 @@ impl HeapPage {
         let pointer = &self.tuple_pointers[index as usize];
         let mut frame = self.frame.borrow_mut();
         frame.update_replace_stats();
+        // pointer.offset + 1 + bitmap.len
+        // read bitmap and extract nulls
+        // some magic to get new offset (start_byte)
         let tuple = &frame.page.payload[pointer.offset + 1..(pointer.offset + pointer.size as usize)];
         field_type.read_from_tuple(tuple, start_byte).to_vec()
     }
