@@ -65,7 +65,7 @@ impl BufferManager {
         }
         frame.num_pins += 1;
         // frame.timestamp = Some(Utc::now().timestamp_millis());
-        debug_print::debug_println!("buffer position chosen : {}",idx);
+        debug_print::debug_println!("buffer position chosen : {}", idx);
         Some(idx)
     }
 
@@ -131,15 +131,15 @@ impl BufferManager {
 
     pub fn lirs_victim(&self) -> Option<usize> {
         let now = Utc::now().timestamp_millis();
-        let victim= self
+        let victim = self
             .frame_pool
             .iter()
             .filter(|&frame| frame.borrow().is_free())
             .enumerate()
             .max_by_key(|&(x, y)| y.borrow().lirs_weight(now));
         match victim {
-            None => None ,
-            Some((idx,_)) => Some(idx)
+            None => None,
+            Some((idx, _)) => Some(idx),
         }
     }
 

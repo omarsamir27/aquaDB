@@ -2,7 +2,7 @@ use crate::common::numerical::ByteMagic;
 use crate::schema::types::CharType::VarChar;
 use std::ops::Add;
 
-#[derive(Clone, Copy, PartialEq,Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum NumericType {
     SmallInt,
     Integer,
@@ -39,7 +39,7 @@ impl NumericType {
     }
 }
 
-#[derive(Clone, Copy, PartialEq,Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum CharType {
     Char,
     VarChar,
@@ -57,7 +57,7 @@ impl CharType {
     }
 }
 
-#[derive(Clone, Copy, PartialEq,Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Type {
     Numeric(NumericType),
     Character(CharType),

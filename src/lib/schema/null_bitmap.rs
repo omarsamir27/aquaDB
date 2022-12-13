@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use crate::schema::schema::Layout;
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct NullBitMap {
@@ -9,10 +9,12 @@ pub struct NullBitMap {
 impl NullBitMap {
     pub fn new(layout: Rc<Layout>) -> Self {
         let field_count = layout.fields_count();
-        Self{bitmap: vec![0_u8; f32::ceil(field_count as f32/8.0) as usize]}
+        Self {
+            bitmap: vec![0_u8; f32::ceil(field_count as f32 / 8.0) as usize],
+        }
     }
     pub fn set_null_field(&mut self, fld_index: usize) {
-        self.bitmap[fld_index/8] |= 1 << fld_index;
+        self.bitmap[fld_index / 8] |= 1 << fld_index;
     }
 
     pub fn bitmap(&mut self) -> &mut Vec<u8> {
@@ -43,7 +45,7 @@ impl NullBitMap {
     }
 
     pub fn get_bit(&self, index: usize) -> u8 {
-        let byte = index/8;
+        let byte = index / 8;
         self.bitmap[byte] >> index % 8 & 1
     }
 }

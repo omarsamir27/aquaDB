@@ -1,5 +1,6 @@
 // use std::borrow::BorrowMut;
 use crate::common::numerical::ByteMagic;
+use crate::schema::null_bitmap::NullBitMap;
 use crate::schema::schema::Layout;
 use crate::storage::blockid::BlockId;
 use crate::storage::buffermgr::FrameRef;
@@ -8,7 +9,6 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::schema::null_bitmap::NullBitMap;
 // use crate::storage::frame::Frame;
 use crate::storage::page::Page;
 use crate::storage::tuple::Tuple;
@@ -72,7 +72,7 @@ pub struct HeapPage {
     pub header: PageHeader,
     tuple_pointers: Vec<TuplePointer>,
     layout: Rc<Layout>,
-    vacuuming:bool
+    vacuuming: bool,
 }
 
 impl HeapPage {
@@ -99,7 +99,7 @@ impl HeapPage {
             header,
             tuple_pointers,
             layout,
-            vacuuming:false
+            vacuuming: false,
         }
     }
 
@@ -114,16 +114,24 @@ impl HeapPage {
         bitmap.read_bitmap(&tuple[1..(bitmap_len + 1)]);
         let field_index = *self.layout.index_map().get(field_name).unwrap() as usize;
         if bitmap.is_null(field_index) {
-            return None
+            return None;
         }
         let (field_type, mut start_byte) = self.layout.field_data(field_name);
         let name_map = self.layout.name_map();
         for bit in 0..field_index {
             start_byte -= (bitmap.get_bit(bit)
-                * (self.layout.field_data(name_map.get(&(bit as u8)).unwrap())
-                .0.unit_size().unwrap()) as u8) as u16;
+                * (self
+                    .layout
+                    .field_data(name_map.get(&(bit as u8)).unwrap())
+                    .0
+                    .unit_size()
+                    .unwrap()) as u8) as u16;
         }
-        Some(field_type.read_from_tuple(&tuple[1+bitmap_len..], start_byte).to_vec())
+        Some(
+            field_type
+                .read_from_tuple(&tuple[1 + bitmap_len..], start_byte)
+                .to_vec(),
+        )
     }
     pub fn mark_delete(&self, slot_num: usize) {
         let pointer = &self.tuple_pointers[slot_num];
@@ -144,7 +152,11 @@ impl HeapPage {
     }
     fn init_heap(frame: &FrameRef) {
         let mut frame = frame.borrow_mut();
-        let header = [4_u16.to_ne_bytes(), ((frame.page.payload.len()) as u16).to_ne_bytes()].concat();
+        let header = [
+            4_u16.to_ne_bytes(),
+            ((frame.page.payload.len()) as u16).to_ne_bytes(),
+        ]
+        .concat();
         frame.update_replace_stats();
         frame.page.write_bytes(header.as_slice(), 0);
     }
@@ -153,15 +165,14 @@ impl HeapPage {
         HeapPage::new(frame, blk, layout)
     }
 
-    pub fn pointer_and_tuple_exist(&self,tuple_pointer:usize) -> (bool,bool){
-        match self.tuple_pointers.get(tuple_pointer){
-            None => (false,false),
-            Some(tuple) => (true,tuple.size != 0)
+    pub fn pointer_and_tuple_exist(&self, tuple_pointer: usize) -> (bool, bool) {
+        match self.tuple_pointers.get(tuple_pointer) {
+            None => (false, false),
+            Some(tuple) => (true, tuple.size != 0),
         }
-
     }
 
-    pub fn pointer_count(&self) -> usize{
+    pub fn pointer_count(&self) -> usize {
         self.tuple_pointers.len()
     }
     pub fn insert_tuple(&mut self, tuple: Tuple) {
@@ -191,14 +202,10 @@ impl HeapPage {
         };
         let mut borrowed_frame = self.frame.borrow_mut();
         borrowed_frame.update_replace_stats();
-        borrowed_frame
-            .write_at(tuple_pointer_bytes.as_slice(), (index * 4) as u64);
-        borrowed_frame.write_at(
-            tuple.to_bytes().as_slice(),
-            self.header.space_end as u64);
+        borrowed_frame.write_at(tuple_pointer_bytes.as_slice(), (index * 4) as u64);
+        borrowed_frame.write_at(tuple.to_bytes().as_slice(), self.header.space_end as u64);
         borrowed_frame.write_at((self.header.space_start as u16).to_ne_bytes().as_slice(), 0);
         borrowed_frame.write_at((self.header.space_end as u16).to_ne_bytes().as_slice(), 2);
-
     }
     pub fn vacuum(&mut self) {
         self.vacuuming = true;
@@ -243,37 +250,35 @@ impl HeapPage {
         self.header.space_end = space_end as usize;
         self.vacuuming = false;
     }
-    pub fn page_iter(&self) -> PageIter{
-        PageIter{
-            current_slot:0,
-            page:&self
+    pub fn page_iter(&self) -> PageIter {
+        PageIter {
+            current_slot: 0,
+            page: &self,
         }
     }
 }
 
 pub struct PageIter<'page> {
-    current_slot : u16,
-    page : &'page HeapPage
+    current_slot: u16,
+    page: &'page HeapPage,
 }
 
 impl<'page> PageIter<'page> {
-    pub fn next(&mut self) -> Option<Vec<u8>>{
-        if self.current_slot == (self.page.tuple_pointers.len() - 1) as u16{ return None}
-        while self.current_slot != self.page.tuple_pointers.len() as u16  {
+    pub fn next(&mut self) -> Option<Vec<u8>> {
+        if self.current_slot == (self.page.tuple_pointers.len() - 1) as u16 {
+            return None;
+        }
+        while self.current_slot != self.page.tuple_pointers.len() as u16 {
             if self.page.tuple_pointers[self.current_slot as usize].size != 0 {
-                let tuple =  Some(self.page.get_tuple(self.current_slot as usize));
+                let tuple = Some(self.page.get_tuple(self.current_slot as usize));
                 self.current_slot += 1;
-                return tuple
+                return tuple;
             }
             self.current_slot += 1;
-
         }
         None
     }
-    pub fn has_next(&self) -> bool{
-        self.current_slot != (self.page.tuple_pointers.len() -1 ) as u16
+    pub fn has_next(&self) -> bool {
+        self.current_slot != (self.page.tuple_pointers.len() - 1) as u16
     }
-
 }
-
-

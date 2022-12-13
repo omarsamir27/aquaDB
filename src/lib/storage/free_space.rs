@@ -19,4 +19,8 @@ impl FreeMap {
     pub fn get_smallest_fit(&mut self, tuple_size: u16) -> Option<(u16, BlockId)> {
         self.btree.pop_first_range(tuple_size..(tuple_size + 20))
     }
+
+    pub fn btree(&self) -> &BTreeMultimap<u16, BlockId> {
+        &self.btree
+    }
 }

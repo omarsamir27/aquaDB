@@ -6,7 +6,6 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::path::PathBuf;
 
-
 struct DatabaseInfo {
     db_dir: PathBuf,
     block_size: usize,
@@ -29,7 +28,7 @@ pub struct StorageManager {
 }
 
 impl StorageManager {
-    pub fn new(db_dir: &str, block_size: usize,max_buffer_slots:u32) -> Self {
+    pub fn new(db_dir: &str, block_size: usize, max_buffer_slots: u32) -> Self {
         Self {
             database_info: DatabaseInfo::new(db_dir, block_size),
             buffer_manager: BufferManager::new(block_size, max_buffer_slots),
@@ -50,8 +49,8 @@ impl StorageManager {
         self.block_manager.extend_file(filename)
     }
 
-    pub fn extend_file_many(&mut self,filename:&str,count:u32) -> Vec<BlockId>{
-        self.block_manager.extend_file_many(filename,count)
+    pub fn extend_file_many(&mut self, filename: &str, count: u32) -> Vec<BlockId> {
+        self.block_manager.extend_file_many(filename, count)
     }
 
     pub fn read_raw(&mut self, blockid: &BlockId, byte_count: usize) -> Vec<u8> {

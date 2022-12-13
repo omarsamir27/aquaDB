@@ -78,7 +78,7 @@ impl TableManager {
         TableIter::new(
             &self.table_blocks,
             self.storage_mgr.clone(),
-            self.layout.clone()
+            self.layout.clone(),
         )
     }
 }
@@ -87,47 +87,54 @@ struct TableIter<'tblmgr> {
     table_blocks: &'tblmgr Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
     layout: Rc<Layout>,
-    current_block_index : usize,
-    current_page : HeapPage,
+    current_block_index: usize,
+    current_page: HeapPage,
     current_tuple_index: usize,
-    current_page_pointer_count : usize
+    current_page_pointer_count: usize,
 }
-impl<'tblmgr> TableIter<'tblmgr>{
-    pub fn new(table_blocks:&'tblmgr  Vec<BlockId>,storage_mgr:Rc<RefCell<StorageManager>>,layout:Rc<Layout>)-> Self{
-        let frame = storage_mgr.borrow_mut().pin(table_blocks[0].clone()).unwrap();
-        let heap_page = HeapPage::new(frame,&table_blocks[0],layout.clone());
-        Self{
+impl<'tblmgr> TableIter<'tblmgr> {
+    pub fn new(
+        table_blocks: &'tblmgr Vec<BlockId>,
+        storage_mgr: Rc<RefCell<StorageManager>>,
+        layout: Rc<Layout>,
+    ) -> Self {
+        let frame = storage_mgr
+            .borrow_mut()
+            .pin(table_blocks[0].clone())
+            .unwrap();
+        let heap_page = HeapPage::new(frame, &table_blocks[0], layout.clone());
+        Self {
             table_blocks,
             storage_mgr,
             layout,
-            current_block_index:0,
-            current_tuple_index :0,
-            current_page_pointer_count : heap_page.pointer_count(),
-            current_page : heap_page,
+            current_block_index: 0,
+            current_tuple_index: 0,
+            current_page_pointer_count: heap_page.pointer_count(),
+            current_page: heap_page,
         }
     }
 
-    fn next(&mut self) -> Option<Vec<u8>>{
-        while self.current_block_index != (self.table_blocks.len() -1) {
+    fn next(&mut self) -> Option<Vec<u8>> {
+        while self.current_block_index != (self.table_blocks.len() - 1) {
             while self.current_tuple_index < self.current_page_pointer_count {
-                let (pointer_exist, tuple_exist) =
-                    self.current_page.pointer_and_tuple_exist(self.current_tuple_index);
-                if tuple_exist{
+                let (pointer_exist, tuple_exist) = self
+                    .current_page
+                    .pointer_and_tuple_exist(self.current_tuple_index);
+                if tuple_exist {
                     let tuple = self.current_page.get_tuple(self.current_tuple_index);
                     self.current_tuple_index += 1;
-                    return Some(tuple)
+                    return Some(tuple);
                 }
                 self.current_tuple_index += 1;
             }
             self.current_tuple_index = 0;
-            self.current_block_index +=1;
+            self.current_block_index += 1;
             let mut storage_mgr = self.storage_mgr.borrow_mut();
             storage_mgr.unpin(self.current_page.frame.clone());
             let block = &self.table_blocks[self.current_block_index];
             let frame = storage_mgr.pin(block.clone()).unwrap();
-            self.current_page = HeapPage::new(frame,block,self.layout.clone());
+            self.current_page = HeapPage::new(frame, block, self.layout.clone());
         }
         None
     }
-
 }

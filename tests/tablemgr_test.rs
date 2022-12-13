@@ -1,27 +1,32 @@
 mod common;
 
-use std::cell::RefCell;
-use std::rc::Rc;
 use aqua::storage::storagemgr::StorageManager;
 use aqua::table::tablemgr::TableManager;
+use aqua::RcRefCell;
 use common::utils;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 const db_dir: &str = "tests/db/";
 
+#[test]
+fn freemap() {
+    let test_file = "freemap_test_blks";
+    let BLK_SIZE = 4096;
+    let layout = Rc::new(utils::some_layout());
+    let file_blocks = utils::empty_heapfile(db_dir, test_file, BLK_SIZE, 10, layout.clone());
+    let storagemgr = RcRefCell!(StorageManager::new(db_dir, BLK_SIZE, 100));
+    let tblmgr = TableManager::new(file_blocks.clone(), storagemgr.clone(), None, layout.clone());
+    assert_eq!(tblmgr.free_map.btree().get(4090).unwrap(),&file_blocks)
+}
 
 #[test]
-fn freemap(){
+fn freemap() {
     let test_file = "freemap_test_blks";
-    let blks = utils::create_blockids(10,test_file);
     let BLK_SIZE = 4096;
-    let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE,100);
-    (0..blks.len()).for_each(|_| { storagemgr.extend_file_many(test_file,10); });
-    // Init as heap page , flush then test
-    let storagemgr = Rc::new(RefCell::new(storagemgr));
-    let layout = utils::some_layout();
-    let layout = Rc::new(layout);
-    let tblmgr = TableManager::new(blks,storagemgr.clone(),None,layout.clone());
-    println!("{:?}",tblmgr.free_map)
-
-
+    let layout = Rc::new(utils::some_layout());
+    let file_blocks = utils::empty_heapfile(db_dir, test_file, BLK_SIZE, 10, layout.clone());
+    let storagemgr = RcRefCell!(StorageManager::new(db_dir, BLK_SIZE, 100));
+    let tblmgr = TableManager::new(file_blocks.clone(), storagemgr.clone(), None, layout.clone());
+    assert_eq!(tblmgr.free_map.btree().get(4090).unwrap(),&file_blocks)
 }

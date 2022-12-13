@@ -1,8 +1,8 @@
-use std::cmp::max;
-use chrono::Utc;
 use crate::storage::blkmgr::BlockManager;
 use crate::storage::blockid::BlockId;
 use crate::storage::page::Page;
+use chrono::Utc;
+use std::cmp::max;
 
 #[derive(Debug)]
 pub struct Frame {
@@ -11,9 +11,9 @@ pub struct Frame {
     pub blockid: Option<BlockId>,
     pub dirty: bool,
     pub transaction_num: Option<u32>,
-    pub last_access_time:i64,
-    pub second_last_access_time : i64,
-    pub reuse_distance : i64,
+    pub last_access_time: i64,
+    pub second_last_access_time: i64,
+    pub reuse_distance: i64,
     //garbage_frame : bool
     // log sequence number
 }
@@ -27,8 +27,8 @@ impl Frame {
             dirty: false,
             transaction_num: None,
             last_access_time: -1,
-            second_last_access_time : -1 ,
-            reuse_distance : -1
+            second_last_access_time: -1,
+            reuse_distance: -1,
         }
     }
     #[inline(always)]
@@ -37,28 +37,27 @@ impl Frame {
     }
 
     #[inline(always)]
-    pub fn update_replace_stats(&mut self){
+    pub fn update_replace_stats(&mut self) {
         // self.timestamp = Some(Utc::now().timestamp_millis());
-        if self.last_access_time == -1{
+        if self.last_access_time == -1 {
             self.reuse_distance = i64::MAX;
-        }
-        else{
-            self.reuse_distance = self.last_access_time - self.second_last_access_time ;
+        } else {
+            self.reuse_distance = self.last_access_time - self.second_last_access_time;
         }
         self.second_last_access_time = self.last_access_time;
         self.last_access_time = Utc::now().timestamp_millis();
     }
 
     #[inline(always)]
-    pub fn reset_time_stats(&mut self){
+    pub fn reset_time_stats(&mut self) {
         self.second_last_access_time = -1;
         self.last_access_time = -1;
         self.reuse_distance = -1;
     }
 
     #[inline(always)]
-    pub fn lirs_weight(&self,utc_now:i64) -> i64{
-        max(self.reuse_distance,utc_now - self.last_access_time)
+    pub fn lirs_weight(&self, utc_now: i64) -> i64 {
+        max(self.reuse_distance, utc_now - self.last_access_time)
     }
 
     pub fn load_block(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) {

@@ -26,7 +26,7 @@ impl BlockManager {
         filepath.push_str(&blockid.filename.as_str());
         let file = self.get_file(filepath.as_str());
         let mut vec = vec![0_u8; byte_count];
-        file.read_exact(vec.as_mut_slice());
+        file.read_at(blockid.block_num * 4096, vec.as_mut());
         vec
     }
 
@@ -64,30 +64,38 @@ impl BlockManager {
         }
     }
 
-    pub fn extend_file_many(&mut self, filename: &str,count:u32) -> Vec<BlockId> {
+    pub fn extend_file_many(&mut self, filename: &str, count: u32) -> Vec<BlockId> {
         let blk_size = self.block_size;
         let mut filepath = String::from(self.db_dir.to_str().unwrap());
         filepath.push_str(filename);
         let file = self.get_file(filepath.as_str());
         file.seek(SeekFrom::End(0)).unwrap();
-        let size = vec![0 as u8; blk_size*count as usize];
+        let size = vec![0 as u8; blk_size * count as usize];
+        let idx_first_new = (file.metadata().unwrap().len() / blk_size as u64);
         file.write(size.as_slice()).unwrap();
         file.sync_all().unwrap();
-        let idx_first_new =  (file.metadata().unwrap().len() / blk_size as u64) - 1 ;
-        (idx_first_new..(idx_first_new + count as u64)).map(|idx|
-            BlockId::new(filepath.as_str(),idx)).collect()
+        (idx_first_new..(idx_first_new + count as u64))
+            .map(|idx| BlockId::new(filename, idx))
+            .collect()
     }
 
     fn get_file(&mut self, filename: &str) -> &mut File {
         self.open_files
             .entry(filename.to_string())
-            .or_insert_with(|| {
-                File::create(filename).unwrap();
-                File::options()
+            .or_insert_with(|| match Path::exists(filename.as_ref()) {
+                false => {
+                    File::create(filename).unwrap();
+                    File::options()
+                        .read(true)
+                        .write(true)
+                        .open(filename)
+                        .unwrap()
+                }
+                true => File::options()
                     .read(true)
                     .write(true)
                     .open(filename)
-                    .unwrap()
+                    .unwrap(),
             })
     }
 }

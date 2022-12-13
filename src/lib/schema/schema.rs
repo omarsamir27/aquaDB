@@ -15,14 +15,10 @@ impl Schema {
         nullable: bool,
         char_limit: Option<u32>,
     ) {
-        self.fields.push(Field::new(
-            name,
-            field_type,
-            nullable,
-            char_limit,
-        ))
+        self.fields
+            .push(Field::new(name, field_type, nullable, char_limit))
     }
-    pub fn to_layout(&self) -> Layout{
+    pub fn to_layout(&self) -> Layout {
         Layout::new(self)
     }
 
@@ -42,7 +38,7 @@ pub struct Field {
 impl Field {
     pub fn new(name: &str, field_type: Type, nullable: bool, char_limit: Option<u32>) -> Self {
         Self {
-            name:name.to_string(),
+            name: name.to_string(),
             field_type,
             nullable,
             char_limit,
@@ -105,7 +101,10 @@ impl Layout {
         &self.index_map
     }
     pub fn name_map(&self) -> HashMap<u8, String> {
-        self.index_map.iter().map(|(k, v)| (v.clone(), k.clone())).collect()
+        self.index_map
+            .iter()
+            .map(|(k, v)| (v.clone(), k.clone()))
+            .collect()
     }
 }
 /*

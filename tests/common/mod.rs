@@ -1,2 +1,2 @@
-pub mod utils;
 pub mod random;
+pub mod utils;

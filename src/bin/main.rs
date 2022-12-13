@@ -1,7 +1,5 @@
 #![allow(non_snake_case)]
 
-
-use std::rc::Rc;
 use aqua::schema::null_bitmap::NullBitMap;
 use aqua::schema::schema::Schema;
 use aqua::schema::types::CharType::VarChar;
@@ -11,9 +9,9 @@ use aqua::storage::blockid::BlockId;
 use aqua::storage::heap::HeapPage;
 use aqua::storage::storagemgr::StorageManager;
 use aqua::storage::tuple::Tuple;
+use std::rc::Rc;
 
 fn main() {
-
     // let mut schema = Schema::new();
     // let schema_vec = vec![
     //     ("id",Type::Numeric(SmallInt),false,None),
@@ -58,43 +56,38 @@ fn main() {
     // }
     // println!("{:?}", bitmap);
 
-
     const db_dir: &str = "tests/db/";
 
     let test_file = "write_read_tuples";
     let BLK_SIZE = 4096;
-    let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE,100);
+    let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE, 100);
     let blk = BlockId {
         filename: test_file.to_string(),
         block_num: 0,
     };
     let mut schema = Schema::new();
     let schema_vec = vec![
-        ("id",Type::Numeric(SmallInt),false,None),
-        ("name",Type::Character(VarChar),false,None),
-        ("salary",Type::Numeric(Integer),false,None),
-        ("job",Type::Character(VarChar),false,None)
+        ("id", Type::Numeric(SmallInt), false, None),
+        ("name", Type::Character(VarChar), false, None),
+        ("salary", Type::Numeric(Integer), false, None),
+        ("job", Type::Character(VarChar), false, None),
     ];
-    for attr in schema_vec{
-        schema.add_field(
-            attr.0,
-            attr.1,
-            attr.2,
-            attr.3
-        );
+    for attr in schema_vec {
+        schema.add_field(attr.0, attr.1, attr.2, attr.3);
     }
     let layout = schema.to_layout();
     let layout = Rc::new(layout);
     let frame = storagemgr.pin(blk.clone()).unwrap();
     let mut heap_page = HeapPage::new_from_empty(frame.clone(), &blk, layout.clone());
-    let tuples = vec![
-        vec![
-          ("id".to_string(), None),
-          ("name".to_string(), None),
-          ("salary".to_string(), Some(5000_u32.to_ne_bytes().to_vec())),
-          ("job".to_string(), Some("Engineer".to_string().as_bytes().to_vec()))
-        ]
-    ];
+    let tuples = vec![vec![
+        ("id".to_string(), None),
+        ("name".to_string(), None),
+        ("salary".to_string(), Some(5000_u32.to_ne_bytes().to_vec())),
+        (
+            "job".to_string(),
+            Some("Engineer".to_string().as_bytes().to_vec()),
+        ),
+    ]];
     for tuple in tuples {
         let tuple = Tuple::new(tuple, layout.clone());
         heap_page.insert_tuple(tuple)

@@ -1,5 +1,5 @@
-use std::fmt::{Debug, Formatter, Pointer};
 use positioned_io2::WriteAt;
+use std::fmt::{Debug, Formatter, Pointer};
 
 pub struct Page {
     pub payload: Vec<u8>,
