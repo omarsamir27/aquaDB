@@ -135,7 +135,7 @@ fn write_read_tuples() {
     }
     storagemgr.flush_frame(frame.clone());
     let retrieved_name = heap_page.get_field("name", 0);
-    let retrieved_name = String::from_utf8(retrieved_name).unwrap();
+    let retrieved_name = String::from_utf8(retrieved_name.unwrap()).unwrap();
     assert_eq!(retrieved_name,"Omar".to_string())
 }
 

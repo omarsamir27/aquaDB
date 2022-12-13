@@ -68,7 +68,7 @@ impl Type {
     pub fn unit_size(self) -> Option<u8> {
         match self {
             Type::Numeric(numeric) => Some(numeric.unit_size()),
-            Type::Character(_) => None,
+            Type::Character(_) => Some(4_u8),
         }
     }
     #[inline(always)]
