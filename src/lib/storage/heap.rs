@@ -207,6 +207,11 @@ impl HeapPage {
         borrowed_frame.write_at((self.header.space_start as u16).to_ne_bytes().as_slice(), 0);
         borrowed_frame.write_at((self.header.space_end as u16).to_ne_bytes().as_slice(), 2);
     }
+
+    pub fn free_space(&self) -> u16{
+        (self.header.space_end - self.header.space_start) as u16
+    }
+
     pub fn vacuum(&mut self) {
         self.vacuuming = true;
         let mut new_page = Page::new(4096);

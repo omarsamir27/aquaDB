@@ -65,6 +65,10 @@ impl StorageManager {
         frm.flush(&mut self.block_manager)
     }
 
+    pub fn blk_size(&self) -> usize {
+        self.database_info.block_size
+    }
+
     // pub fn write_frame(&mut self,frame_idx:usize,data:&[u8]){
     //     let frame = self.get_frame(frame_idx).unwrap();
     //     frame.write(data);

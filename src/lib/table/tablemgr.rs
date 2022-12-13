@@ -32,7 +32,6 @@ impl TableManager {
                 let space_start = blk_header.as_slice().extract_u16(0);
                 let space_end = blk_header.as_slice().extract_u16(2);
                 let space = (space_end - space_start);
-                let space = (space / 10) * 10;
                 if space != 0 {
                     map.add_blockspace(space, block);
                 };
@@ -50,19 +49,34 @@ impl TableManager {
         }
     }
 
+    // pub fn get_tuple_from_heap(&mut self,blk:&BlockId,slot_num:usize){
+    //     let heap_page = self.get_heap_page(blk);
+    // }
+    pub fn get_field(&mut self, blk:&BlockId, slot_num:usize, field_name:&str) -> Option<Vec<u8>> {
+        let heap_page = self.get_heap_page(blk);
+        heap_page.get_field(field_name, slot_num as u16)
+    }
     pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Option<Vec<u8>>)>) {
         let tuple = Tuple::new(tuple_bytes, self.layout.clone());
         let target_block = self.free_map.get_smallest_fit(tuple.tuple_size());
         let mut storage_mgr = self.storage_mgr.borrow_mut();
-        let mut target_page = if let Some((free_size, block)) = target_block {
+        if let Some((free_size, block)) = target_block {
             let mut frame = storage_mgr.pin(block.clone()).unwrap();
-            HeapPage::new(frame, &block, self.layout.clone())
+            let mut target_page =  HeapPage::new(frame, &block, self.layout.clone());
+            target_page.insert_tuple(tuple);
+            self.free_map.add_blockspace(target_page.free_space(),&block)
         } else {
             let blkid = storage_mgr.extend_file(self.table_blocks[0].filename.as_str());
             let mut frame = storage_mgr.pin(blkid.clone()).unwrap();
-            HeapPage::new_from_empty(frame, &blkid, self.layout.clone())
+            let mut target_page = HeapPage::new_from_empty(frame, &blkid, self.layout.clone());
+            target_page.insert_tuple(tuple);
+            self.free_map.add_blockspace(target_page.free_space(),&blkid);
         };
-        target_page.insert_tuple(tuple);
+    }
+    pub fn flush(&mut self,blk:&BlockId){
+        let mut storage_mgr = self.storage_mgr.borrow_mut();
+        let mut frame = storage_mgr.pin(blk.clone()).unwrap();
+        storage_mgr.flush_frame(frame);
     }
     fn vacuum(&mut self) {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
@@ -72,6 +86,11 @@ impl TableManager {
             heap_page.vacuum();
             storage_mgr.unpin(frame);
         }
+    }
+    fn get_heap_page(&mut self, blk:&BlockId) -> HeapPage {
+        let mut storage_mgr = self.storage_mgr.borrow_mut();
+        let frame = storage_mgr.pin(blk.clone()).unwrap();
+        HeapPage::new(frame.clone(), blk, self.layout.clone())
     }
 
     fn heapscan_iter(&self) -> TableIter {

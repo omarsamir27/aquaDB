@@ -126,7 +126,7 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
                 match idx {
                     None => None,
                     Some(idx) => {
-                        let element = v.remove(idx);
+                        let element = v.swap_remove(idx);
                         Some((k.to_owned(), element, v.is_empty()))
                     }
                 }
@@ -142,6 +142,32 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
             }
         }
     }
+
+    pub fn pop_first_key_match<P>(&mut self , predicate: P) -> Option<(T, U)>
+    where P: FnMut(&(&T, &mut Vec<U>)) -> bool
+    {
+        let entry = self.btreemap.iter_mut().find(predicate);
+        let entry = match entry {
+            None => None,
+            Some((k, v)) => Some((k.to_owned(), v.pop().unwrap(), v.is_empty())),
+        };
+        match entry {
+            None => None,
+            Some((k, v, empty)) => {
+                if empty {
+                    self.btreemap.remove(&k);
+                }
+                Some((k, v))
+            }
+        }
+    }
+
+
+
+    pub fn pop_first_bigger_than(&mut self, value:T) -> Option<(T, U)> {
+        self.pop_first_key_match(|(k,v)| **k >= value)
+    }
+
 
     pub fn print_all(&self)
     where
