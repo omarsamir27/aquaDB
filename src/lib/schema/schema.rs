@@ -64,27 +64,48 @@ impl Field {
 #[derive(Debug)]
 pub struct Layout {
     map: HashMap<String, (Type, u16)>,
+    index_map: HashMap<String, u8>,
 }
 impl Layout {
     fn new(schema: &Schema) -> Self {
         let mut map = HashMap::new();
+        let mut index = 0_u8;
+        let mut index_map = HashMap::new();
         let mut offset = 0_u16;
         for field in &schema.fields {
             if !field.field_type.needs_pointer() {
                 map.insert(field.name.clone(), (field.field_type, offset));
                 offset += field.field_type.unit_size().unwrap() as u16;
+                index_map.insert(field.name.clone(), index);
+                index += 1;
             }
         }
         for field in &schema.fields {
             if field.field_type.needs_pointer() {
                 map.insert(field.name.clone(), (field.field_type, offset));
                 offset += 4;
+                index_map.insert(field.name.clone(), index);
+                index += 1;
             }
         }
-        Self { map }
+
+        Self { map, index_map }
     }
     pub fn field_data(&self, field_name: &str) -> (Type, u16) {
         self.map.get(field_name).unwrap().clone()
+    }
+    pub fn fields_count(&self) -> usize {
+        self.map.keys().len()
+    }
+
+    pub fn map(&self) -> &HashMap<String, (Type, u16)> {
+        &self.map
+    }
+    pub fn index_map(&self) -> &HashMap<String, u8> {
+        &self.index_map
+    }
+    pub fn name_map(&self) -> HashMap<u8, String> {
+        self.index_map.iter().map(|(k, v)| (v.clone(), k.clone())).collect()
     }
 }
 /*

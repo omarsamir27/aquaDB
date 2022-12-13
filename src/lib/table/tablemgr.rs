@@ -50,7 +50,7 @@ impl TableManager {
         }
     }
 
-    pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Vec<u8>)>) {
+    pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Option<Vec<u8>>)>) {
         let tuple = Tuple::new(tuple_bytes, self.layout.clone());
         let target_block = self.free_map.get_smallest_fit(tuple.tuple_size());
         let mut storage_mgr = self.storage_mgr.borrow_mut();

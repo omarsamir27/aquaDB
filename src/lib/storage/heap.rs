@@ -8,6 +8,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::schema::null_bitmap::NullBitMap;
 // use crate::storage::frame::Frame;
 use crate::storage::page::Page;
 use crate::storage::tuple::Tuple;
@@ -103,13 +104,26 @@ impl HeapPage {
     }
 
     // remmeber to add tuple metadata
-    pub fn get_field(&self, field_name: &str, index: u16) -> Vec<u8> {
-        let (field_type, start_byte) = self.layout.field_data(field_name);
+    pub fn get_field(&self, field_name: &str, index: u16) -> Option<Vec<u8>> {
+        let mut bitmap = NullBitMap::new(self.layout.clone());
         let pointer = &self.tuple_pointers[index as usize];
         let mut frame = self.frame.borrow_mut();
         frame.update_replace_stats();
-        let tuple = &frame.page.payload[pointer.offset + 1..(pointer.offset + pointer.size as usize)];
-        field_type.read_from_tuple(tuple, start_byte).to_vec()
+        let tuple = &frame.page.payload[pointer.offset..(pointer.offset + pointer.size as usize)];
+        let bitmap_len = bitmap.bitmap().len();
+        bitmap.read_bitmap(&tuple[1..(bitmap_len + 1)]);
+        let field_index = *self.layout.index_map().get(field_name).unwrap() as usize;
+        if bitmap.is_null(field_index) {
+            return None
+        }
+        let (field_type, mut start_byte) = self.layout.field_data(field_name);
+        let name_map = self.layout.name_map();
+        for bit in 0..field_index {
+            start_byte -= (bitmap.get_bit(bit)
+                * (self.layout.field_data(name_map.get(&(bit as u8)).unwrap())
+                .0.unit_size().unwrap()) as u8) as u16;
+        }
+        Some(field_type.read_from_tuple(&tuple[1+bitmap_len..], start_byte).to_vec())
     }
     pub fn mark_delete(&self, slot_num: usize) {
         let pointer = &self.tuple_pointers[slot_num];
