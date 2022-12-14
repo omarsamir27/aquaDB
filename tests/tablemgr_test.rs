@@ -6,7 +6,12 @@ use aqua::RcRefCell;
 use common::utils;
 use std::cell::RefCell;
 use std::rc::Rc;
+use aqua::schema::schema::Schema;
+use aqua::schema::types::CharType::VarChar;
+use aqua::schema::types::NumericType::{Integer, SmallInt};
+use aqua::schema::types::Type;
 use aqua::storage::blockid::BlockId;
+use crate::common::random::distill_schema;
 
 const db_dir: &str = "tests/db/";
 
@@ -46,4 +51,34 @@ fn insert_tuple_update_freemap() {
     assert_eq!(tblmgr.free_map.btree().range(0..BLK_SIZE as u16).count(),2);
     let job = tblmgr.get_field(&blk,0,"job").map(|bytes| String::from_utf8(bytes).unwrap());
     assert_eq!(job,Some("Engineer".to_string()));
+}
+#[test]
+fn insert_tuples_then_scan() {
+    let test_file = "insert_tuples_then_scan";
+    let BLK_SIZE = 4096;
+    let mut schema = Schema::new();
+    let schema_vec = vec![
+        ("id", Type::Numeric(SmallInt), false, None),
+        ("name", Type::Character(VarChar), false, None),
+        ("salary", Type::Numeric(Integer), false, None),
+        ("job", Type::Character(VarChar), false, None),
+    ];
+    for attr in schema_vec {
+        schema.add_field(attr.0, attr.1, attr.2, attr.3);
+    }
+    let layout = schema.to_layout();
+    let layout = Rc::new(layout);
+    let file_blocks = utils::empty_heapfile(db_dir, test_file, BLK_SIZE, 1, layout.clone());
+    let storagemgr = RcRefCell!(StorageManager::new(db_dir, BLK_SIZE, 100));
+    let mut tblmgr = TableManager::new(file_blocks.clone(), storagemgr.clone(), None, layout.clone());
+    let schema = distill_schema(schema);
+    let tuples = common::random::generate_random_tuples(&schema,100);
+    for t in tuples{
+        tblmgr.try_insert_tuple(t)
+    }
+    tblmgr.flush_all();
+    let mut table_iter = tblmgr.heapscan_iter();
+   while table_iter.has_next() {
+        println!("{:?}",table_iter.next())
+    }
 }

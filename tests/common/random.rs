@@ -2,6 +2,7 @@ use aqua::schema::schema::Schema;
 use aqua::schema::types::{CharType, NumericType, Type};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
+use names::{Generator,Name};
 
 trait RandomTypeBytes {
     fn random(self) -> Vec<u8>;
@@ -24,14 +25,8 @@ impl RandomTypeBytes for NumericType {
 
 impl RandomTypeBytes for CharType {
     fn random(self) -> Vec<u8> {
-        let mut rng = rand::thread_rng();
-        let len = rng.gen_range(1..300_usize);
-        let string: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(len)
-            .map(char::from)
-            .collect();
-        string.as_bytes().to_vec()
+        let mut generator = Generator::with_naming(Name::Numbered);
+        generator.next().unwrap().as_bytes().to_vec()
     }
 }
 

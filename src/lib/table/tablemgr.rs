@@ -52,6 +52,17 @@ impl TableManager {
     // pub fn get_tuple_from_heap(&mut self,blk:&BlockId,slot_num:usize){
     //     let heap_page = self.get_heap_page(blk);
     // }
+
+    pub fn delete_tuple(&mut self,blk:&BlockId,slot_num:usize){
+        let mut heap_page = self.get_heap_page(blk);
+        heap_page.mark_delete(slot_num)
+    }
+
+    pub fn get_fields(&mut self, blk:&BlockId, slot_num:usize, field_names: Vec<String>) -> Vec<Option<Vec<u8>>> {
+        let heap_page = self.get_heap_page(blk);
+        heap_page.get_multiple_fields(field_names,slot_num as u16)
+    }
+
     pub fn get_field(&mut self, blk:&BlockId, slot_num:usize, field_name:&str) -> Option<Vec<u8>> {
         let heap_page = self.get_heap_page(blk);
         heap_page.get_field(field_name, slot_num as u16)
@@ -67,6 +78,7 @@ impl TableManager {
             self.free_map.add_blockspace(target_page.free_space(),&block)
         } else {
             let blkid = storage_mgr.extend_file(self.table_blocks[0].filename.as_str());
+            self.table_blocks.push(blkid.clone());
             let mut frame = storage_mgr.pin(blkid.clone()).unwrap();
             let mut target_page = HeapPage::new_from_empty(frame, &blkid, self.layout.clone());
             target_page.insert_tuple(tuple);
@@ -78,6 +90,16 @@ impl TableManager {
         let mut frame = storage_mgr.pin(blk.clone()).unwrap();
         storage_mgr.flush_frame(frame);
     }
+
+    pub fn flush_all(&mut self){
+        let mut storage_mgr = self.storage_mgr.borrow_mut();
+        for blk in &self.table_blocks {
+            let mut frame = storage_mgr.pin(blk.clone()).unwrap();
+            storage_mgr.flush_frame(frame.clone());
+            storage_mgr.unpin(frame);
+        }
+    }
+
     fn vacuum(&mut self) {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         for block in &self.table_blocks {
@@ -93,7 +115,7 @@ impl TableManager {
         HeapPage::new(frame.clone(), blk, self.layout.clone())
     }
 
-    fn heapscan_iter(&self) -> TableIter {
+    pub fn heapscan_iter(&self) -> TableIter {
         TableIter::new(
             &self.table_blocks,
             self.storage_mgr.clone(),
@@ -102,7 +124,7 @@ impl TableManager {
     }
 }
 
-struct TableIter<'tblmgr> {
+pub struct TableIter<'tblmgr> {
     table_blocks: &'tblmgr Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
     layout: Rc<Layout>,
@@ -133,7 +155,7 @@ impl<'tblmgr> TableIter<'tblmgr> {
         }
     }
 
-    fn next(&mut self) -> Option<Vec<u8>> {
+    pub fn next(&mut self) -> Option<Vec<u8>> {
         while self.current_block_index != (self.table_blocks.len() - 1) {
             while self.current_tuple_index < self.current_page_pointer_count {
                 let (pointer_exist, tuple_exist) = self
@@ -155,5 +177,9 @@ impl<'tblmgr> TableIter<'tblmgr> {
             self.current_page = HeapPage::new(frame, block, self.layout.clone());
         }
         None
+    }
+    pub fn has_next(&self) -> bool{
+        self.current_block_index < self.table_blocks.len() - 1
+        || ((self.current_block_index == self.table_blocks.len() - 1) && self.current_tuple_index < self.current_page_pointer_count )
     }
 }
