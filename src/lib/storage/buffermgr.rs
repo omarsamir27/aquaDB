@@ -7,6 +7,7 @@ use chrono::prelude::Utc;
 use std::cell::RefCell;
 use std::char::MAX;
 use std::cmp::min;
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::thread::sleep;
 
@@ -17,6 +18,7 @@ pub struct BufferManager {
     max_slots: u32,
     available_slots: u32,
     page_size: usize, //timeout : Chrono Time
+    block_set: HashSet<BlockId>,
 }
 impl BufferManager {
     pub fn new(page_size: usize, max_slots: u32) -> Self {
@@ -29,6 +31,7 @@ impl BufferManager {
             max_slots,
             available_slots: max_slots,
             page_size,
+            block_set: HashSet::new(),
         }
     }
 
@@ -55,11 +58,20 @@ impl BufferManager {
             if idx.is_none() {
                 return None;
             }
+            else {
+                let victim_frame = self.frame_pool.get_mut(idx.unwrap()).unwrap();
+                let victim_frame = victim_frame.borrow();
+                let blk = victim_frame.blockid.as_ref();
+                if blk.is_some() {
+                    self.block_set.remove(&blk.unwrap());
+                }
+            }
         }
         let idx = idx.unwrap();
         let mut frame = self.frame_pool.get_mut(idx).unwrap();
         let mut frame = frame.try_borrow_mut().unwrap();
         frame.load_block(blk, blkmgr);
+        self.block_set.insert(blk.clone());
         if frame.is_free() {
             self.available_slots -= 1;
         }

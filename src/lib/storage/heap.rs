@@ -103,15 +103,9 @@ impl HeapPage {
         }
     }
 
-    // remmeber to add tuple metadata
-    pub fn get_field(&self, field_name: &str, index: u16) -> Option<Vec<u8>> {
-        let mut bitmap = NullBitMap::new(self.layout.clone());
-        let pointer = &self.tuple_pointers[index as usize];
-        let mut frame = self.frame.borrow_mut();
-        frame.update_replace_stats();
-        let tuple = &frame.page.payload[pointer.offset..(pointer.offset + pointer.size as usize)];
+    #[inline(always)]
+    fn extract_field_from_tuple(&self, field_name: &str, tuple: &[u8], mut bitmap: NullBitMap) -> Option<Vec<u8>> {
         let bitmap_len = bitmap.bitmap().len();
-        bitmap.read_bitmap(&tuple[1..(bitmap_len + 1)]);
         let field_index = *self.layout.index_map().get(field_name).unwrap() as usize;
         if bitmap.is_null(field_index) {
             return None;
@@ -121,11 +115,11 @@ impl HeapPage {
         for bit in 0..field_index {
             start_byte -= (bitmap.get_bit(bit)
                 * (self
-                    .layout
-                    .field_data(name_map.get(&(bit as u8)).unwrap())
-                    .0
-                    .unit_size()
-                    .unwrap()) as u8) as u16;
+                .layout
+                .field_data(name_map.get(&(bit as u8)).unwrap())
+                .0
+                .unit_size()
+                .unwrap()) as u8) as u16;
         }
         Some(
             field_type
@@ -133,6 +127,34 @@ impl HeapPage {
                 .to_vec(),
         )
     }
+
+    // remmeber to add tuple metadata
+    pub fn get_field(&self, field_name: &str, index: u16) -> Option<Vec<u8>> {
+        let mut bitmap = NullBitMap::new(self.layout.clone());
+        let pointer = &self.tuple_pointers[index as usize];
+        let mut frame = self.frame.borrow_mut();
+        frame.update_replace_stats();
+        let tuple = &frame.page.payload[pointer.offset..(pointer.offset + pointer.size as usize)];
+        let bitmap_len = bitmap.bitmap().len();
+        bitmap.read_bitmap(&tuple[1..(bitmap_len + 1)]);
+        self.extract_field_from_tuple(field_name, tuple, bitmap.clone())
+    }
+
+    pub fn get_multiple_fields(&self, field_names: Vec<String>, index: u16) -> Vec<Option<Vec<u8>>> {
+        let mut bitmap = NullBitMap::new(self.layout.clone());
+        let pointer = &self.tuple_pointers[index as usize];
+        let mut frame = self.frame.borrow_mut();
+        frame.update_replace_stats();
+        let tuple = &frame.page.payload[pointer.offset..(pointer.offset + pointer.size as usize)];
+        let bitmap_len = bitmap.bitmap().len();
+        bitmap.read_bitmap(&tuple[1..(bitmap_len + 1)]);
+        let mut fields = Vec::new();
+        for field_name in field_names {
+            fields.push(self.extract_field_from_tuple(field_name.as_str(), tuple.clone(), bitmap.clone()));
+        }
+        fields
+    }
+
     pub fn mark_delete(&self, slot_num: usize) {
         let pointer = &self.tuple_pointers[slot_num];
         let mut frame = self.frame.borrow_mut();

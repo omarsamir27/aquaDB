@@ -81,7 +81,7 @@ fn main() {
     let mut heap_page = HeapPage::new_from_empty(frame.clone(), &blk, layout.clone());
     let tuples = vec![vec![
         ("id".to_string(), None),
-        ("name".to_string(), None),
+        ("name".to_string(), Some("Omar".to_string().as_bytes().to_vec())),
         ("salary".to_string(), Some(5000_u32.to_ne_bytes().to_vec())),
         (
             "job".to_string(),
@@ -93,6 +93,7 @@ fn main() {
         heap_page.insert_tuple(tuple)
     }
     storagemgr.flush_frame(frame.clone());
-    let retrieved_name = heap_page.get_field("job", 0);
-    println!("{:?}", retrieved_name);
+    let field_names = vec!["name".to_string(), "job".to_string(), "salary".to_string()];
+    let retrieved_fields = heap_page.get_multiple_fields(field_names.clone(), 0);
+    println!("{:?}", retrieved_fields);
 }
