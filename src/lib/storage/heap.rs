@@ -208,7 +208,7 @@ impl HeapPage {
         ]
         .concat();
         frame.update_replace_stats();
-        frame.page.write_bytes(header.as_slice(), 0);
+        frame.write(header.as_slice())
     }
 
     /// Creates an empty Heap Page and returns it
