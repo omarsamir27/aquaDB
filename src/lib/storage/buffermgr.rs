@@ -57,34 +57,7 @@ impl BufferManager {
             .flush(blk_mgr);
     }
 
-    /// try to find if an unpinned page is still in memory and has not been replaced out
-    /// if it still exists , pin it and return its contents,
-    /// else load it into memory and pin it then return its contents
-    // pub fn try_pin(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) -> Option<usize> {
-    //     let mut idx = self.locate_existing_block(blk);
-    //     if idx.is_none() {
-    //         idx = self.find_victim_page();
-    //         if idx.is_none() {
-    //             return None;
-    //         }
-    //     }
-    //     let idx = idx.unwrap();
-    //     let mut frame = self.frame_pool.get_mut(idx).unwrap();
-    //     let mut frame = frame.try_borrow_mut().unwrap();
-    //     if let Some(block) = frame.blockid.as_ref(){
-    //         self.block_map.remove(block);
-    //     }
-    //     frame.load_block(&blk, blkmgr);
-    //     self.block_map.insert(blk.to_owned(),idx);
-    //     if frame.is_free() {
-    //         self.available_slots -= 1;
-    //     }
-    //     frame.num_pins += 1;
-    //     debug_print::debug_println!("buffer position chosen : {}", idx);
-    //     Some(idx)
-    // }
-
-    /// try to find if an unpinned page is still in memory and has not been replaced out
+    /// Try to find if an unpinned page is still in memory and has not been replaced out
     /// if it still exists, pin it and return index to its frame,
     /// else load it into memory and pin it then return index to the frame it got written to.
     pub fn try_pin(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) -> Option<usize>{
