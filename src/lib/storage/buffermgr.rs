@@ -16,7 +16,7 @@ pub type FrameRef = Rc<RefCell<Frame>>;
 
 /// Page replacement policy: LIRS
 /// BufferManager is an entity owned by the database that acts as cache for the pages most used by the database
-/// instead of accessing the page.
+/// instead of reading directly from the disk.
 pub struct BufferManager {
     frame_pool: Vec<FrameRef>,
     max_slots: u32,
@@ -124,7 +124,7 @@ impl BufferManager {
             .position(|frame| frame.borrow().blockid.is_none())
     }
 
-    /// Returns index to the frame.
+    /// Returns the index to the frame used for replacement.
     /// if there are empty frames in the buffer manager, they will be used.
     /// else, the page replacement policy gets us the index
     pub fn find_victim_page(&self) -> Option<usize> {
@@ -136,7 +136,7 @@ impl BufferManager {
         }
     }
 
-    /// Returns an index to the page to be replaced on and LIRS basis.
+    /// Returns an index to the page to be replaced using LIRS basis.
     pub fn lirs_victim(&self) -> Option<usize> {
         let now = Utc::now().timestamp_millis();
         let victim = self
