@@ -5,6 +5,10 @@ use std::fs::File;
 mod common;
 use common::utils;
 
+#[cfg(windows)]
+const db_dir: &str = "tests\\db\\";
+
+#[cfg(unix)]
 const db_dir: &str = "tests/db/";
 
 #[test]

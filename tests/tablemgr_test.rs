@@ -13,6 +13,10 @@ use aqua::schema::types::Type;
 use aqua::storage::blockid::BlockId;
 use crate::common::random::distill_schema;
 
+#[cfg(windows)]
+const db_dir: &str = "tests\\db\\";
+
+#[cfg(unix)]
 const db_dir: &str = "tests/db/";
 
 #[test]

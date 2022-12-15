@@ -12,7 +12,12 @@ mod common;
 use crate::common::random;
 use common::utils;
 
+#[cfg(windows)]
+const db_dir: &str = "tests\\db\\";
+
+#[cfg(unix)]
 const db_dir: &str = "tests/db/";
+
 #[test]
 fn empty_page() {
     let test_file = "empty_page";
