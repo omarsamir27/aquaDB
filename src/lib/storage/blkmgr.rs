@@ -6,6 +6,8 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+/// BlockManager is an entity owned by a storage manager that is responsible for dealing with the
+/// raw block bytes on the disk
 pub struct BlockManager {
     db_dir: PathBuf,
     block_size: usize,
@@ -20,6 +22,7 @@ impl BlockManager {
         }
     }
 
+    /// Returns raw bytes written in a file given a certain block id and the number of bytes needed
     pub fn read_raw(&mut self, blockid: &BlockId, byte_count: usize) -> Vec<u8> {
         let blk_size = self.block_size;
         let mut filepath = String::from(self.db_dir.to_str().unwrap());
@@ -30,6 +33,7 @@ impl BlockManager {
         vec
     }
 
+    /// Fills a certain page with a specific block content from the disk to be loaded into memory
     pub fn read(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size;
         let mut filepath = String::from(self.db_dir.to_str().unwrap());
@@ -39,6 +43,7 @@ impl BlockManager {
             .unwrap();
     }
 
+    /// Writes a certain page's content from memory into a specific block on the disk
     pub fn write(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size;
         let mut filepath = String::from(self.db_dir.to_str().unwrap());
@@ -49,6 +54,9 @@ impl BlockManager {
         file.sync_all().unwrap()
     }
 
+    /// Append to a full file an extra empty block (Initialized by zeros)
+    ///
+    /// Returns the Block Id of the appended block
     pub fn extend_file(&mut self, filename: &str) -> BlockId {
         let blk_size = self.block_size;
         let mut filepath = String::from(self.db_dir.to_str().unwrap());
@@ -64,6 +72,10 @@ impl BlockManager {
         }
     }
 
+    /// Append to a full file extra empty N blocks where N is the number passed by the caller as
+    /// a function parameter
+    ///
+    /// Returns a vector containing the Block Ids of the appended blocks
     pub fn extend_file_many(&mut self, filename: &str, count: u32) -> Vec<BlockId> {
         let blk_size = self.block_size;
         let mut filepath = String::from(self.db_dir.to_str().unwrap());
@@ -79,6 +91,10 @@ impl BlockManager {
             .collect()
     }
 
+    /// Returns a specific file from the open files setting its RW modes to true
+    ///
+    /// If the file name is not in the open files, it creates a new file and returns it with
+    /// RW modes set to true
     fn get_file(&mut self, filename: &str) -> &mut File {
         self.open_files
             .entry(filename.to_string())

@@ -9,16 +9,11 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::rc::Rc;
-// use crate::storage::frame::Frame;
 use crate::storage::page::Page;
 use crate::storage::tuple::Tuple;
 
-// #[cfg(target_pointer_width = "32")]
-// const USIZE_LENGTH :usize = 4 ;
-//
-// #[cfg(target_pointer_width = "64")]
-// const USIZE_LENGTH :usize = 4 ;
-
+/// An Entity that is owned by a certain Heap Page that encapsulates the byte that indicates the
+/// start and the end of the free space inside a Heap Page
 #[derive(Debug, PartialEq)]
 pub struct PageHeader {
     pub space_start: usize,
@@ -26,6 +21,7 @@ pub struct PageHeader {
 }
 
 impl PageHeader {
+    /// Read the first 4 bytes of a Heap Page 2 by 2 to assign them to the start and end attributes
     fn new(payload: &[u8]) -> Self {
         Self {
             space_start: payload.extract_u16(0) as usize,
@@ -34,6 +30,9 @@ impl PageHeader {
     }
 }
 
+/// An Entity owned by a Heap Page multiple different times each pointing to the offset
+/// of a corresponding tuple inside this Heap Page and the number of bytes needed for that tuple
+/// to be stored
 #[derive(Clone, Debug)]
 struct TuplePointer {
     offset: usize,
@@ -45,6 +44,8 @@ impl TuplePointer {
         Self { offset, size }
     }
 
+    /// Reads a tuple pointer pointing to a tuple where the offset of the beginning of that
+    /// Tuple Pointer is passed as an argument, then returns this Tuple Pointer
     fn read_pointer(payload: &[u8], offset: usize) -> TuplePointer {
         let tuple_offset = payload.extract_u16(offset);
         let size = payload.extract_u16(offset + 2);
@@ -54,6 +55,7 @@ impl TuplePointer {
         }
     }
 
+    /// Converts the Tuple Pointer attributes into bytes and returns a vector of these bytes
     fn to_bytes(self) -> Vec<u8> {
         let mut tuple_pointer = Vec::new();
         let offset_bytes = (self.offset as u16).to_ne_bytes();
@@ -64,6 +66,7 @@ impl TuplePointer {
     }
 }
 
+/// HeapPage is
 #[derive(Debug)]
 pub struct HeapPage {
     //tx_id,layout,schema
@@ -76,6 +79,11 @@ pub struct HeapPage {
 }
 
 impl HeapPage {
+    /// Creates a new Heap Page given a reference of a frame in the memory, a block id and the layout
+    /// of the tuples inside the block.
+    ///
+    /// The function reads the page header from the payload of the page, reads tuple pointers and push
+    /// them into the tuple pointers vector
     pub fn new(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>) -> Self {
         let blk = blk.clone();
         let heap_frame = frame.clone();
@@ -103,15 +111,21 @@ impl HeapPage {
         }
     }
 
+    /// A helper function called by get_field and get_multiple_fields
+    ///
+    /// Extracts the bytes of a certain field from the tuple given its name and the null bitmap of
+    /// the tuple containing the required field
     #[inline(always)]
     fn extract_field_from_tuple(&self, field_name: &str, tuple: &[u8], mut bitmap: NullBitMap) -> Option<Vec<u8>> {
         let bitmap_len = bitmap.bitmap().len();
         let field_index = *self.layout.index_map().get(field_name).unwrap() as usize;
+        // the field is already null from the bitmap
         if bitmap.is_null(field_index) {
             return None;
         }
         let (field_type, mut start_byte) = self.layout.field_data(field_name);
         let name_map = self.layout.name_map();
+        // subtracting the null sizes of null fields from the start byte
         for bit in 0..field_index {
             start_byte -= (bitmap.get_bit(bit)
                 * (self
@@ -128,7 +142,11 @@ impl HeapPage {
         )
     }
 
-    // remmeber to add tuple metadata
+    /// Returns Some bytes of the required field if not Null
+    /// Else it returns None
+    ///
+    /// Uses the function extract_field_from_tuple to do the algorithm of physically getting the
+    /// field bytes
     pub fn get_field(&self, field_name: &str, index: u16) -> Option<Vec<u8>> {
         let mut bitmap = NullBitMap::new(self.layout.clone());
         let pointer = &self.tuple_pointers[index as usize];
@@ -140,6 +158,10 @@ impl HeapPage {
         self.extract_field_from_tuple(field_name, tuple, bitmap.clone())
     }
 
+    /// Returns a vector of Some bytes of the required fields if not Null
+    ///
+    /// Uses the function extract_field_from_tuple to do the algorithm of physically getting the
+    /// fields bytes
     pub fn get_multiple_fields(&self, field_names: Vec<String>, index: u16) -> Vec<Option<Vec<u8>>> {
         let mut bitmap = NullBitMap::new(self.layout.clone());
         let pointer = &self.tuple_pointers[index as usize];
@@ -155,6 +177,7 @@ impl HeapPage {
         fields
     }
 
+    /// Virtually deleting a tuple in a specific slot inside the page by setting the deleted byte
     pub fn mark_delete(&self, slot_num: usize) {
         let pointer = &self.tuple_pointers[slot_num];
         let mut frame = self.frame.borrow_mut();
@@ -162,6 +185,9 @@ impl HeapPage {
         let offset = pointer.offset;
         frame.page.payload[offset] = 1_u8;
     }
+
+    /// Returns a vector of bytes containing the tuple that exists at a specific slot inside the page
+    /// as bytes
     pub fn get_tuple(&self, slot_num: usize) -> Vec<u8> {
         let pointer = &self.tuple_pointers[slot_num];
         let mut frame = self.frame.borrow_mut();
@@ -172,6 +198,8 @@ impl HeapPage {
         let size = pointer.size;
         frame.page.payload[offset..(offset + size as usize)].to_vec()
     }
+
+    /// A helper function used by new_from_empty to create an empty HeapPage
     fn init_heap(frame: &FrameRef) {
         let mut frame = frame.borrow_mut();
         let header = [
@@ -182,11 +210,15 @@ impl HeapPage {
         frame.update_replace_stats();
         frame.page.write_bytes(header.as_slice(), 0);
     }
+
+    /// Creates an empty Heap Page and returns it
     pub fn new_from_empty(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>) -> Self {
         HeapPage::init_heap(&frame);
         HeapPage::new(frame, blk, layout)
     }
 
+    /// Checks the state of a specific tuple given its tuple pointer whether it exists or
+    /// is vacuumed or deleted
     pub fn pointer_and_tuple_exist(&self, tuple_pointer: usize) -> (bool, bool) {
         match self.tuple_pointers.get(tuple_pointer) {
             None => (false, false),
@@ -194,16 +226,19 @@ impl HeapPage {
         }
     }
 
+    /// Returns the number of tuple pointers inside a Heap Page
     pub fn pointer_count(&self) -> usize {
         self.tuple_pointers.len()
     }
+
+    /// Inserting a given tuple inside a Heap Page
+    ///
+    /// Ask the free map at which page to put the tuple
+    /// Search for an empty tuple pointer and modify it
+    /// If there is no empty tuple pointers, add a new tuple pointer
+    /// Write the tuple at its correct position
     pub fn insert_tuple(&mut self, tuple: Tuple) {
-        // put metadata
         let tuple_size = tuple.tuple_size();
-        // ask free map where to put
-        // search for empty tuple pointer and modify it
-        // if no empty , add new tuple pointer
-        // write tuple at  SPACE_END - tuple.length
         let pointer_pos = self
             .tuple_pointers
             .iter_mut()
@@ -230,10 +265,19 @@ impl HeapPage {
         borrowed_frame.write_at((self.header.space_end as u16).to_ne_bytes().as_slice(), 2);
     }
 
+    /// Calculates the number of free bytes inside a Heap Page to be stored in Free Space Map
     pub fn free_space(&self) -> u16{
         (self.header.space_end - self.header.space_start) as u16
     }
 
+    /// Compacts the page by removing the fragmentation and virtually deleted tuples
+    ///
+    /// Creates a new empty Heap Page
+    /// Loops over the tuple pointers of the required Heap Page to get vacuumed
+    /// If the tuple pointer points to a deleted tuple, it writes the tuple pointer only to the new
+    /// heap page without any tuple data
+    /// If the tuple pointer points to an existing tuple, it writes the tuple to the new offset
+    /// Calculates the new space end of the Heap Page
     pub fn vacuum(&mut self) {
         self.vacuuming = true;
         let mut new_page = Page::new(4096);
@@ -277,6 +321,8 @@ impl HeapPage {
         self.header.space_end = space_end as usize;
         self.vacuuming = false;
     }
+
+    /// Returns an initialized iterator over the Heap Page of index 0
     pub fn page_iter(&self) -> PageIter {
         PageIter {
             current_slot: 0,
@@ -285,12 +331,15 @@ impl HeapPage {
     }
 }
 
+/// An iterator over the Heap Page slots containing the current slot inside a page pointed to
 pub struct PageIter<'page> {
     current_slot: u16,
     page: &'page HeapPage,
 }
 
 impl<'page> PageIter<'page> {
+    /// Returns the next tuple inside a Heap Page if exists
+    /// Else returns None
     pub fn next(&mut self) -> Option<Vec<u8>> {
         if self.current_slot == (self.page.tuple_pointers.len() - 1) as u16 {
             return None;
@@ -305,6 +354,8 @@ impl<'page> PageIter<'page> {
         }
         None
     }
+
+    /// Checks whether there is a next tuple inside the Heap Page
     pub fn has_next(&self) -> bool {
         self.current_slot != (self.page.tuple_pointers.len() - 1) as u16
     }
