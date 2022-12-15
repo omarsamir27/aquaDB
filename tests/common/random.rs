@@ -1,16 +1,20 @@
+use std::sync::RwLock;
+use lazy_static::lazy_static;
 use aqua::schema::schema::Schema;
 use aqua::schema::types::{CharType, NumericType, Type};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use names::{Generator,Name};
+use rand::rngs::ThreadRng;
+use names::{NOUNS,ADJECTIVES};
+
+
 
 trait RandomTypeBytes {
-    fn random(self) -> Vec<u8>;
+    fn random(self,rng:&mut ThreadRng) -> Vec<u8>;
 }
 
 impl RandomTypeBytes for NumericType {
-    fn random(self) -> Vec<u8> {
-        let mut rng = rand::thread_rng();
+    fn random(self,rng:&mut ThreadRng) -> Vec<u8> {
         match self {
             NumericType::SmallInt => rng.gen_range(i16::MIN..i16::MAX).to_ne_bytes().to_vec(),
             NumericType::Integer | NumericType::Serial => {
@@ -24,25 +28,31 @@ impl RandomTypeBytes for NumericType {
 }
 
 impl RandomTypeBytes for CharType {
-    fn random(self) -> Vec<u8> {
-        let mut generator = Generator::with_naming(Name::Numbered);
-        generator.next().unwrap().as_bytes().to_vec()
+    fn random(self,rng:&mut ThreadRng) -> Vec<u8> {
+        let noun_idx = rng.gen_range(0..NOUNS.len());
+        let adj_idx = rng.gen_range(0..ADJECTIVES.len());
+        let mut string = String::new();
+        string.push_str(NOUNS[noun_idx]);
+        string.push('-');
+        string.push_str(ADJECTIVES[adj_idx]);
+        string.into_bytes()
+
     }
 }
 
 impl RandomTypeBytes for Type {
-    fn random(self) -> Vec<u8> {
+    fn random(self,rng:&mut ThreadRng ) -> Vec<u8> {
         match self {
-            Type::Numeric(n) => n.random(),
-            Type::Character(c) => c.random(),
+            Type::Numeric(n) => n.random(rng),
+            Type::Character(c) => c.random(rng),
         }
     }
 }
 
-fn generate_random_tuple(schema: &Vec<(String, Type)>) -> Vec<(String, Option<Vec<u8>>)> {
+fn generate_random_tuple(schema: &Vec<(String, Type)>,rng:&mut ThreadRng) -> Vec<(String, Option<Vec<u8>>)> {
     schema
         .iter()
-        .map(|(name, fldtype)| (name.to_string(), Some(fldtype.random())))
+        .map(|(name, fldtype)| (name.to_string(), Some(fldtype.random(rng))))
         .collect()
 }
 
@@ -50,7 +60,8 @@ pub fn generate_random_tuples(
     schema: &Vec<(String, Type)>,
     count: u32,
 ) -> Vec<Vec<(String, Option<Vec<u8>>)>> {
-    vec![generate_random_tuple(schema); count as usize]
+    let mut rng = thread_rng();
+    vec![generate_random_tuple(schema,&mut rng); count as usize]
 }
 
 pub fn distill_schema(schema: Schema) -> Vec<(String, Type)> {

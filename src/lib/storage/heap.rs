@@ -238,7 +238,7 @@ impl HeapPage {
         self.vacuuming = true;
         let mut new_page = Page::new(4096);
         let mut space_start = 4_u16;
-        let mut space_end = 4095_u16;
+        let mut space_end = 4096_u16;
         for mut tuple_pointer_index in 0..self.tuple_pointers.len() {
             let tuple = self.get_tuple(tuple_pointer_index);
             if tuple[0] == 1 {

@@ -73,12 +73,81 @@ fn insert_tuples_then_scan() {
     let mut tblmgr = TableManager::new(file_blocks.clone(), storagemgr.clone(), None, layout.clone());
     let schema = distill_schema(schema);
     let tuples = common::random::generate_random_tuples(&schema,100);
-    for t in tuples{
-        tblmgr.try_insert_tuple(t)
+    for t in &tuples{
+        tblmgr.try_insert_tuple(t.clone())
     }
     tblmgr.flush_all();
     let mut table_iter = tblmgr.heapscan_iter();
-   while table_iter.has_next() {
-        println!("{:?}",table_iter.next())
+    let mut tuples_check = vec![];
+    loop {
+        let tuple = table_iter.next();
+        match tuple {
+            None => break,
+            Some(t) => tuples_check.push(Some(t))
+        }
     }
+    assert_eq!(tuples_check.len(),tuples.len())
+}
+
+#[test]
+fn mark_delete(){
+    let test_file = "mark_delete";
+    let BLK_SIZE = 4096;
+    let mut schema = Schema::new();
+    let schema_vec = vec![
+        ("id", Type::Numeric(SmallInt), false, None),
+        ("name", Type::Character(VarChar), false, None),
+        ("salary", Type::Numeric(Integer), false, None),
+        ("job", Type::Character(VarChar), false, None),
+    ];
+    for attr in schema_vec {
+        schema.add_field(attr.0, attr.1, attr.2, attr.3);
+    }
+    let layout = schema.to_layout();
+    let layout = Rc::new(layout);
+    let file_blocks = utils::empty_heapfile(db_dir, test_file, BLK_SIZE, 1, layout.clone());
+    let storagemgr = RcRefCell!(StorageManager::new(db_dir, BLK_SIZE, 100));
+    let mut tblmgr = TableManager::new(file_blocks.clone(), storagemgr.clone(), None, layout.clone());
+    let schema = distill_schema(schema);
+    let tuples = common::random::generate_random_tuples(&schema,100);
+    for t in &tuples{
+        tblmgr.try_insert_tuple(t.clone())
+    }
+    tblmgr.flush_all();
+    let blk =  file_blocks[0].clone();
+    tblmgr.delete_tuple(&blk,0);
+    tblmgr.flush(&blk)
+}
+
+#[test]
+fn delete_vacuum_test(){
+    let test_file = "delete_vacuum_test";
+    let BLK_SIZE = 4096;
+    let mut schema = Schema::new();
+    let schema_vec = vec![
+        ("id", Type::Numeric(SmallInt), false, None),
+        ("name", Type::Character(VarChar), false, None),
+        ("salary", Type::Numeric(Integer), false, None),
+        ("job", Type::Character(VarChar), false, None),
+    ];
+    for attr in schema_vec {
+        schema.add_field(attr.0, attr.1, attr.2, attr.3);
+    }
+    let layout = schema.to_layout();
+    let layout = Rc::new(layout);
+    let file_blocks = utils::empty_heapfile(db_dir, test_file, BLK_SIZE, 1, layout.clone());
+    let storagemgr = RcRefCell!(StorageManager::new(db_dir, BLK_SIZE, 100));
+    let mut tblmgr = TableManager::new(file_blocks.clone(), storagemgr.clone(), None, layout.clone());
+    let schema = distill_schema(schema);
+    let tuples = common::random::generate_random_tuples(&schema,50);
+    for t in &tuples{
+        tblmgr.try_insert_tuple(t.clone())
+    }
+    tblmgr.flush_all();
+    let blk =  file_blocks[0].clone();
+    tblmgr.delete_tuple(&blk,0);
+    tblmgr.flush(&blk);
+
+    tblmgr.vacuum();
+    tblmgr.flush(&blk)
 }

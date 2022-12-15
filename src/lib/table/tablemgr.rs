@@ -100,7 +100,7 @@ impl TableManager {
         }
     }
 
-    fn vacuum(&mut self) {
+    pub fn vacuum(&mut self) {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         for block in &self.table_blocks {
             let frame = storage_mgr.pin(block.clone()).unwrap();
@@ -156,7 +156,7 @@ impl<'tblmgr> TableIter<'tblmgr> {
     }
 
     pub fn next(&mut self) -> Option<Vec<u8>> {
-        while self.current_block_index != (self.table_blocks.len() - 1) {
+        while self.current_block_index != (self.table_blocks.len() ) {
             while self.current_tuple_index < self.current_page_pointer_count {
                 let (pointer_exist, tuple_exist) = self
                     .current_page
@@ -172,14 +172,20 @@ impl<'tblmgr> TableIter<'tblmgr> {
             self.current_block_index += 1;
             let mut storage_mgr = self.storage_mgr.borrow_mut();
             storage_mgr.unpin(self.current_page.frame.clone());
+            if self.current_block_index == self.table_blocks.len(){
+               break
+            }
             let block = &self.table_blocks[self.current_block_index];
             let frame = storage_mgr.pin(block.clone()).unwrap();
             self.current_page = HeapPage::new(frame, block, self.layout.clone());
         }
         None
     }
-    pub fn has_next(&self) -> bool{
-        self.current_block_index < self.table_blocks.len() - 1
-        || ((self.current_block_index == self.table_blocks.len() - 1) && self.current_tuple_index < self.current_page_pointer_count )
+     fn close(self){
+
     }
+    // pub fn has_next(&self) -> bool{
+    //     self.current_block_index < self.table_blocks.len() - 1
+    //     || ((self.current_block_index == self.table_blocks.len() - 1) && self.current_tuple_index < self.current_page_pointer_count )
+    // }
 }
