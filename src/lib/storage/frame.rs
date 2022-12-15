@@ -4,6 +4,10 @@ use crate::storage::page::Page;
 use chrono::Utc;
 use std::cmp::max;
 
+/// A container for a page stored in memory, it contains the page alongside some metadata.
+///
+/// Metadata is used in: indicating whether the frame can be replaced or not, the block that is written in this frame,
+/// whether this frame has been modified or not and data used by the page replacement algorithm
 #[derive(Debug)]
 pub struct Frame {
     pub page: Page,
@@ -19,6 +23,7 @@ pub struct Frame {
 }
 
 impl Frame {
+    /// Creates an instance of the frame and instantiate the metadata with the default values.
     pub fn new(page_size: usize) -> Self {
         Frame {
             page: Page::new(page_size),
@@ -31,11 +36,14 @@ impl Frame {
             reuse_distance: -1,
         }
     }
+
+    /// Returns whether the frame can be replaced or not based on how many transactions are currently pinning this frame.
     #[inline(always)]
     pub fn is_free(&self) -> bool {
         self.num_pins == 0
     }
 
+    /// Updates the stats used by the page replacement policy(LIRS)
     #[inline(always)]
     pub fn update_replace_stats(&mut self) {
         // self.timestamp = Some(Utc::now().timestamp_millis());
@@ -48,6 +56,8 @@ impl Frame {
         self.last_access_time = Utc::now().timestamp_millis();
     }
 
+    /// Sets the default values of the stats used by the page replacement policy.
+    /// This function is used when loading a new block into memory.
     #[inline(always)]
     pub fn reset_time_stats(&mut self) {
         self.second_last_access_time = -1;
@@ -55,11 +65,14 @@ impl Frame {
         self.reuse_distance = -1;
     }
 
+    /// Locality quantification for the page replacement algorithm.
     #[inline(always)]
     pub fn lirs_weight(&self, utc_now: i64) -> i64 {
         max(self.reuse_distance, utc_now - self.last_access_time)
     }
 
+    /// Loads a new disk block into the memory frame.
+    /// Resets the metadata in the frame after reading the block.
     pub fn load_block(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) {
         if self.dirty {
             self.flush(blkmgr);
@@ -70,18 +83,23 @@ impl Frame {
         self.reset_time_stats();
     }
 
+    /// Writes the page contained in the frame to the disk and resets the necessary stats in the frame.
     pub fn flush(&mut self, blkmgr: &mut BlockManager) {
         // log manager flush here
-        let blk = self.blockid.as_ref().unwrap();
-        blkmgr.write(blk, &mut self.page);
-        self.transaction_num = None;
-        self.dirty = false;
+        if self.dirty == true {
+            let blk = self.blockid.as_ref().unwrap();
+            blkmgr.write(blk, &mut self.page);
+            self.transaction_num = None;
+            self.dirty = false;
+        }
     }
 
+    /// Writes data(as bytes) to the page contained in the frame.
     pub fn write(&mut self, data: &[u8]) {
         self.write_at(data, 0);
     }
 
+    /// Writes data(as bytes) to the page contained in the frame at a specific offset.
     pub fn write_at(&mut self, data: &[u8], offset: u64) {
         // check if data.len > page.len
         self.page.write_bytes(data, offset);
