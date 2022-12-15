@@ -3,17 +3,24 @@ use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
 use std::ops::Range;
 
+
+
+
+/// Custom BTree Wrapper that allows for multiple Values using a vector as a value for standard library Btree
 #[derive(Debug)]
 pub struct BTreeMultimap<T, U> {
     btreemap: BTreeMap<T, Vec<U>>,
 }
 
 impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
+    /// Creates an empty BTreeMultimap
     pub fn new() -> BTreeMultimap<T, U> {
         Self {
             btreemap: BTreeMap::<T, Vec<U>>::new(),
         }
     }
+
+    /// Insert a vector into the BTreeMultimap joining the the value vector if one exists for the same key
     pub fn insert_vec_concat(&mut self, k: T, v: &[U])
     where
         U: Clone,
@@ -26,12 +33,16 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
             Entry::Occupied(mut occupied) => occupied.get_mut().extend_from_slice(v),
         };
     }
+    /// Insert a vector into the BTreeMultimap appending the the value vector if one exists for the same key
     pub fn insert_vec(&mut self, k: T, v: &[U])
     where
         U: Clone,
     {
         self.btreemap.insert(k, v.to_vec());
     }
+
+    /// Insert an element by pushing it into an existing vector V for key K , or allocates the vector
+    /// if it does not exist
     pub fn insert_element(&mut self, k: T, v: U)
     where
         U: Clone,
@@ -44,19 +55,29 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
             Entry::Occupied(mut occupied) => occupied.get_mut().push(v),
         };
     }
+
+    /// Returns an Iterator over the internal Btree
     pub fn range(&self, range: Range<T>) -> std::collections::btree_map::Range<'_, T, Vec<U>> {
         self.btreemap.range(range)
     }
+
+    /// Returns a mutable Iterator over the internal Btree
     pub fn range_mut(&mut self, range: Range<T>) -> RangeMut<'_, T, Vec<U>> {
         self.btreemap.range_mut(range)
     }
+
+    /// Returns a reference for vector V matching key K
     pub fn get(&self, k: T) -> Option<&Vec<U>> {
         self.btreemap.get(&k)
     }
+
+    /// Returns a mutable reference for vector V matching key K
     pub fn get_mut(&mut self, k: T) -> Option<&mut Vec<U>> {
         self.btreemap.get_mut(&k)
     }
 
+    /// Pops the last element of the vector V matching key K if it exists and removes the entry if
+    /// the vector is empty after that
     pub fn pop_first_exact(&mut self, k: T) -> Option<U> {
         let vec = self.btreemap.get_mut(&k);
         if let Some(vec) = vec {
@@ -69,6 +90,9 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
             None
         }
     }
+
+    /// Pops the first element satisfying a predicate  in the vector V matching key K if it exists
+    /// and removes the entry if the vector is empty after that
     pub fn pop_predicate_exact<P>(&mut self, k: T, mut predicate: P) -> Option<U>
     where
         P: FnMut(&U) -> bool,
@@ -91,6 +115,8 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
         }
     }
 
+    /// Pops the last element of the vector V matching the first key K in a range if it exists
+    /// and removes the entry if the vector is empty after that
     pub fn pop_first_range(&mut self, range: Range<T>) -> Option<(T, U)> {
         let entry = {
             let mut iter = self.range_mut(range);
@@ -111,6 +137,8 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
         }
     }
 
+    /// Pops the first element satisfying a predicate in the vector V matching the first key K in a range if it exists
+    /// and removes the entry if the vector is empty after that
     pub fn pop_predicate_range<P>(&mut self, range: Range<T>, predicate: P) -> Option<(T, U)>
     where
         P: FnMut(&U) -> bool,
@@ -143,6 +171,8 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
         }
     }
 
+    /// Removes the last element of vector V matching key K such that K is the first key satisfying
+    /// a predicate
     pub fn pop_first_key_match<P>(&mut self , predicate: P) -> Option<(T, U)>
     where P: FnMut(&(&T, &mut Vec<U>)) -> bool
     {
@@ -163,12 +193,13 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
     }
 
 
-
+    /// Removes the last element of vector V matching key K such that K is the first key bigger than
+    /// a given value
     pub fn pop_first_bigger_than(&mut self, value:T) -> Option<(T, U)> {
         self.pop_first_key_match(|(k,v)| **k >= value)
     }
 
-
+    /// Helper function to print the tree
     pub fn print_all(&self)
     where
         T: Display,

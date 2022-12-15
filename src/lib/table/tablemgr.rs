@@ -9,15 +9,22 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+/// TableManager is an entity owned by a database that is responsible for executing operations
+/// against the heap pages that represents a database table on disk
+///
+/// It internally uses the Heap Page interface for its responsibilities
 pub struct TableManager {
     pub free_map: FreeMap,
-    // heap_pages: HashMap<BlockId, HeapPage>,
     table_blocks: Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
     layout: Rc<Layout>,
 }
 
 impl TableManager {
+    /// Creates a TableManager instance from the Blocks that represent the table,
+    /// a refrence to the Database Storage Manager , a Free Space Map (FSM) read from disk and a reference
+    /// to the tuple layout for this table.
+    /// If no (FSM) is passed , new() creates it and saves it to disk
     pub fn new(
         blocks: Vec<BlockId>,
         storage_mgr: Rc<RefCell<StorageManager>>,
@@ -49,25 +56,31 @@ impl TableManager {
         }
     }
 
-    // pub fn get_tuple_from_heap(&mut self,blk:&BlockId,slot_num:usize){
-    //     let heap_page = self.get_heap_page(blk);
-    // }
-
+    /// Marks a tuple for deletion using it's BlockId and Page slot number
+    ///
+    /// When a tuple is marked for deletion , it is not acutally deleted but only marked and is actually
+    /// removed during compaction in vacuuming
     pub fn delete_tuple(&mut self,blk:&BlockId,slot_num:usize){
         let mut heap_page = self.get_heap_page(blk);
         heap_page.mark_delete(slot_num)
     }
 
+    /// Get multiple fields of a tuple as bytes , reinterpreting them is the responsibility of the caller
     pub fn get_fields(&mut self, blk:&BlockId, slot_num:usize, field_names: Vec<String>) -> Vec<Option<Vec<u8>>> {
         let heap_page = self.get_heap_page(blk);
         heap_page.get_multiple_fields(field_names,slot_num as u16)
     }
-
+    /// Get a single field of a tuple as bytes , reinterpreting it is the responsibility of the caller
     pub fn get_field(&mut self, blk:&BlockId, slot_num:usize, field_name:&str) -> Option<Vec<u8>> {
         let heap_page = self.get_heap_page(blk);
         heap_page.get_field(field_name, slot_num as u16)
     }
-    pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Option<Vec<u8>>)>) {
+
+    /// Insert a tuple into a table
+    /// Searches the FSM first for a block that has the least free space required for a tuple to insert
+    /// it in , if None exists , the Heap File representing the table is extended by 1 block and the
+    /// tuple is inserted into this page and the remaining space in it is added to the FSM
+    pub fn insert_tuple(&mut self, tuple_bytes: Vec<(String, Option<Vec<u8>>)>) {
         let tuple = Tuple::new(tuple_bytes, self.layout.clone());
         let target_block = self.free_map.get_smallest_fit(tuple.tuple_size());
         let mut storage_mgr = self.storage_mgr.borrow_mut();

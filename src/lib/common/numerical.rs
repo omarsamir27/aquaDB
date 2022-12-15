@@ -4,6 +4,7 @@ const USIZE_LENGTH: usize = 4;
 #[cfg(target_pointer_width = "64")]
 const USIZE_LENGTH: usize = 8;
 
+/// Helper trait on byte slices to reinterpret the bytes at an offset as distinct data types
 pub trait ByteMagic {
     // TODO - Add Monetary types
     fn extract_usize(&self, offset: usize) -> usize;
@@ -15,32 +16,39 @@ pub trait ByteMagic {
 }
 
 impl ByteMagic for &[u8] {
+    /// Extract a USIZE from a byte slice starting from offset
+    ///
+    /// The size of usize is platform dependant : 4 bytes on 32-bit systems and 8 bytes  on 64-bit systems
     fn extract_usize(&self, offset: usize) -> usize {
         let size = USIZE_LENGTH;
         let bytes = &self[offset..(offset + size)];
         usize::from_ne_bytes(bytes.try_into().unwrap())
     }
 
+    /// Extact a U16 from byte slice starting from offset by reading 2 consecutive bytes
     fn extract_u16(&self, offset: usize) -> u16 {
         let bytes = [self[offset], self[offset + 1]];
         u16::from_ne_bytes(bytes)
     }
 
+    /// Extact a U32 from byte slice starting from offset by reading 4 consecutive bytes
     fn extract_u32(&self, offset: usize) -> u32 {
         let bytes = &self[offset..(offset + 4)];
         u32::from_ne_bytes(bytes.try_into().unwrap())
     }
-
+    /// Extact a U64 from byte slice starting from offset by reading 8 consecutive bytes
     fn extract_u64(&self, offset: usize) -> u64 {
         let bytes = &self[offset..(offset + 8)];
         u64::from_ne_bytes(bytes.try_into().unwrap())
     }
 
+    /// Extact an F32 from byte slice starting from offset by reading 4 consecutive bytes
     fn extract_f32(&self, offset: usize) -> f32 {
         let bytes = &self[offset..(offset + 4)];
         f32::from_ne_bytes(bytes.try_into().unwrap())
     }
 
+    /// Extact an F64 from byte slice starting from offset by reading 8 consecutive bytes
     fn extract_f64(&self, offset: usize) -> f64 {
         let bytes = &self[offset..(offset + 8)];
         f64::from_ne_bytes(bytes.try_into().unwrap())

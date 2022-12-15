@@ -38,7 +38,7 @@ fn empty_page() {
     println!("{:?}", heap_page);
     let page_header = PageHeader {
         space_start: 4,
-        space_end: 4095,
+        space_end: 4096,
     };
     assert_eq!(heap_page.header, page_header);
 }
