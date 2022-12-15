@@ -117,24 +117,6 @@ impl BufferManager {
         }
     }
 
-    // find a frame that is not pinned by any tx
-    // pub fn find_unused_frame(&self) -> Option<usize> {
-    //     let mut minimum_index = None;
-    //     let mut minimum = Some(i64::MAX);
-    //     for i in 0..self.frame_pool.len() {
-    //         let frame = self.frame_pool[i].borrow_mut();
-    //         if frame.is_free() && frame.timestamp < minimum {
-    //             minimum = frame.timestamp;
-    //             minimum_index = Some(i);
-    //         }
-    //     }
-    //     log::debug!(
-    //         "chosen frame index for replacement:{}",
-    //         minimum_index.unwrap()
-    //     );
-    //     minimum_index
-    // }
-
     /// Returns an index to a frame that has no block assigned to it.
     pub fn find_clean_frame(&self) -> Option<usize> {
         self.frame_pool
