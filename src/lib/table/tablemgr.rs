@@ -80,7 +80,7 @@ impl TableManager {
     /// Searches the FSM first for a block that has the least free space required for a tuple to insert
     /// it in , if None exists , the Heap File representing the table is extended by 1 block and the
     /// tuple is inserted into this page and the remaining space in it is added to the FSM
-    pub fn insert_tuple(&mut self, tuple_bytes: Vec<(String, Option<Vec<u8>>)>) {
+    pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Option<Vec<u8>>)>) {
         let tuple = Tuple::new(tuple_bytes, self.layout.clone());
         let target_block = self.free_map.get_smallest_fit(tuple.tuple_size());
         let mut storage_mgr = self.storage_mgr.borrow_mut();

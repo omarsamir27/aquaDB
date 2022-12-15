@@ -99,6 +99,7 @@ fn replacement_test() {
 //     let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE,3);
 //     let mut blks = utils::create_blockids(3, test_file);
 //     let frame = storagemgr.pin(blks.pop().unwrap()).unwrap();
+//     let frm = frame.clone();
 //     storagemgr.unpin(frame);
-//     storagemgr.unpin(frame)
+//     storagemgr.unpin(frm)
 // }
