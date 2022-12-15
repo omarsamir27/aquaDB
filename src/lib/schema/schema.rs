@@ -1,6 +1,7 @@
 use super::types::Type;
 use std::collections::HashMap;
 
+/// Vector of fields that are in a table (tuple)
 pub struct Schema {
     fields: Vec<Field>,
 }
@@ -18,6 +19,8 @@ impl Schema {
         self.fields
             .push(Field::new(name, field_type, nullable, char_limit))
     }
+
+    /// Convert the schema to a layout
     pub fn to_layout(&self) -> Layout {
         Layout::new(self)
     }
@@ -27,6 +30,9 @@ impl Schema {
     }
 }
 
+/// Entity containing a certain field's info such as:
+///
+/// Name, Type, Whether it can be Null, Limit of characters if it is a Varchar
 #[derive(Clone)]
 pub struct Field {
     name: String,
@@ -57,17 +63,25 @@ impl Field {
         self.char_limit
     }
 }
+
+/// Entity used to order fields inside a tuple
+///
+/// Used when reading and writing tuples
 #[derive(Debug)]
 pub struct Layout {
     map: HashMap<String, (Type, u16)>,
     index_map: HashMap<String, u8>,
 }
 impl Layout {
+    /// Loops over the fields by their order in the schema and reorders them by putting
+    /// the constants first then the Varchars
     fn new(schema: &Schema) -> Self {
         let mut map = HashMap::new();
         let mut index = 0_u8;
         let mut index_map = HashMap::new();
         let mut offset = 0_u16;
+        // getting constants first and putting them in the hashmap ordered by their precedence
+        // in the schema
         for field in &schema.fields {
             if !field.field_type.needs_pointer() {
                 map.insert(field.name.clone(), (field.field_type, offset));
@@ -76,6 +90,8 @@ impl Layout {
                 index += 1;
             }
         }
+        // getting variables then and putting them in the hashmap ordered by their precedence
+        // in the schema
         for field in &schema.fields {
             if field.field_type.needs_pointer() {
                 map.insert(field.name.clone(), (field.field_type, offset));
@@ -87,9 +103,13 @@ impl Layout {
 
         Self { map, index_map }
     }
+
+    /// Return the type, offset of a field in a tuple by its name
     pub fn field_data(&self, field_name: &str) -> (Type, u16) {
         self.map.get(field_name).unwrap().clone()
     }
+
+    /// Number of fields in a table
     pub fn fields_count(&self) -> usize {
         self.map.keys().len()
     }
@@ -100,6 +120,11 @@ impl Layout {
     pub fn index_map(&self) -> &HashMap<String, u8> {
         &self.index_map
     }
+
+    /// Inverse hashmap of a index_map with
+    ///
+    /// k -> field order in a layout
+    /// v -> field name
     pub fn name_map(&self) -> HashMap<u8, String> {
         self.index_map
             .iter()
@@ -107,12 +132,3 @@ impl Layout {
             .collect()
     }
 }
-/*
-   layout hashmap creation
-
-   let mut pos = 0
-   for field in fields
-       if ! field.field_type.needs_pointer
-
-
-*/
