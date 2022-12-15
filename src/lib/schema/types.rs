@@ -2,6 +2,7 @@ use crate::common::numerical::ByteMagic;
 use crate::schema::types::CharType::VarChar;
 use std::ops::Add;
 
+/// An enumeration for the numeric data types in the database
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum NumericType {
     SmallInt,
@@ -13,6 +14,7 @@ pub enum NumericType {
 }
 
 impl NumericType {
+    /// Returns the number of bytes used to store each data type
     #[inline(always)]
     pub fn unit_size(self) -> u8 {
         match self {
@@ -25,6 +27,7 @@ impl NumericType {
         }
     }
 
+    /// Reads a certain data type from a tuple by the specific number of bytes used to store it
     #[inline(always)]
     pub fn read_from_tuple(self, tuple: &[u8], start_byte: u16) -> &[u8] {
         let start_byte = start_byte as usize;
@@ -39,6 +42,7 @@ impl NumericType {
     }
 }
 
+/// An enumeration for the String data types in the database
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum CharType {
     Char,
@@ -46,9 +50,12 @@ pub enum CharType {
 }
 
 impl CharType {
+    /// Returns whether the current data type needs a pointer to store its offset and size (Varchar)
     pub fn needs_pointer(self) -> bool {
         self == VarChar
     }
+
+    /// Reads a certain Char/Varchar from a tuple by its offset and size stored in its pointer
     pub fn read_from_tuple(self, tuple: &[u8], start_byte: u16) -> &[u8] {
         let start_byte = start_byte as usize;
         let string_offset = tuple.extract_u16(start_byte) as usize;
@@ -57,6 +64,7 @@ impl CharType {
     }
 }
 
+/// Helper type classifier into Numeric or Character
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Type {
     Numeric(NumericType),
@@ -71,6 +79,11 @@ impl Type {
             Type::Character(_) => Some(4_u8),
         }
     }
+
+    /// Returns whether the current data type needs a pointer to store its offset and size
+    ///
+    /// Numeric types do not need pointers
+    /// Varchars need pointers
     #[inline(always)]
     pub fn needs_pointer(self) -> bool {
         match self {
