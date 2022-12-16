@@ -24,7 +24,6 @@ impl NullBitMap {
         &mut self.bitmap
     }
 
-
     /// Returns a vector with the indexes of the Null fields in a tuple by reading the 1s in the
     /// bitmap of a tuple
     pub fn get_null_indexes(&self) -> Vec<u8> {

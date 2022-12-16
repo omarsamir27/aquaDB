@@ -81,7 +81,10 @@ fn main() {
     let mut heap_page = HeapPage::new_from_empty(frame.clone(), &blk, layout.clone());
     let tuples = vec![vec![
         ("id".to_string(), None),
-        ("name".to_string(), Some("Omar".to_string().as_bytes().to_vec())),
+        (
+            "name".to_string(),
+            Some("Omar".to_string().as_bytes().to_vec()),
+        ),
         ("salary".to_string(), Some(5000_u32.to_ne_bytes().to_vec())),
         (
             "job".to_string(),

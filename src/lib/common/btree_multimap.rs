@@ -3,9 +3,6 @@ use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
 use std::ops::Range;
 
-
-
-
 /// Custom BTree Wrapper that allows for multiple Values using a vector as a value for standard library Btree
 #[derive(Debug)]
 pub struct BTreeMultimap<T, U> {
@@ -173,8 +170,9 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
 
     /// Removes the last element of vector V matching key K such that K is the first key satisfying
     /// a predicate
-    pub fn pop_first_key_match<P>(&mut self , predicate: P) -> Option<(T, U)>
-    where P: FnMut(&(&T, &mut Vec<U>)) -> bool
+    pub fn pop_first_key_match<P>(&mut self, predicate: P) -> Option<(T, U)>
+    where
+        P: FnMut(&(&T, &mut Vec<U>)) -> bool,
     {
         let entry = self.btreemap.iter_mut().find(predicate);
         let entry = match entry {
@@ -192,11 +190,10 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
         }
     }
 
-
     /// Removes the last element of vector V matching key K such that K is the first key bigger than
     /// a given value
-    pub fn pop_first_bigger_than(&mut self, value:T) -> Option<(T, U)> {
-        self.pop_first_key_match(|(k,v)| **k >= value)
+    pub fn pop_first_bigger_than(&mut self, value: T) -> Option<(T, U)> {
+        self.pop_first_key_match(|(k, v)| **k >= value)
     }
 
     /// Helper function to print the tree

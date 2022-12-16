@@ -22,7 +22,7 @@ pub struct BufferManager {
     max_slots: u32,
     available_slots: u32,
     page_size: usize, //timeout : Chrono Time
-    block_map: HashMap<BlockId,usize>,
+    block_map: HashMap<BlockId, usize>,
 }
 impl BufferManager {
     /// Create an instance of the buffer manager and determines its maximum size (maximum number of pages it can hold)
@@ -60,25 +60,26 @@ impl BufferManager {
     /// Try to find if an unpinned page is still in memory and has not been replaced out
     /// if it still exists, pin it and return index to its frame,
     /// else load it into memory and pin it then return index to the frame it got written to.
-    pub fn try_pin(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) -> Option<usize>{
+    pub fn try_pin(&mut self, blk: &BlockId, blkmgr: &mut BlockManager) -> Option<usize> {
         let mut idx = self.locate_existing_block(blk);
-        if idx.is_none(){
+        if idx.is_none() {
             idx = self.find_victim_page();
-            if idx.is_none(){return None}
+            if idx.is_none() {
+                return None;
+            }
             let idx = idx.unwrap();
             let mut frame = self.frame_pool[idx].borrow_mut();
-            if let Some(block) = frame.blockid.as_ref(){
+            if let Some(block) = frame.blockid.as_ref() {
                 self.block_map.remove(block);
             }
             frame.load_block(&blk, blkmgr);
-            self.block_map.insert(blk.to_owned(),idx);
+            self.block_map.insert(blk.to_owned(), idx);
             if frame.is_free() {
                 self.available_slots -= 1;
             }
             frame.num_pins += 1;
             Some(idx)
-        }
-        else {
+        } else {
             let idx = idx.unwrap();
             let mut frame = self.frame_pool[idx].borrow_mut();
             if frame.is_free() {
@@ -153,7 +154,6 @@ impl BufferManager {
 
     /// Find if a block exists in the frame pool and returns its index
     pub fn locate_existing_block(&self, blk: &BlockId) -> Option<usize> {
-      self.block_map.get(blk).copied()
+        self.block_map.get(blk).copied()
     }
-
 }

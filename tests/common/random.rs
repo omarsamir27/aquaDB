@@ -1,11 +1,9 @@
 use aqua::schema::schema::Schema;
 use aqua::schema::types::{CharType, NumericType, Type};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use rand::rngs::{StdRng, ThreadRng};
 use names::{Generator, Name};
-
-
+use rand::distributions::Alphanumeric;
+use rand::rngs::{StdRng, ThreadRng};
+use rand::{thread_rng, Rng};
 
 trait RandomTypeBytes {
     fn random(self) -> Vec<u8>;
@@ -31,12 +29,11 @@ impl RandomTypeBytes for CharType {
     fn random(self) -> Vec<u8> {
         let mut generator = Generator::default();
         generator.next().unwrap().into_bytes()
-
     }
 }
 
 impl RandomTypeBytes for Type {
-    fn random(self, ) -> Vec<u8> {
+    fn random(self) -> Vec<u8> {
         match self {
             Type::Numeric(n) => n.random(),
             Type::Character(c) => c.random(),
@@ -56,7 +53,7 @@ pub fn generate_random_tuples(
     count: u32,
 ) -> Vec<Vec<(String, Option<Vec<u8>>)>> {
     // vec![generate_random_tuple(schema); count as usize]
-    (0..count).map(|_| generate_random_tuple(schema) ).collect()
+    (0..count).map(|_| generate_random_tuple(schema)).collect()
 }
 
 pub fn distill_schema(schema: Schema) -> Vec<(String, Type)> {

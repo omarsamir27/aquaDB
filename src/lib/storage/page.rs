@@ -18,7 +18,7 @@ impl Page {
         }
     }
 
-    /// Writes bytes to the page
+    /// Writes bytes to the page at a specified offset
     pub fn write_bytes(&mut self, data: &[u8], offset: u64) {
         self.payload.write_at(offset, data).unwrap();
     }

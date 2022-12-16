@@ -82,7 +82,6 @@ impl StorageManager {
         self.block_manager.read_raw(blockid, byte_count)
     }
 
-
     /// Flushes a memory frame to the disk block it is currently pinned to , resetting its stats
     pub fn flush_frame(&mut self, frame: FrameRef) {
         let mut frm = frame.try_borrow_mut().unwrap();
@@ -93,6 +92,4 @@ impl StorageManager {
     pub fn blk_size(&self) -> usize {
         self.database_info.block_size
     }
-
-
 }

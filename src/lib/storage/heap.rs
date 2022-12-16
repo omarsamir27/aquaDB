@@ -4,13 +4,13 @@ use crate::schema::null_bitmap::NullBitMap;
 use crate::schema::schema::Layout;
 use crate::storage::blockid::BlockId;
 use crate::storage::buffermgr::FrameRef;
+use crate::storage::page::Page;
+use crate::storage::tuple::Tuple;
 use positioned_io2::{Size, WriteAt};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::storage::page::Page;
-use crate::storage::tuple::Tuple;
 
 /// An Entity that is owned by a certain Heap Page that encapsulates the byte that indicates the
 /// start and the end of the free space inside a Heap Page
@@ -116,7 +116,12 @@ impl HeapPage {
     /// Extracts the bytes of a certain field from the tuple given its name and the null bitmap of
     /// the tuple containing the required field
     #[inline(always)]
-    fn extract_field_from_tuple(&self, field_name: &str, tuple: &[u8], mut bitmap: NullBitMap) -> Option<Vec<u8>> {
+    fn extract_field_from_tuple(
+        &self,
+        field_name: &str,
+        tuple: &[u8],
+        mut bitmap: NullBitMap,
+    ) -> Option<Vec<u8>> {
         let bitmap_len = bitmap.bitmap().len();
         let field_index = *self.layout.index_map().get(field_name).unwrap() as usize;
         // the field is already null from the bitmap
@@ -129,11 +134,11 @@ impl HeapPage {
         for bit in 0..field_index {
             start_byte -= (bitmap.get_bit(bit)
                 * (self
-                .layout
-                .field_data(name_map.get(&(bit as u8)).unwrap())
-                .0
-                .unit_size()
-                .unwrap()) as u8) as u16;
+                    .layout
+                    .field_data(name_map.get(&(bit as u8)).unwrap())
+                    .0
+                    .unit_size()
+                    .unwrap()) as u8) as u16;
         }
         Some(
             field_type
@@ -162,7 +167,11 @@ impl HeapPage {
     ///
     /// Uses the function extract_field_from_tuple to do the algorithm of physically getting the
     /// fields bytes
-    pub fn get_multiple_fields(&self, field_names: Vec<String>, index: u16) -> Vec<Option<Vec<u8>>> {
+    pub fn get_multiple_fields(
+        &self,
+        field_names: Vec<String>,
+        index: u16,
+    ) -> Vec<Option<Vec<u8>>> {
         let mut bitmap = NullBitMap::new(self.layout.clone());
         let pointer = &self.tuple_pointers[index as usize];
         let mut frame = self.frame.borrow_mut();
@@ -172,7 +181,11 @@ impl HeapPage {
         bitmap.read_bitmap(&tuple[1..(bitmap_len + 1)]);
         let mut fields = Vec::new();
         for field_name in field_names {
-            fields.push(self.extract_field_from_tuple(field_name.as_str(), tuple.clone(), bitmap.clone()));
+            fields.push(self.extract_field_from_tuple(
+                field_name.as_str(),
+                tuple.clone(),
+                bitmap.clone(),
+            ));
         }
         fields
     }
@@ -266,7 +279,7 @@ impl HeapPage {
     }
 
     /// Calculates the number of free bytes inside a Heap Page to be stored in Free Space Map
-    pub fn free_space(&self) -> u16{
+    pub fn free_space(&self) -> u16 {
         (self.header.space_end - self.header.space_start) as u16
     }
 

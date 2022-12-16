@@ -4,6 +4,11 @@ use positioned_io2::WriteAt;
 use std::ops::Index;
 use std::rc::Rc;
 
+/// A helper Struct that acts as an converter between the raw form of a tuple supplied by the result
+/// of parsing a query statement and the Storage Engine
+///
+/// It is responsible for placing the bytes according to the layout generated from the table schema
+/// and constructing the associated Null BitMap
 pub struct Tuple {
     deleted: u8,
     bitmap: NullBitMap,
@@ -12,6 +17,8 @@ pub struct Tuple {
 }
 
 impl Tuple {
+    ///Creates a Tuple instance from a (Fieldname , Field Data Bytes) Vector and a layout supplied from
+    /// the table schema
     pub fn new(data: Vec<(String, Option<Vec<u8>>)>, layout: Rc<Layout>) -> Self {
         let bitmap = NullBitMap::new(layout.clone());
         Self {
@@ -21,11 +28,12 @@ impl Tuple {
             layout,
         }
     }
-    // BEWARE OF NULL IN DATA MAP
+    /// Returns the length of the tuple when it has been reordered and with the necessary metadata and
+    /// internal field pointers added , used by the heap file interface for tuple insertion and
+    /// navigation
     pub fn tuple_size(&self) -> u16 {
         let mut size = 0;
         let mut bitmap = self.bitmap.clone();
-        // let mut bitmap = NullBitMap::new(self.layout.clone());
         for (fieldname, data) in &self.data {
             if data.is_none() {
                 continue;
@@ -40,9 +48,33 @@ impl Tuple {
         size + 1 + (bitmap.bitmap().len() as u16)
     }
 
+    /// Consumes the Tuple instance to create the record form to be placed in a heap file.
+    ///
+    /// The algorithm to do this is as follows:
+    ///
+    /// We start out by separating numeric and character fields , the numeric fields are to be
+    /// considered first because their size is deterministic so they do not need pointers.
+    ///
+    /// For correctness , the supplied Tuple data vector must be reordered in strict
+    /// ascending order produced by processing the table layout , before doing any work
+    ///
+    /// For each constant size field:
+    ///
+    /// if the data is not null , subtract the size that would have been taken by all the previous numeric
+    /// fields that were NULLS from the precalculated OFFSET , and place the data bytes at that offset
+    /// else SET the corresponding field in the NullBitMap and increment the NULL_SIZE accumulator
+    ///
+    /// For variable size field:
+    ///
+    /// The field data itself will start after all the constant size fields and the variable fields
+    /// pointers, those pointers will only exist if their data is not NULL , so we count them first,
+    /// a variable field pointer is a u16 offset + a u16 length so 1 pointer is 4 bytes wide
+    ///
+    /// For each variable size fields:
+    /// do as the numeric fields , except that the data itself is written after all pointers
+    /// and the start of the second var field data is directly after the end of the preceding one
     pub fn to_bytes(mut self) -> Vec<u8> {
         let size = self.tuple_size();
-        // let mut bitmap = NullBitMap::new(self.layout.clone());
         let mut tuple = vec![0; (size - 1 - (self.bitmap.bitmap().len() as u16)) as usize];
         let index_map = self.layout.index_map();
         let mut ordered_tuple = vec![("".to_string(), None); self.data.len()];
@@ -95,10 +127,6 @@ impl Tuple {
                 tuple.write_at(curr_string_start as u64, field_bytes.as_slice());
                 curr_string_start += field_bytes.len() as u16;
             } else {
-                // let (fieldtype, mut offset) = self.layout.field_data(field.0.as_str());
-                // offset -= null_size;
-                // tuple.write_at(offset as u64, curr_string_start.to_ne_bytes().as_slice());
-                // tuple.write_at((offset + 2) as u64, (0_u16).to_ne_bytes().as_slice());
                 null_size += 4;
                 self.bitmap.set_null_field(field_pos);
             }

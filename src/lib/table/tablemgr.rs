@@ -60,18 +60,28 @@ impl TableManager {
     ///
     /// When a tuple is marked for deletion , it is not acutally deleted but only marked and is actually
     /// removed during compaction in vacuuming
-    pub fn delete_tuple(&mut self,blk:&BlockId,slot_num:usize){
+    pub fn delete_tuple(&mut self, blk: &BlockId, slot_num: usize) {
         let mut heap_page = self.get_heap_page(blk);
         heap_page.mark_delete(slot_num)
     }
 
     /// Get multiple fields of a tuple as bytes , reinterpreting them is the responsibility of the caller
-    pub fn get_fields(&mut self, blk:&BlockId, slot_num:usize, field_names: Vec<String>) -> Vec<Option<Vec<u8>>> {
+    pub fn get_fields(
+        &mut self,
+        blk: &BlockId,
+        slot_num: usize,
+        field_names: Vec<String>,
+    ) -> Vec<Option<Vec<u8>>> {
         let heap_page = self.get_heap_page(blk);
-        heap_page.get_multiple_fields(field_names,slot_num as u16)
+        heap_page.get_multiple_fields(field_names, slot_num as u16)
     }
     /// Get a single field of a tuple as bytes , reinterpreting it is the responsibility of the caller
-    pub fn get_field(&mut self, blk:&BlockId, slot_num:usize, field_name:&str) -> Option<Vec<u8>> {
+    pub fn get_field(
+        &mut self,
+        blk: &BlockId,
+        slot_num: usize,
+        field_name: &str,
+    ) -> Option<Vec<u8>> {
         let heap_page = self.get_heap_page(blk);
         heap_page.get_field(field_name, slot_num as u16)
     }
@@ -86,25 +96,29 @@ impl TableManager {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         if let Some((free_size, block)) = target_block {
             let mut frame = storage_mgr.pin(block.clone()).unwrap();
-            let mut target_page =  HeapPage::new(frame, &block, self.layout.clone());
+            let mut target_page = HeapPage::new(frame, &block, self.layout.clone());
             target_page.insert_tuple(tuple);
-            self.free_map.add_blockspace(target_page.free_space(),&block)
+            self.free_map
+                .add_blockspace(target_page.free_space(), &block)
         } else {
             let blkid = storage_mgr.extend_file(self.table_blocks[0].filename.as_str());
             self.table_blocks.push(blkid.clone());
             let mut frame = storage_mgr.pin(blkid.clone()).unwrap();
             let mut target_page = HeapPage::new_from_empty(frame, &blkid, self.layout.clone());
             target_page.insert_tuple(tuple);
-            self.free_map.add_blockspace(target_page.free_space(),&blkid);
+            self.free_map
+                .add_blockspace(target_page.free_space(), &blkid);
         };
     }
-    pub fn flush(&mut self,blk:&BlockId){
+    /// Flush the frame holding a BlockId to disk , resetting the necessary stats
+    pub fn flush(&mut self, blk: &BlockId) {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         let mut frame = storage_mgr.pin(blk.clone()).unwrap();
         storage_mgr.flush_frame(frame);
     }
 
-    pub fn flush_all(&mut self){
+    /// Flush all the table blocks to disk , resetting the necessary stats for each
+    pub fn flush_all(&mut self) {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         for blk in &self.table_blocks {
             let mut frame = storage_mgr.pin(blk.clone()).unwrap();
@@ -113,6 +127,8 @@ impl TableManager {
         }
     }
 
+    /// Compacts each block in the heap file representing a table by rewriting them in place ,
+    /// discarding deleted tuples
     pub fn vacuum(&mut self) {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         for block in &self.table_blocks {
@@ -122,12 +138,14 @@ impl TableManager {
             storage_mgr.unpin(frame);
         }
     }
-    fn get_heap_page(&mut self, blk:&BlockId) -> HeapPage {
+    /// Helper function to pin a block to a frame and construct a heap page out of it
+    fn get_heap_page(&mut self, blk: &BlockId) -> HeapPage {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         let frame = storage_mgr.pin(blk.clone()).unwrap();
         HeapPage::new(frame.clone(), blk, self.layout.clone())
     }
 
+    /// Creates a TableIter instance that is an sequential iterator over ALL the tuples in a table
     pub fn heapscan_iter(&self) -> TableIter {
         TableIter::new(
             &self.table_blocks,
@@ -137,6 +155,7 @@ impl TableManager {
     }
 }
 
+/// A Sequential Iterator over ALL tuples in a database table
 pub struct TableIter<'tblmgr> {
     table_blocks: &'tblmgr Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
@@ -147,6 +166,8 @@ pub struct TableIter<'tblmgr> {
     current_page_pointer_count: usize,
 }
 impl<'tblmgr> TableIter<'tblmgr> {
+    /// Constructs a TableIter instance and initializes it to use the first block of the heap file
+    /// representing the Table.
     pub fn new(
         table_blocks: &'tblmgr Vec<BlockId>,
         storage_mgr: Rc<RefCell<StorageManager>>,
@@ -168,8 +189,12 @@ impl<'tblmgr> TableIter<'tblmgr> {
         }
     }
 
+    /// Retrieves a tuple from the table , skips zeroed tuple pointers until a valid one is met.
+    /// Each call to `next` retrieves exactly 1 tuple.
+    ///
+    ///If a None is returned , the caller is guaranteed that this table has no more records
     pub fn next(&mut self) -> Option<Vec<u8>> {
-        while self.current_block_index != (self.table_blocks.len() ) {
+        while self.current_block_index != (self.table_blocks.len()) {
             while self.current_tuple_index < self.current_page_pointer_count {
                 let (pointer_exist, tuple_exist) = self
                     .current_page
@@ -185,8 +210,8 @@ impl<'tblmgr> TableIter<'tblmgr> {
             self.current_block_index += 1;
             let mut storage_mgr = self.storage_mgr.borrow_mut();
             storage_mgr.unpin(self.current_page.frame.clone());
-            if self.current_block_index == self.table_blocks.len(){
-               break
+            if self.current_block_index == self.table_blocks.len() {
+                break;
             }
             let block = &self.table_blocks[self.current_block_index];
             let frame = storage_mgr.pin(block.clone()).unwrap();
@@ -194,9 +219,7 @@ impl<'tblmgr> TableIter<'tblmgr> {
         }
         None
     }
-     fn close(self){
-
-    }
+    fn close(self) {}
     // pub fn has_next(&self) -> bool{
     //     self.current_block_index < self.table_blocks.len() - 1
     //     || ((self.current_block_index == self.table_blocks.len() - 1) && self.current_tuple_index < self.current_page_pointer_count )
