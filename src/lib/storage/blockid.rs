@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
 use std::fmt::{format, Display, Formatter};
 use std::hash::Hash;
+use bincode::{Decode, Encode};
 
 /// A Unique Identifier for the block by the file name containing the block and the block number
 /// inside that file
-#[derive(Clone, Debug, Eq, Hash)]
+#[derive(Clone, Debug, Eq, Hash,Encode,Decode)]
 pub struct BlockId {
     pub filename: String,
     pub block_num: u64,

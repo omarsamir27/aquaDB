@@ -18,6 +18,8 @@ path = "src/bin/main.rs"
 positioned-io2 = "0.3.4"
 chrono = "0.4.22"
 debug_print = "1.0.0"
+#serde = {version="1.0.151",features =["derive"]}
+bincode = "2.0.0-rc.2"
 
 [dev-dependencies]
 rand = "0.8.5"

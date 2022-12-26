@@ -10,8 +10,25 @@ use aqua::storage::heap::HeapPage;
 use aqua::storage::storagemgr::StorageManager;
 use aqua::storage::tuple::Tuple;
 use std::rc::Rc;
+use aqua::common::btree_multimap::BTreeMultimap;
+
+fn btree_write_test(){
+    let mut tree = BTreeMultimap::new();
+    tree.insert_vec(10,&[1,2,3,4,5,6,7]);
+    tree.insert_vec(5,&[8,9,10]);
+    let bytes = tree.to_bytes();
+    std::fs::write("btree",bytes).unwrap()
+}
+
+fn btree_read_test(){
+    let bytes = std::fs::read("btree").unwrap();
+    let tree : BTreeMultimap<i32,i32> = BTreeMultimap::from_bytes(bytes.as_slice());
+    tree.print_all()
+}
 
 fn main() {
+    // btree_test()
+    btree_read_test()
     // let mut schema = Schema::new();
     // let schema_vec = vec![
     //     ("id",Type::Numeric(SmallInt),false,None),
@@ -56,47 +73,47 @@ fn main() {
     // }
     // println!("{:?}", bitmap);
 
-    const db_dir: &str = "tests/db/";
-
-    let test_file = "write_read_tuples";
-    let BLK_SIZE = 4096;
-    let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE, 100);
-    let blk = BlockId {
-        filename: test_file.to_string(),
-        block_num: 0,
-    };
-    let mut schema = Schema::new();
-    let schema_vec = vec![
-        ("id", Type::Numeric(SmallInt), false, None),
-        ("name", Type::Character(VarChar), false, None),
-        ("salary", Type::Numeric(Integer), false, None),
-        ("job", Type::Character(VarChar), false, None),
-    ];
-    for attr in schema_vec {
-        schema.add_field(attr.0, attr.1, attr.2, attr.3);
-    }
-    let layout = schema.to_layout();
-    let layout = Rc::new(layout);
-    let frame = storagemgr.pin(blk.clone()).unwrap();
-    let mut heap_page = HeapPage::new_from_empty(frame.clone(), &blk, layout.clone());
-    let tuples = vec![vec![
-        ("id".to_string(), None),
-        (
-            "name".to_string(),
-            Some("Omar".to_string().as_bytes().to_vec()),
-        ),
-        ("salary".to_string(), Some(5000_u32.to_ne_bytes().to_vec())),
-        (
-            "job".to_string(),
-            Some("Engineer".to_string().as_bytes().to_vec()),
-        ),
-    ]];
-    for tuple in tuples {
-        let tuple = Tuple::new(tuple, layout.clone());
-        heap_page.insert_tuple(tuple)
-    }
-    storagemgr.flush_frame(frame.clone());
-    let field_names = vec!["name".to_string(), "job".to_string(), "salary".to_string()];
-    let retrieved_fields = heap_page.get_multiple_fields(field_names.clone(), 0);
-    println!("{:?}", retrieved_fields);
+    // const db_dir: &str = "tests/db/";
+    //
+    // let test_file = "write_read_tuples";
+    // let BLK_SIZE = 4096;
+    // let mut storagemgr = StorageManager::new(db_dir, BLK_SIZE, 100);
+    // let blk = BlockId {
+    //     filename: test_file.to_string(),
+    //     block_num: 0,
+    // };
+    // let mut schema = Schema::new();
+    // let schema_vec = vec![
+    //     ("id", Type::Numeric(SmallInt), false, None),
+    //     ("name", Type::Character(VarChar), false, None),
+    //     ("salary", Type::Numeric(Integer), false, None),
+    //     ("job", Type::Character(VarChar), false, None),
+    // ];
+    // for attr in schema_vec {
+    //     schema.add_field(attr.0, attr.1, attr.2, attr.3);
+    // }
+    // let layout = schema.to_layout();
+    // let layout = Rc::new(layout);
+    // let frame = storagemgr.pin(blk.clone()).unwrap();
+    // let mut heap_page = HeapPage::new_from_empty(frame.clone(), &blk, layout.clone());
+    // let tuples = vec![vec![
+    //     ("id".to_string(), None),
+    //     (
+    //         "name".to_string(),
+    //         Some("Omar".to_string().as_bytes().to_vec()),
+    //     ),
+    //     ("salary".to_string(), Some(5000_u32.to_ne_bytes().to_vec())),
+    //     (
+    //         "job".to_string(),
+    //         Some("Engineer".to_string().as_bytes().to_vec()),
+    //     ),
+    // ]];
+    // for tuple in tuples {
+    //     let tuple = Tuple::new(tuple, layout.clone());
+    //     heap_page.insert_tuple(tuple)
+    // }
+    // storagemgr.flush_frame(frame.clone());
+    // let field_names = vec!["name".to_string(), "job".to_string(), "salary".to_string()];
+    // let retrieved_fields = heap_page.get_multiple_fields(field_names.clone(), 0);
+    // println!("{:?}", retrieved_fields);
 }

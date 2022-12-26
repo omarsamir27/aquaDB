@@ -35,4 +35,16 @@ impl FreeMap {
     pub fn btree(&self) -> &BTreeMultimap<u16, BlockId> {
         &self.btree
     }
+
+    pub fn from_bytes(data:&[u8]) -> Self{
+        Self{
+            btree:BTreeMultimap::from_bytes(data)
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8>{
+        self.btree.to_bytes()
+    }
 }
+
+

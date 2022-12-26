@@ -2,14 +2,16 @@ use std::collections::btree_map::{Entry, RangeMut};
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
 use std::ops::Range;
+use bincode::{Decode, Encode};
+// use serde::{Deserialize,};
 
 /// Custom BTree Wrapper that allows for multiple Values using a vector as a value for standard library Btree
-#[derive(Debug)]
-pub struct BTreeMultimap<T, U> {
+#[derive(Debug,Encode,Decode)]
+pub struct BTreeMultimap<T : std::cmp::Ord, U> {
     btreemap: BTreeMap<T, Vec<U>>,
 }
 
-impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
+impl<T: Ord + ToOwned<Owned = T >+ Encode + Decode, U : Encode +Decode> BTreeMultimap<T, U> {
     /// Creates an empty BTreeMultimap
     pub fn new() -> BTreeMultimap<T, U> {
         Self {
@@ -205,6 +207,16 @@ impl<T: Ord + ToOwned<Owned = T>, U> BTreeMultimap<T, U> {
         for (k, v) in self.btreemap.iter() {
             println!("K : {} , V : {:?} ", k, v)
         }
+    }
+
+    pub fn from_bytes(data:&[u8]) -> BTreeMultimap<T, U>{
+        let config = bincode::config::standard();
+        let tree : BTreeMultimap<T,U> = bincode::decode_from_slice(data,config).unwrap().0;
+        tree
+    }
+    pub fn to_bytes(&self) -> Vec<u8>{
+        let config = bincode::config::standard();
+        bincode::encode_to_vec(self.clone(),config).unwrap()
     }
 }
 
