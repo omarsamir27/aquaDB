@@ -20,6 +20,7 @@ chrono = "0.4.22"
 debug_print = "1.0.0"
 #serde = {version="1.0.151",features =["derive"]}
 bincode = "2.0.0-rc.2"
+thiserror = "1.0.38"
 
 [dev-dependencies]
 rand = "0.8.5"

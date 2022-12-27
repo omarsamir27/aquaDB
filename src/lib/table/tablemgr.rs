@@ -71,7 +71,7 @@ impl TableManager {
         blk: &BlockId,
         slot_num: usize,
         field_names: Vec<String>,
-    ) -> Vec<Option<Vec<u8>>> {
+    ) -> HashMap<String, Option<Vec<u8>>> {
         let heap_page = self.get_heap_page(blk);
         heap_page.get_multiple_fields(field_names, slot_num as u16)
     }
@@ -193,14 +193,14 @@ impl<'tblmgr> TableIter<'tblmgr> {
     /// Each call to `next` retrieves exactly 1 tuple.
     ///
     ///If a None is returned , the caller is guaranteed that this table has no more records
-    pub fn next(&mut self) -> Option<Vec<u8>> {
+    pub fn next(&mut self) -> Option<HashMap<String, Option<Vec<u8>>>> {
         while self.current_block_index != (self.table_blocks.len()) {
             while self.current_tuple_index < self.current_page_pointer_count {
                 let (pointer_exist, tuple_exist) = self
                     .current_page
                     .pointer_and_tuple_exist(self.current_tuple_index);
                 if tuple_exist {
-                    let tuple = self.current_page.get_tuple(self.current_tuple_index);
+                    let tuple = self.current_page.get_tuple_fields(self.current_tuple_index);
                     self.current_tuple_index += 1;
                     return Some(tuple);
                 }

@@ -10,6 +10,7 @@ use positioned_io2::{Size, WriteAt};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::iter::zip;
 use std::rc::Rc;
 
 /// An Entity that is owned by a certain Heap Page that encapsulates the byte that indicates the
@@ -171,7 +172,7 @@ impl HeapPage {
         &self,
         field_names: Vec<String>,
         index: u16,
-    ) -> Vec<Option<Vec<u8>>> {
+    ) -> HashMap<String, Option<Vec<u8>>> {
         let mut bitmap = NullBitMap::new(self.layout.clone());
         let pointer = &self.tuple_pointers[index as usize];
         let mut frame = self.frame.borrow_mut();
@@ -180,14 +181,22 @@ impl HeapPage {
         let bitmap_len = bitmap.bitmap().len();
         bitmap.read_bitmap(&tuple[1..(bitmap_len + 1)]);
         let mut fields = Vec::new();
-        for field_name in field_names {
+        for field_name in &field_names {
             fields.push(self.extract_field_from_tuple(
                 field_name.as_str(),
                 tuple.clone(),
                 bitmap.clone(),
             ));
         }
-        fields
+        let map : HashMap<String,Option<Vec<u8>>> = zip(field_names,fields).collect();
+        map
+
+    }
+
+    /// Returns a Hashmap of Fieldnames and values that exists at a specific slot inside the page
+    pub fn get_tuple_fields(&self, slot_num: usize) -> HashMap<String, Option<Vec<u8>>> {
+        let fields : Vec<String> = self.layout.index_map().keys().map(|string| string.to_string()).collect();
+        self.get_multiple_fields(fields, slot_num as u16)
     }
 
     /// Virtually deleting a tuple in a specific slot inside the page by setting the deleted byte
