@@ -1,5 +1,8 @@
 #![allow(non_snake_case)]
 
+use std::any::Any;
+use std::collections::HashMap;
+use std::hint::black_box;
 use aqua::schema::null_bitmap::NullBitMap;
 use aqua::schema::schema::Schema;
 use aqua::schema::types::CharType::VarChar;
@@ -11,6 +14,9 @@ use aqua::storage::storagemgr::StorageManager;
 use aqua::storage::tuple::Tuple;
 use std::rc::Rc;
 use aqua::common::btree_multimap::BTreeMultimap;
+use evalexpr::*;
+use aqua::query::concrete_types::ConcreteType;
+use bincode::*;
 
 fn btree_write_test(){
     let mut tree = BTreeMultimap::new();
@@ -28,7 +34,7 @@ fn btree_read_test(){
 
 fn main() {
     // btree_test()
-    btree_read_test()
+    // btree_read_test();
     // let mut schema = Schema::new();
     // let schema_vec = vec![
     //     ("id",Type::Numeric(SmallInt),false,None),
@@ -116,4 +122,47 @@ fn main() {
     // let field_names = vec!["name".to_string(), "job".to_string(), "salary".to_string()];
     // let retrieved_fields = heap_page.get_multiple_fields(field_names.clone(), 0);
     // println!("{:?}", retrieved_fields);
+    //
+    // let mut v : Vec<Box<dyn Any>> = vec![];
+    // let x = Box::new(
+    //     | x:&dyn Any | x.downcast_ref::<i32>().unwrap() > &500
+    // );
+    // let b = Box::new(
+    //     | x:&dyn Any | x.downcast_ref::<String>().unwrap().contains("hello")
+    // );
+    //
+    // v.push(x);
+    // v.push(b);
+    //
+    // let e = (10,"hello world".to_string());
+    //
+    // let q = v.remove(0).downcast::<Box<fn(&dyn Any) -> bool>>().unwrap();
+    // println!("{}", q(&10 as &dyn Any) );
+
+
+    let mut context = evalexpr::HashMapContext::new();
+    context.set_value("salary".to_string(),Value::Int(2 as IntType)).unwrap();
+    context.set_value("name".to_string(),Value::String("omar".to_string())).unwrap();
+    println!("{:?}",eval_boolean_with_context(" salary > 0 && name == \"omar\" ",&context).unwrap())
+
+    // let x = ConcreteType::VarChar("omar".to_string());
+    // let y = ConcreteType::Char("omar".to_string());
+    // let z = ConcreteType::Integer(2);
+    // let v = ConcreteType::Integer(66);
+    // let abc = vec![Some(x),Some(y),Some(z),None];
+    // let x = ConcreteType::VarChar("samir".to_string());
+    // let y = ConcreteType::Char("samir".to_string());
+    // let z = ConcreteType::Integer(27);
+    // let v = ConcreteType::Integer(-33);
+    // let xyz = vec![Some(x),Some(y),None,Some(v)];
+    // let abc = vec![abc,xyz];
+    // let a = bincode::encode_to_vec(abc,bincode::config::standard()).unwrap();
+    // let b : Vec<Vec<Option<ConcreteType>>> = bincode::decode_from_slice(a.as_slice(),bincode::config::standard()).unwrap().0;
+    //
+    // let r = vec![1,2];
 }
+
+
+
+
+

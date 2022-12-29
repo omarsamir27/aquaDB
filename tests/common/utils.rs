@@ -17,7 +17,7 @@ pub fn readfile(filename: &str) -> Vec<u8> {
     std::fs::read(filename).unwrap()
 }
 
-pub fn some_layout() -> Layout {
+pub fn some_schema() -> Schema{
     let mut schema = Schema::new();
     let schema_vec = vec![
         ("id", Type::Numeric(SmallInt), false, None),
@@ -28,7 +28,11 @@ pub fn some_layout() -> Layout {
     for attr in schema_vec {
         schema.add_field(attr.0, attr.1, attr.2, attr.3);
     }
-    schema.to_layout()
+    schema
+}
+
+pub fn some_layout() -> Layout {
+    some_schema().to_layout()
 }
 
 pub fn empty_heapfile(

@@ -10,4 +10,4 @@ mod database;
 pub mod schema;
 pub mod storage;
 pub mod table;
-mod query;
+pub mod query;

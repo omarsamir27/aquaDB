@@ -13,6 +13,16 @@ pub trait ByteMagic {
     fn extract_u64(&self, offset: usize) -> u64;
     fn extract_f32(&self, offset: usize) -> f32;
     fn extract_f64(&self, offset: usize) -> f64;
+    fn to_usize(self) -> usize;
+    fn to_u16(self) -> u16;
+    fn to_u32(self) -> u32;
+    fn to_u64(self) -> u64;
+    fn to_f32(self) -> f32;
+    fn to_f64(self) -> f64;
+    fn to_i16(self) -> i16;
+    fn to_i32(self) -> i32;
+    fn to_i64(self) -> i64;
+
 }
 
 impl ByteMagic for &[u8] {
@@ -52,6 +62,44 @@ impl ByteMagic for &[u8] {
     fn extract_f64(&self, offset: usize) -> f64 {
         let bytes = &self[offset..(offset + 8)];
         f64::from_ne_bytes(bytes.try_into().unwrap())
+    }
+
+    fn to_usize(self) -> usize {
+        usize::from_ne_bytes(self.try_into().unwrap())
+        
+    }
+
+    fn to_u16(self) -> u16 {
+        u16::from_ne_bytes(self.try_into().unwrap())
+    }
+
+    fn to_u32(self) -> u32 {
+        u32::from_ne_bytes(self.try_into().unwrap())
+    }
+
+    fn to_u64(self) -> u64 {
+        u64::from_ne_bytes(self.try_into().unwrap())
+    }
+
+    fn to_f32(self) -> f32 {
+        f32::from_ne_bytes(self.try_into().unwrap())
+    }
+
+    fn to_f64(self) -> f64 {
+        f64::from_ne_bytes(self.try_into().unwrap())
+    }
+
+    fn to_i16(self) -> i16 {
+        i16::from_ne_bytes(self.try_into().unwrap())
+    }
+
+    fn to_i32(self) -> i32 {
+        i32::from_ne_bytes(self.try_into().unwrap())
+    }
+
+    fn to_i64(self) -> i64 {
+        i64::from_ne_bytes(self.try_into().unwrap())
+
     }
 }
 

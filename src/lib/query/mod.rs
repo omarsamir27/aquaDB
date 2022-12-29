@@ -1,3 +1,5 @@
-mod executor;
+pub mod executor;
 mod select_node;
-mod seq_scan;
+pub mod seq_scan;
+pub mod concrete_types;
+mod tuple_table;

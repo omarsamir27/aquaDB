@@ -145,6 +145,10 @@ impl TableManager {
         HeapPage::new(frame.clone(), blk, self.layout.clone())
     }
 
+    pub fn get_layout(&self) -> Rc<Layout> {
+        self.layout.clone()
+    }
+
     /// Creates a TableIter instance that is an sequential iterator over ALL the tuples in a table
     pub fn heapscan_iter(&self) -> TableIter {
         TableIter::new(
