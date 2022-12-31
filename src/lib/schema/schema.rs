@@ -131,4 +131,8 @@ impl Layout {
             .map(|(k, v)| (v.clone(), k.clone()))
             .collect()
     }
+
+    pub fn type_map(&self) -> HashMap<String,Type>{
+        self.map.iter().map(|(k,(t,_))| (k.to_string(),*t) ).collect()
+    }
 }

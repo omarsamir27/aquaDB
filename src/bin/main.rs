@@ -140,10 +140,15 @@ fn main() {
     // println!("{}", q(&10 as &dyn Any) );
 
 
-    let mut context = evalexpr::HashMapContext::new();
-    context.set_value("salary".to_string(),Value::Int(2 as IntType)).unwrap();
-    context.set_value("name".to_string(),Value::String("omar".to_string())).unwrap();
-    println!("{:?}",eval_boolean_with_context(" salary > 0 && name == \"omar\" ",&context).unwrap())
+    // let mut context = evalexpr::HashMapContext::new();
+    // context.set_value("salary".to_string(),Value::Int(2 as IntType)).unwrap();
+    // context.set_value("name".to_string(),Value::String("omar".to_string())).unwrap();
+    // println!("{:?}",eval_boolean_with_context(" salary > 0 && name == \"omar\" ",&context).unwrap())
+
+    let tree = evalexpr::build_operator_tree(" id > 0 && salary > 0 && name == \"omar\" ").unwrap();
+    for x in tree.iter_read_variable_identifiers(){
+        println!("{x}");
+    }
 
     // let x = ConcreteType::VarChar("omar".to_string());
     // let y = ConcreteType::Char("omar".to_string());

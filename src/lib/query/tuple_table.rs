@@ -1,7 +1,7 @@
 use crate::query::concrete_types::ConcreteType;
 use crate::query::tuple_table::TableErrors::{InvalidColumn, MissingFields};
 use crate::schema::types::Type;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::env::current_exe;
 use std::fmt::{Display, Formatter, Pointer};
 use std::fs::{File, OpenOptions};
@@ -19,7 +19,7 @@ pub enum TableErrors {
 }
 
 type TableHeaders = HashMap<String, (usize, Type)>;
-type Column = Option<ConcreteType>;
+type Column = ConcreteType;
 type Row = Vec<Column>;
 type RowMap = HashMap<String, Option<Vec<u8>>>;
 type InsertResult = Result<(), TableErrors>;
@@ -32,11 +32,11 @@ impl<'a> Display for RowPrint<'a>{
         let len = self.0.len();
         for idx in 0..len-1{
             let col = &self.0[idx];
-            let col = col.as_ref().map_or("".to_string(),|column| column.to_string());
+            // let col = col.to_string()
             f.write_fmt(format_args!("{col},"));
         }
         let col = &self.0[len-1];
-        let col = col.as_ref().map_or("".to_string(),|column| column.to_string());
+        // let col = col.as_ref().map_or("".to_string(),|column| column.to_string());
         f.write_fmt(format_args!("{col}"))
     }
 }
@@ -49,13 +49,13 @@ pub struct Table {
     num_cols: u32,
     index_type_map: TableHeaders,
     data: Vec<Row>,
-    segments: HashMap<u32,File>,
+    segments: Vec<(u32,File)>,
     current_segment: u32,
     max_data_size: usize,
     current_memory_use : usize
 }
 impl Table {
-    pub fn new(name:&str,headers: Vec<(String, Type)>, max_memory: usize) -> Self {
+    pub fn new(name:&str,headers: HashMap<String, Type>, max_memory: usize) -> Self {
         let num_cols = headers.len();
         let mut table_headers = TableHeaders::new();
         for (idx, (col_name, col_type)) in headers.into_iter().enumerate() {
@@ -66,7 +66,7 @@ impl Table {
             num_cols: num_cols as u32,
             num_rows: 0,
             data: vec![],
-            segments: HashMap::new(),
+            segments: vec![],
             index_type_map: table_headers,
             current_segment: 0,
             max_data_size: max_memory,
@@ -79,10 +79,15 @@ impl Table {
             let path = format!("tmp{}{}",self.name,self.current_segment) ;
             let path = tmp_dir.join(path.as_str());
             let mut segment = File::options().read(true).write(true).create(true).open(path.clone()).unwrap();
-            let current_segment_data = std::mem::take(&mut self.data);
+            let mut current_segment_data = std::mem::take(&mut self.data);
+
+            /////// sort test
+            current_segment_data.sort_unstable_by(|r1,r2| r1[0].cmp(r2.get(0).unwrap()));
+
+
             bincode::encode_into_std_write(current_segment_data,&mut segment,bincode::config::standard()).unwrap();
             let  segment = File::options().read(true).write(true).open(path).unwrap();
-            self.segments.insert(self.current_segment,segment);
+            self.segments.push((self.current_segment,segment));
             self.current_segment +=1;
             self.num_rows =0;
             self.current_memory_use = 0;
@@ -90,7 +95,7 @@ impl Table {
         if row_map.len() != self.num_cols as usize {
             return Err(MissingFields);
         }
-        let mut row = vec![Column::None; self.num_cols as usize];
+        let mut row = vec![Column::default(); self.num_cols as usize];
         for (field_name, data) in row_map.into_iter() {
             match self.index_type_map.get(field_name.as_str()) {
                 None => {
@@ -98,7 +103,7 @@ impl Table {
                 }
                 Some((idx, schema_type)) => {
                     row[*idx] =
-                        data.map(|data| {
+                        data.map_or(Default::default(),|data| {
                             self.current_memory_use += data.len();
                             ConcreteType::from_bytes(*schema_type, data.as_slice())
                         })
@@ -107,7 +112,6 @@ impl Table {
         }
         self.data.push(row);
         self.num_rows += 1;
-
         Ok(())
     }
     // pub fn add_row_vec(&mut self,row:Row) -> InsertResult{
@@ -121,7 +125,7 @@ impl Table {
 
 
     fn load_segment(&mut self,segment:u32){
-        let file =  self.segments.get_mut(&segment).unwrap();
+        let file =  &mut self.segments.iter_mut().find(|(seg,file)| *seg == segment ).unwrap().1;
         self.current_memory_use = file.metadata().unwrap().len() as usize;
         let mut data = vec![];
         let v = file.read_to_end(&mut data).unwrap();
@@ -135,7 +139,7 @@ impl Table {
         for row in self.data.iter(){
             println!("{}",RowPrint(row));
         }
-        let rest : Vec<u32>  =  self.segments.keys().filter(|k| **k!=current_seg).copied().collect();
+        let rest : Vec<u32>  =  self.segments.iter().filter(|(seg,_)| *seg != current_seg).map(|(seg,_)| *seg).collect();
         for seg in rest{
             self.load_segment(seg);
             for row in self.data.iter(){
@@ -144,6 +148,90 @@ impl Table {
         }
 
     }
+
+    pub fn sort(&mut self,sort_key:&str){
+        let key_index = self.index_type_map.get(sort_key).unwrap().0;
+        if self.segments.is_empty(){
+            self.data.sort_unstable_by(|r1,r2| r1[key_index].cmp(&r2[key_index]) );
+        }
+        else {
+            self.external_merge(key_index)
+        }
+    }
+
+    fn external_merge(&mut self,key_index:usize){
+        self.num_rows = 0 ; self.current_memory_use = 0;
+        let disk_segments = mem::take(&mut self.segments);
+        let (current_seg,current_data) = (self.current_segment,mem::take(&mut self.data));
+
+    }
 }
+
+struct SortingRun{
+    segments : VecDeque<(u32,File)>,
+    current_data : Vec<Row>
+}
+impl SortingRun{
+    fn memory_purge_run(table_name:&str,key_index:usize,current_seg:u32, mut current_data:Vec<Row>, mut disk_seg:(u32, File)) -> Self{
+        let config = bincode::config::standard();
+        let mut disk_data = vec![];
+        disk_seg.1.read_to_end(&mut disk_data).unwrap();
+        let mut disk_data : Vec<Row> = bincode::decode_from_slice(&disk_data,config).unwrap().0;
+        current_data.append(&mut disk_data);
+        current_data.sort_unstable_by(|r1,r2| r1[key_index].cmp(&r2[key_index]) );
+        let len = current_data.len();
+        let mut dst = bincode::encode_to_vec(&current_data[..len/2], config).unwrap();
+        let tmp_dir = Path::new(TMP_DIR);
+        let path = format!("tmp{}{}",table_name,current_seg) ;
+        let path = tmp_dir.join(path.as_str());
+        let mut segment = File::options().read(true).write(true).create(true).open(path.clone()).unwrap();
+        segment.write_all(&dst).unwrap();
+        dst.clear();
+        dst = bincode::encode_to_vec(&current_data[len/2..],config).unwrap();
+        disk_seg.1.write_all(&dst).unwrap();
+        Self{
+            segments: VecDeque::from([(current_seg,segment),disk_seg]),
+            current_data : vec![]
+        }
+    }
+    fn init(mut segments:Vec<(u32,File)>,key_index:usize) -> Self{
+        let config = bincode::config::standard();
+        let mut data : Vec<Row> = vec![];
+        let mut disk_buff = vec![];
+        for mut seg in &mut segments{
+            seg.1.read_to_end(&mut disk_buff).unwrap();
+            data.append(
+                &mut bincode::decode_from_slice(&disk_buff, config).unwrap().0
+            );
+            disk_buff.clear();
+        }
+        data.sort_unstable_by(|r1,r2| r1[key_index].cmp(&r2[key_index]) );
+        let mut run_segments = VecDeque::new();
+        let part_size = data.len() / segments.len();
+        let mut data_iter = data.chunks(part_size);
+        for (mut seg_num, mut seg_file) in segments{
+            let mem_buff =  bincode::encode_to_vec(data_iter.next().unwrap(),config).unwrap();
+            seg_file.write_all(&mem_buff).unwrap();
+            run_segments.push_back((seg_num,seg_file));
+        }
+        Self{
+            segments:run_segments,
+            current_data : vec![]
+        }
+    }
+    fn get_row(&mut self) -> Row{
+        if self.current_data.is_empty(){
+            let seg = self.segments.pop_front().unwrap();
+
+        }
+        todo!()
+    }
+
+    fn merge(runs:Vec<SortingRun>) -> Self{
+        let k_way = runs.len();
+
+    }
+}
+
 
 

@@ -23,6 +23,7 @@ bincode = "2.0.0-rc.2"
 thiserror = "1.0.38"
 #predicates = "2.1.4"
 evalexpr = {version = "8.1.0", features=["regex_support"]}
+num-order= "1.0.4"
 
 
 [dev-dependencies]
