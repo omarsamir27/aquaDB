@@ -188,14 +188,18 @@ impl HeapPage {
                 bitmap.clone(),
             ));
         }
-        let map : HashMap<String,Option<Vec<u8>>> = zip(field_names,fields).collect();
+        let map: HashMap<String, Option<Vec<u8>>> = zip(field_names, fields).collect();
         map
-
     }
 
     /// Returns a Hashmap of Fieldnames and values that exists at a specific slot inside the page
     pub fn get_tuple_fields(&self, slot_num: usize) -> HashMap<String, Option<Vec<u8>>> {
-        let fields : Vec<String> = self.layout.index_map().keys().map(|string| string.to_string()).collect();
+        let fields: Vec<String> = self
+            .layout
+            .index_map()
+            .keys()
+            .map(|string| string.to_string())
+            .collect();
         self.get_multiple_fields(fields, slot_num as u16)
     }
 

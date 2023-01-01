@@ -22,7 +22,6 @@ pub trait ByteMagic {
     fn to_i16(self) -> i16;
     fn to_i32(self) -> i32;
     fn to_i64(self) -> i64;
-
 }
 
 impl ByteMagic for &[u8] {
@@ -66,7 +65,6 @@ impl ByteMagic for &[u8] {
 
     fn to_usize(self) -> usize {
         usize::from_ne_bytes(self.try_into().unwrap())
-        
     }
 
     fn to_u16(self) -> u16 {
@@ -99,7 +97,6 @@ impl ByteMagic for &[u8] {
 
     fn to_i64(self) -> i64 {
         i64::from_ne_bytes(self.try_into().unwrap())
-
     }
 }
 

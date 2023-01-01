@@ -7,7 +7,7 @@ extern crate core;
 
 pub mod common;
 mod database;
+pub mod query;
 pub mod schema;
 pub mod storage;
 pub mod table;
-pub mod query;

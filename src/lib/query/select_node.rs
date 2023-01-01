@@ -1,3 +1,1 @@
-struct SelectNode{
-    
-}
+struct SelectNode {}

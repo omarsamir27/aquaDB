@@ -36,15 +36,13 @@ impl FreeMap {
         &self.btree
     }
 
-    pub fn from_bytes(data:&[u8]) -> Self{
-        Self{
-            btree:BTreeMultimap::from_bytes(data)
+    pub fn from_bytes(data: &[u8]) -> Self {
+        Self {
+            btree: BTreeMultimap::from_bytes(data),
         }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8>{
+    pub fn to_bytes(&self) -> Vec<u8> {
         self.btree.to_bytes()
     }
 }
-
-

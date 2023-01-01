@@ -132,7 +132,10 @@ impl Layout {
             .collect()
     }
 
-    pub fn type_map(&self) -> HashMap<String,Type>{
-        self.map.iter().map(|(k,(t,_))| (k.to_string(),*t) ).collect()
+    pub fn type_map(&self) -> HashMap<String, Type> {
+        self.map
+            .iter()
+            .map(|(k, (t, _))| (k.to_string(), *t))
+            .collect()
     }
 }

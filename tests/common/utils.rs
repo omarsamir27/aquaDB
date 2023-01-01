@@ -17,7 +17,7 @@ pub fn readfile(filename: &str) -> Vec<u8> {
     std::fs::read(filename).unwrap()
 }
 
-pub fn some_schema() -> Schema{
+pub fn some_schema() -> Schema {
     let mut schema = Schema::new();
     let schema_vec = vec![
         ("id", Type::Numeric(SmallInt), false, None),

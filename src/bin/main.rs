@@ -1,8 +1,7 @@
 #![allow(non_snake_case)]
 
-use std::any::Any;
-use std::collections::HashMap;
-use std::hint::black_box;
+use aqua::common::btree_multimap::BTreeMultimap;
+use aqua::query::concrete_types::ConcreteType;
 use aqua::schema::null_bitmap::NullBitMap;
 use aqua::schema::schema::Schema;
 use aqua::schema::types::CharType::VarChar;
@@ -12,23 +11,24 @@ use aqua::storage::blockid::BlockId;
 use aqua::storage::heap::HeapPage;
 use aqua::storage::storagemgr::StorageManager;
 use aqua::storage::tuple::Tuple;
-use std::rc::Rc;
-use aqua::common::btree_multimap::BTreeMultimap;
-use evalexpr::*;
-use aqua::query::concrete_types::ConcreteType;
 use bincode::*;
+use evalexpr::*;
+use std::any::Any;
+use std::collections::HashMap;
+use std::hint::black_box;
+use std::rc::Rc;
 
-fn btree_write_test(){
+fn btree_write_test() {
     let mut tree = BTreeMultimap::new();
-    tree.insert_vec(10,&[1,2,3,4,5,6,7]);
-    tree.insert_vec(5,&[8,9,10]);
+    tree.insert_vec(10, &[1, 2, 3, 4, 5, 6, 7]);
+    tree.insert_vec(5, &[8, 9, 10]);
     let bytes = tree.to_bytes();
-    std::fs::write("btree",bytes).unwrap()
+    std::fs::write("btree", bytes).unwrap()
 }
 
-fn btree_read_test(){
+fn btree_read_test() {
     let bytes = std::fs::read("btree").unwrap();
-    let tree : BTreeMultimap<i32,i32> = BTreeMultimap::from_bytes(bytes.as_slice());
+    let tree: BTreeMultimap<i32, i32> = BTreeMultimap::from_bytes(bytes.as_slice());
     tree.print_all()
 }
 
@@ -139,14 +139,13 @@ fn main() {
     // let q = v.remove(0).downcast::<Box<fn(&dyn Any) -> bool>>().unwrap();
     // println!("{}", q(&10 as &dyn Any) );
 
-
     // let mut context = evalexpr::HashMapContext::new();
     // context.set_value("salary".to_string(),Value::Int(2 as IntType)).unwrap();
     // context.set_value("name".to_string(),Value::String("omar".to_string())).unwrap();
     // println!("{:?}",eval_boolean_with_context(" salary > 0 && name == \"omar\" ",&context).unwrap())
 
     let tree = evalexpr::build_operator_tree(" id > 0 && salary > 0 && name == \"omar\" ").unwrap();
-    for x in tree.iter_read_variable_identifiers(){
+    for x in tree.iter_read_variable_identifiers() {
         println!("{x}");
     }
 
@@ -166,8 +165,3 @@ fn main() {
     //
     // let r = vec![1,2];
 }
-
-
-
-
-
