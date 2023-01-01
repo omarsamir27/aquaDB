@@ -59,6 +59,7 @@ impl<'db> Executor<'db> {
                 .collect();
             processing_table.add_row_map(tuple);
         }
+        processing_table.sort("id");
         processing_table.print_all();
         self.proc_tables.push(processing_table);
     }
