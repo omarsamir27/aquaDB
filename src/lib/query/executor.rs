@@ -3,7 +3,7 @@ use crate::common::numerical::ByteMagic;
 use crate::query::tuple_table::Table;
 use crate::schema::types::{NumericType, Type};
 use crate::table::tablemgr::TableManager;
-use evalexpr::{ContextWithMutableVariables, IntType, Value};
+use evalexpr::{ContextWithMutableVariables, FloatType, HashMapContext, IntType, Node, Value};
 use std::collections::HashMap;
 
 type TupleField = Option<Vec<u8>>;
@@ -31,15 +31,14 @@ impl<'db> Executor<'db> {
         let (table, fields) = (node.table, node.fields);
         let tblmgr = self.db_tables.get(&table).unwrap();
         let mut table_iter = tblmgr.heapscan_iter();
-        let headers = tblmgr
+        let headers : HashMap<String,Type> = tblmgr
             .get_layout()
             .type_map()
             .into_iter()
             .filter(|(k, _)| fields.contains(k))
             .collect();
         let mut processing_table = Table::new(table.as_str(), headers, self.max_table_memory);
-        let mut context = evalexpr::HashMapContext::new();
-        let tree = evalexpr::build_operator_tree(" id > 0 ").unwrap();
+        let headers = tblmgr.get_layout().type_map();
         while let Some(tuple) = table_iter.next() {
             // EXECUTES PROJECTIONS EARLY INSTEAD OF DOING IT IN THE TEMP TABLE
             // CONTROVERSIAL !!
@@ -53,39 +52,92 @@ impl<'db> Executor<'db> {
             // }
             //
             // if !tree.eval_boolean_with_context(&context).unwrap() { continue}
-            let tuple = tuple
-                .into_iter()
-                .filter(|(k, v)| fields.contains(k))
-                .collect();
-            processing_table.add_row_map(tuple);
+
+            let mut context = evalexpr::HashMapContext::new();
+            let tree = evalexpr::build_operator_tree(" id > 0 ").unwrap();
+
+            if Executor::filter(&tuple,&headers,&mut context,&tree){
+                let tuple = tuple
+                    .into_iter()
+                    .filter(|(k, v)| fields.contains(k) )
+                    .collect();
+                processing_table.add_row_map(tuple);
+            }
+
         }
-        processing_table.sort("id");
+        processing_table.sort("name");
         processing_table.print_all();
         self.proc_tables.push(processing_table);
     }
-}
 
-trait FromBytes {}
+    fn filter(
+        tuple: &HashMap<String, Option<Vec<u8>>>,
+        type_map: &HashMap<String, Type>,
+        context: &mut HashMapContext,
+        expr: &Node,
+    ) -> bool {
+        for (field_name, value) in tuple {
+            if let Some(value) = value{
 
-impl FromBytes for i16 {}
-impl FromBytes for i32 {}
-impl FromBytes for i64 {}
-impl FromBytes for f32 {}
-impl FromBytes for f64 {}
-impl FromBytes for String {}
-
-fn construct_fromBytes(data: &[u8], t: Type) -> Box<dyn FromBytes> {
-    match t {
-        Type::Numeric(num) => match num {
-            NumericType::SmallInt => Box::new(data.to_i16()) as Box<dyn FromBytes>,
-            NumericType::Integer => Box::new(data.to_i32()) as Box<dyn FromBytes>,
-            NumericType::BigInt => Box::new(data.to_i64()) as Box<dyn FromBytes>,
-            NumericType::Single => Box::new(data.to_f32()) as Box<dyn FromBytes>,
-            NumericType::Double => Box::new(data.to_f64()) as Box<dyn FromBytes>,
-            NumericType::Serial => Box::new(data.to_i32()) as Box<dyn FromBytes>,
-        },
-        Type::Character(char) => {
-            Box::new(String::from_utf8(data.to_vec()).unwrap()) as Box<dyn FromBytes>
+                match type_map.get(field_name).unwrap() {
+                    Type::Numeric(num) => match num {
+                        NumericType::SmallInt => context.set_value(
+                            field_name.to_string(),
+                            Value::Int(value.to_i16() as IntType),
+                        ),
+                        NumericType::Integer => context.set_value(
+                            field_name.to_string(),
+                            Value::Int(value.to_i32() as IntType),
+                        ),
+                        NumericType::BigInt => context.set_value(
+                            field_name.to_string(),
+                            Value::Int(value.to_i64() as IntType),
+                        ),
+                        NumericType::Single => context.set_value(
+                            field_name.to_string(),
+                            Value::Float(value.to_f32() as FloatType),
+                        ),
+                        NumericType::Double => context.set_value(
+                            field_name.to_string(),
+                            Value::Float(value.to_f32() as FloatType),
+                        ),
+                        NumericType::Serial => context.set_value(
+                            field_name.to_string(),
+                            Value::Int(value.to_i32() as IntType),
+                        ),
+                    },
+                    Type::Character(_) => context.set_value(
+                        field_name.to_string(),
+                        Value::String(String::from_utf8(value.to_vec()).unwrap()),
+                    )
+                };
+            }
         }
+        expr.eval_boolean_with_context(context).unwrap()
     }
 }
+
+// trait FromBytes {}
+//
+// impl FromBytes for i16 {}
+// impl FromBytes for i32 {}
+// impl FromBytes for i64 {}
+// impl FromBytes for f32 {}
+// impl FromBytes for f64 {}
+// impl FromBytes for String {}
+//
+// fn construct_fromBytes(data: &[u8], t: Type) -> Box<dyn FromBytes> {
+//     match t {
+//         Type::Numeric(num) => match num {
+//             NumericType::SmallInt => Box::new(data.to_i16()) as Box<dyn FromBytes>,
+//             NumericType::Integer => Box::new(data.to_i32()) as Box<dyn FromBytes>,
+//             NumericType::BigInt => Box::new(data.to_i64()) as Box<dyn FromBytes>,
+//             NumericType::Single => Box::new(data.to_f32()) as Box<dyn FromBytes>,
+//             NumericType::Double => Box::new(data.to_f64()) as Box<dyn FromBytes>,
+//             NumericType::Serial => Box::new(data.to_i32()) as Box<dyn FromBytes>,
+//         },
+//         Type::Character(char) => {
+//             Box::new(String::from_utf8(data.to_vec()).unwrap()) as Box<dyn FromBytes>
+//         }
+//     }
+// }
