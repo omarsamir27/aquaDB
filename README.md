@@ -56,4 +56,4 @@ This project is an oppurtunity to experiement with database design , develop com
 Note:
 For the time being , if you want the to run the supplied tests , create folders
 
-`tests/db` and `tests/db/db_tmp`
+`tests/db` and `tests/db/db_tmp` .
