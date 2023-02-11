@@ -1,3 +1,5 @@
+use std::fs;
+use std::path::Path;
 use aqua::schema::schema::{Layout, Schema};
 use aqua::schema::types::CharType::VarChar;
 use aqua::schema::types::NumericType::{Integer, SmallInt};
@@ -55,4 +57,11 @@ pub fn empty_heapfile(
         .for_each(|frame| storagemgr.flush_frame(frame.clone()));
     let v = blks.clone();
     v
+}
+
+pub fn setup_test_dir(base_dir:&str,test_name:&str){
+    let base_dir = Path::new(base_dir);
+    if base_dir.is_dir(){
+       fs::create_dir_all();
+    }
 }

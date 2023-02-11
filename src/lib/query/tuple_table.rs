@@ -183,8 +183,9 @@ impl Table {
         let (current_seg, current_data) = (self.current_segment, mem::take(&mut self.data));
         let mut purge_run = SortingRun::memory_purge_run(self.name.as_str(),key_index, current_data,disk_segments.remove(0));
         runs.push(purge_run);
+        dbg!(disk_segments.len());
         while !disk_segments.is_empty(){
-            let run = SortingRun::init(vec![ disk_segments.swap_remove(0),disk_segments.swap_remove(0)],key_index);
+            let run = SortingRun::init(disk_segments.split_off(disk_segments.len() - 2 ),key_index);
             runs.push(run);
         }
         while runs.len() > 1 {
