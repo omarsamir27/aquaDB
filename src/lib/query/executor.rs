@@ -56,20 +56,20 @@ impl<'db> Executor<'db> {
             let mut context = evalexpr::HashMapContext::new();
             let tree = evalexpr::build_operator_tree(" id > 0 ").unwrap();
 
-            if Executor::filter(&tuple,&headers,&mut context,&tree){
-                let tuple = tuple
-                    .into_iter()
-                    .filter(|(k, v)| fields.contains(k) )
-                    .collect();
-                processing_table.add_row_map(tuple);
-            }
-            // let tuple = tuple
-            //     .into_iter()
-            //     .filter(|(k, v)| fields.contains(k) )
-            //     .collect();
-            // processing_table.add_row_map(tuple);
+            // if Executor::filter(&tuple,&headers,&mut context,&tree){
+            //     let tuple = tuple
+            //         .into_iter()
+            //         .filter(|(k, v)| fields.contains(k) )
+            //         .collect();
+            //     processing_table.add_row_map(tuple);
+            // }
+            let tuple = tuple
+                .into_iter()
+                .filter(|(k, v)| fields.contains(k) )
+                .collect();
+            processing_table.add_row_map(tuple);
         }
-        processing_table.sort("name");
+        // processing_table.sort("name");
         processing_table.print_all();
         self.proc_tables.push(processing_table);
     }

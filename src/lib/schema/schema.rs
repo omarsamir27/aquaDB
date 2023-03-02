@@ -3,22 +3,29 @@ use std::collections::HashMap;
 
 /// Vector of fields that are in a table (tuple)
 pub struct Schema {
+    name : String,
+    primary_key : Vec<String>,
     fields: Vec<Field>,
 }
 impl Schema {
     pub fn new() -> Self {
-        Self { fields: vec![] }
+        Self { name : "".to_string() , primary_key : vec![],fields: vec![] }
     }
     pub fn add_field(
         &mut self,
         name: &str,
         field_type: Type,
         nullable: bool,
+        unique : bool,
+        foreign_reference: Option<(String, String)>,
         char_limit: Option<u32>,
     ) {
         self.fields
-            .push(Field::new(name, field_type, nullable, char_limit))
+            .push(Field::new(name, field_type, nullable, unique,foreign_reference, char_limit))
     }
+     pub fn add_field_default_constraints(&mut self,name:&str,field_type:Type,char_limit:Option<u32>){
+         self.add_field(name,field_type,true,false,None,char_limit);
+     }
 
     /// Convert the schema to a layout
     pub fn to_layout(&self) -> Layout {
@@ -38,15 +45,19 @@ pub struct Field {
     name: String,
     field_type: Type,
     nullable: bool,
+    unique: bool,
+    foreign_reference : Option<(String,String)>,
     char_limit: Option<u32>,
 }
 
 impl Field {
-    pub fn new(name: &str, field_type: Type, nullable: bool, char_limit: Option<u32>) -> Self {
+    pub fn new(name: &str, field_type: Type, nullable: bool, unique:bool , foreign_reference : Option<(String,String)> , char_limit: Option<u32>) -> Self {
         Self {
             name: name.to_string(),
             field_type,
             nullable,
+            unique,
+            foreign_reference,
             char_limit,
         }
     }

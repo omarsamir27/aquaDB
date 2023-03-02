@@ -1,4 +1,5 @@
 use std::fs;
+use std::fs::create_dir_all;
 use std::path::Path;
 use aqua::schema::schema::{Layout, Schema};
 use aqua::schema::types::CharType::VarChar;
@@ -28,7 +29,9 @@ pub fn some_schema() -> Schema {
         ("job", Type::Character(VarChar), false, None),
     ];
     for attr in schema_vec {
-        schema.add_field(attr.0, attr.1, attr.2, attr.3);
+        schema.add_field_default_constraints(attr.0,attr.1,attr.3);
+        // schema.add_field(attr.0, attr.1, attr.2, attr.3);
+
     }
     schema
 }
@@ -59,9 +62,7 @@ pub fn empty_heapfile(
     v
 }
 
-pub fn setup_test_dir(base_dir:&str,test_name:&str){
-    let base_dir = Path::new(base_dir);
-    if base_dir.is_dir(){
-       fs::create_dir_all();
-    }
+pub fn setup_test_dir(base_dir:&str, test_name:&str, time:&str) -> std::io::Result<()> {
+    let test_dir = Path::new(base_dir).join(test_name).join(time);
+    create_dir_all(test_dir)
 }
