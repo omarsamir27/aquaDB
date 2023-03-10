@@ -11,3 +11,4 @@ pub mod query;
 pub mod schema;
 pub mod storage;
 pub mod table;
+mod index;

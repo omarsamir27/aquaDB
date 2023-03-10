@@ -9,7 +9,6 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::env::current_exe;
 use std::fmt::{Display, Formatter, Pointer};
 use std::fs::{File, OpenOptions};
-use std::hint::black_box;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::path::Path;
