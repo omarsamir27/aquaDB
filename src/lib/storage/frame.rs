@@ -86,13 +86,18 @@ impl Frame {
     /// Writes the page contained in the frame to the disk and resets the necessary stats in the frame.
     pub fn flush(&mut self, blkmgr: &mut BlockManager) {
         // log manager flush here
-        if self.dirty == true {
+        if self.dirty {
             let blk = self.blockid.as_ref().unwrap();
             blkmgr.write(blk, &mut self.page);
             self.transaction_num = None;
             self.dirty = false;
         }
     }
+
+    // pub fn force_flush(&mut self,blkmgr:&mut BlockManager){
+    //     self.dirty = true;
+    //     self.flush(blkmgr);
+    // }
 
     /// Writes data(as bytes) to the page contained in the frame.
     pub fn write(&mut self, data: &[u8]) {

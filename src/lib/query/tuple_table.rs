@@ -53,7 +53,7 @@ pub struct Table {
     index_type_map: TableHeaders,
     data: Vec<Row>,
     segments: Vec<File>,
-    current_segment : Option<usize>,
+    current_segment: Option<usize>,
     max_data_size: usize,
     current_memory_use: usize,
 }
@@ -77,7 +77,7 @@ impl Table {
         }
     }
 
-    fn purge_mem_disk(&mut self){
+    fn purge_mem_disk(&mut self) {
         let mut rng = thread_rng();
         let tmp_dir = Path::new(TMP_DIR);
         let path = format!("tmp{}{}", self.name, rng.gen::<u64>());
@@ -98,14 +98,13 @@ impl Table {
             &mut segment,
             bincode::config::standard(),
         )
-            .unwrap();
+        .unwrap();
         let segment = File::options().read(true).write(true).open(path).unwrap();
         self.segments.push(segment);
         self.num_rows = 0;
         self.current_memory_use = 0;
         self.current_segment = None;
     }
-
 
     pub fn add_row_map(&mut self, row_map: RowMap) -> InsertResult {
         if self.current_memory_use >= self.max_data_size {
@@ -133,7 +132,6 @@ impl Table {
         Ok(())
     }
 
-
     fn load_segment(&mut self, segment: usize) {
         let file = &mut self.segments[segment];
         self.current_memory_use = file.metadata().unwrap().len() as usize;
@@ -150,9 +148,15 @@ impl Table {
         for row in self.data.iter() {
             println!("{}", RowPrint(row));
         }
-        let just_printed_idx = if self.current_segment.is_none(){self.purge_mem_disk();self.segments.len()-1}
-        else { self.current_segment.unwrap() };
-        let rest: Vec<usize> = (0..self.segments.len()).filter(|idx| *idx!= just_printed_idx).collect();
+        let just_printed_idx = if self.current_segment.is_none() {
+            self.purge_mem_disk();
+            self.segments.len() - 1
+        } else {
+            self.current_segment.unwrap()
+        };
+        let rest: Vec<usize> = (0..self.segments.len())
+            .filter(|idx| *idx != just_printed_idx)
+            .collect();
         for seg in rest {
             self.load_segment(seg);
             for row in self.data.iter() {
@@ -161,7 +165,7 @@ impl Table {
         }
     }
 
-    pub fn print_sort_asc(&mut self){
+    pub fn print_sort_asc(&mut self) {
         self.print_all()
     }
 
@@ -181,11 +185,16 @@ impl Table {
         let mut runs = vec![];
         let mut disk_segments = mem::take(&mut self.segments);
         let (current_seg, current_data) = (self.current_segment, mem::take(&mut self.data));
-        let mut purge_run = SortingRun::memory_purge_run(self.name.as_str(),key_index, current_data,disk_segments.remove(0));
+        let mut purge_run = SortingRun::memory_purge_run(
+            self.name.as_str(),
+            key_index,
+            current_data,
+            disk_segments.remove(0),
+        );
         runs.push(purge_run);
         dbg!(disk_segments.len());
-        while !disk_segments.is_empty(){
-            let run = SortingRun::init(disk_segments.split_off(disk_segments.len() - 2 ),key_index);
+        while !disk_segments.is_empty() {
+            let run = SortingRun::init(disk_segments.split_off(disk_segments.len() - 2), key_index);
             runs.push(run);
         }
         while runs.len() > 1 {
@@ -193,7 +202,9 @@ impl Table {
         }
         let mut sorted = runs.remove(0);
         let mut rng = thread_rng();
-        self.segments = (mem::take(&mut sorted.segments)).into_iter().collect::<Vec<File>>();
+        self.segments = (mem::take(&mut sorted.segments))
+            .into_iter()
+            .collect::<Vec<File>>();
         // self.segments.reverse();
         // self.data = (mem::take(&mut sorted.current_data)).into_iter().collect();
         self.purge_mem_disk();
@@ -227,7 +238,7 @@ impl SortingRun {
         let tmp_dir = Path::new(TMP_DIR);
         let path = format!("tmp{}{}", table_name, rng.gen::<u64>());
         let path = tmp_dir.join(path.as_str());
-        println!("{:?}",path.clone());
+        println!("{:?}", path.clone());
         let mut segment = File::options()
             .read(true)
             .write(true)
@@ -347,13 +358,14 @@ impl SortingRun {
         while removed.len() != runs_length {
             let (idx, least_run) = runs
                 .iter_mut()
-                .enumerate().filter(|(idx,_)| !removed.contains(idx) )
+                .enumerate()
+                .filter(|(idx, _)| !removed.contains(idx))
                 .min_by(|(_, run1), (_, run2)| {
                     run1.peek_row()[sort_key].cmp(&run2.peek_row()[sort_key])
                 })
                 .unwrap();
             let (row, seg) = least_run.get_row();
-            if seg.is_some()&& least_run.has_more(){
+            if seg.is_some() && least_run.has_more() {
                 least_run.load_segment();
             }
             output_run.add_row(max_rows, row, rng.gen());

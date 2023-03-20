@@ -1,4 +1,6 @@
-use crate::sql::query::{delete::SqlDelete, insert::SqlInsert, select::SqlSelect, update::SqlUpdate};
+use crate::sql::query::{
+    delete::SqlDelete, insert::SqlInsert, select::SqlSelect, update::SqlUpdate,
+};
 
 #[allow(non_snake_case, clippy::upper_case_acronyms)]
 #[derive(Debug)]

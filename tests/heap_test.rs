@@ -35,7 +35,7 @@ fn empty_page() {
         ("job", Type::Character(VarChar), false, None),
     ];
     for attr in schema_vec {
-        schema.add_field_default_constraints(attr.0,attr.1,attr.3);
+        schema.add_field_default_constraints(attr.0, attr.1, attr.3);
     }
     let layout = schema.to_layout();
     let frame = storagemgr.pin(blk.clone()).unwrap();
@@ -65,7 +65,7 @@ fn filling_page() {
         ("job", Type::Character(VarChar), false, None),
     ];
     for attr in schema_vec {
-        schema.add_field_default_constraints(attr.0,attr.1,attr.3);
+        schema.add_field_default_constraints(attr.0, attr.1, attr.3);
     }
     let layout = schema.to_layout();
     let layout = Rc::new(layout);
@@ -98,7 +98,7 @@ fn write_read_tuples() {
         ("job", Type::Character(VarChar), false, None),
     ];
     for attr in schema_vec {
-        schema.add_field_default_constraints(attr.0,attr.1,attr.3);
+        schema.add_field_default_constraints(attr.0, attr.1, attr.3);
     }
     let layout = schema.to_layout();
     let layout = Rc::new(layout);

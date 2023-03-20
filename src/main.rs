@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 mod init;
 
-use std::env;
-use std::process::exit;
 use aqua::database::server::DatabaseServer;
 use aqua::sql::parser::parse_query;
+use std::env;
+use std::process::exit;
 
 // fn btree_write_test() {
 //     let mut tree = BTreeMultimap::new();
@@ -25,12 +25,17 @@ fn main() {
     // let query = parse_query(query);
     // dbg!(query);
     let opts = env::args().collect::<Vec<_>>();
-    if let Some(init) = opts.get(1){
-        if init == "init"{
+    if let Some(init) = opts.get(1) {
+        if init == "init" {
             init::init_aqua();
         }
     }
-    let server = DatabaseServer::new("hi",vec!["192.168.1.66:2710".to_string(),"127.0.0.1:2710".to_string(),]);
+    let server = DatabaseServer::new(
+        "hi",
+        vec![
+            "192.168.1.77:2710".to_string(),
+            "127.0.0.1:2710".to_string(),
+        ],
+    );
     server.run()
 }
-

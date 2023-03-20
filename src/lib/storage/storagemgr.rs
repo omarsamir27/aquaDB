@@ -1,6 +1,8 @@
+use crate::common::fileops::file_size;
 use crate::storage::blockid::BlockId;
 use crate::storage::buffermgr::FrameRef;
 use crate::storage::frame::Frame;
+use crate::storage::heap::HeapPage;
 use crate::storage::{blkmgr::BlockManager, buffermgr::BufferManager, logmgr::LogManager};
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
@@ -88,8 +90,31 @@ impl StorageManager {
         frm.flush(&mut self.block_manager)
     }
 
+    fn force_flush(&mut self, frame: FrameRef) {
+        let mut frm = frame.try_borrow_mut().unwrap();
+        frm.dirty = true;
+        frm.flush(&mut self.block_manager)
+    }
+
     /// Returns the disk block size used for the database
     pub fn blk_size(&self) -> usize {
         self.database_info.block_size
+    }
+
+    pub fn empty_heap_pages(&mut self, filename: &str, count: u32) -> Vec<BlockId> {
+        let blks = self.extend_file_many(filename, count);
+        for blk in &blks {
+            let frame = self.pin(blk.clone());
+            HeapPage::init_heap(frame.as_ref().unwrap());
+            self.force_flush(frame.unwrap());
+        }
+        blks
+    }
+
+    pub fn file_blks(&self, filepath: PathBuf) -> Vec<BlockId> {
+        let size = file_size(&filepath);
+        let num_blks = size / self.blk_size() as u64;
+        let filename = filepath.to_str().unwrap();
+        (0..num_blks).map(|n| BlockId::new(filename, n)).collect()
     }
 }

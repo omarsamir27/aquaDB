@@ -37,6 +37,13 @@ impl RandomTypeBytes for Type {
         match self {
             Type::Numeric(n) => n.random(),
             Type::Character(c) => c.random(),
+            Type::Boolean(_) => {
+                let mut rng = thread_rng();
+                match rng.gen_bool(0.5) {
+                    true => 1_u8.to_ne_bytes().to_vec(),
+                    false => 0_u8.to_ne_bytes().to_vec(),
+                }
+            }
         }
     }
 }

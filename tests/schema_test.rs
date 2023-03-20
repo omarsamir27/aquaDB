@@ -29,7 +29,7 @@ fn layout_test() {
         ("job", Type::Character(VarChar), false, None),
     ];
     for attr in schema_vec {
-        schema.add_field_default_constraints(attr.0,attr.1,attr.3);
+        schema.add_field_default_constraints(attr.0, attr.1, attr.3);
     }
     let layout = schema.to_layout();
     println!("{:?}", layout)

@@ -1,6 +1,8 @@
 use crate::common::numerical::ByteMagic;
-use crate::schema::types::CharType::VarChar;
+use crate::schema::types::CharType::{Char, VarChar};
 use std::ops::Add;
+use std::str::FromStr;
+use crate::schema::types::NumericType::{BigInt, Double, Integer, Serial, Single, SmallInt};
 
 /// An enumeration for the numeric data types in the database
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -11,6 +13,19 @@ pub enum NumericType {
     Single,
     Double,
     Serial,
+}
+
+impl ToString for NumericType{
+    fn to_string(&self) -> String {
+        match self {
+            NumericType::SmallInt => String::from("smallint"),
+            NumericType::Integer => String::from("int"),
+            NumericType::BigInt => String::from("bigint"),
+            NumericType::Single => String::from("single"),
+            NumericType::Double => String::from("double"),
+            NumericType::Serial => String::from("serial")
+        }
+    }
 }
 
 impl NumericType {
@@ -49,6 +64,15 @@ pub enum CharType {
     VarChar,
 }
 
+impl ToString for CharType{
+    fn to_string(&self) -> String {
+        match self {
+            CharType::Char => String::from("char"),
+            VarChar => String::from("varchar")
+        }
+    }
+}
+
 impl CharType {
     /// Returns whether the current data type needs a pointer to store its offset and size (Varchar)
     pub fn needs_pointer(self) -> bool {
@@ -69,6 +93,36 @@ impl CharType {
 pub enum Type {
     Numeric(NumericType),
     Character(CharType),
+    Boolean,
+}
+
+impl ToString for Type{
+    fn to_string(&self) -> String {
+        match self {
+            Type::Numeric(num) => num.to_string(),
+            Type::Character(char) => char.to_string(),
+            Type::Boolean => String::from("bool")
+        }
+    }
+}
+
+impl FromStr for Type{
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "smallint" => Ok(Self::Numeric(SmallInt)),
+            "int" => Ok(Self::Numeric(Integer)),
+            "bigint" => Ok(Self::Numeric(BigInt)),
+            "single" => Ok(Self::Numeric(Single)),
+            "double" => Ok(Self::Numeric(Double)),
+            "serial" => Ok(Self::Numeric(Serial)),
+            "char" => Ok(Self::Character(Char)),
+            "varchar" => Ok(Self::Character(VarChar)),
+            "bool" => Ok(Self::Boolean),
+            _ => Err("Type Unknown".to_string())
+        }
+    }
 }
 
 impl Type {
@@ -77,6 +131,7 @@ impl Type {
         match self {
             Type::Numeric(numeric) => Some(numeric.unit_size()),
             Type::Character(_) => Some(4_u8),
+            Type::Boolean => Some(1),
         }
     }
 
@@ -87,7 +142,7 @@ impl Type {
     #[inline(always)]
     pub fn needs_pointer(self) -> bool {
         match self {
-            Type::Numeric(_) => false,
+            Type::Numeric(_) | Type::Boolean => false,
             Type::Character(_) => true,
         }
     }
@@ -97,6 +152,7 @@ impl Type {
         match self {
             Type::Numeric(num) => num.read_from_tuple(tuple, start_byte),
             Type::Character(char) => char.read_from_tuple(tuple, start_byte),
+            Type::Boolean => &tuple[start_byte as usize..=start_byte as usize],
         }
     }
 }

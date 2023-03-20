@@ -2,7 +2,7 @@ use crate::schema::schema::Layout;
 use std::rc::Rc;
 
 /// Custom vector wrapper that stores the null fields in a tuple bit by bit ( 1 -> Null )
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct NullBitMap {
     bitmap: Vec<u8>,
 }

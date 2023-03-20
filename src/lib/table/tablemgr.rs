@@ -7,6 +7,7 @@ use crate::storage::storagemgr::StorageManager;
 use crate::storage::tuple::Tuple;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 /// TableManager is an entity owned by a database that is responsible for executing operations
@@ -56,6 +57,15 @@ impl TableManager {
         }
     }
 
+    pub fn from_file(
+        storage_mgr: Rc<RefCell<StorageManager>>,
+        filepath: PathBuf,
+        layout: Rc<Layout>,
+    ) -> Self {
+        let blks = storage_mgr.borrow().file_blks(filepath);
+        Self::new(blks, storage_mgr, None, layout)
+    }
+
     /// Marks a tuple for deletion using it's BlockId and Page slot number
     ///
     /// When a tuple is marked for deletion , it is not acutally deleted but only marked and is actually
@@ -91,7 +101,7 @@ impl TableManager {
     /// it in , if None exists , the Heap File representing the table is extended by 1 block and the
     /// tuple is inserted into this page and the remaining space in it is added to the FSM
     pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Option<Vec<u8>>)>) {
-        let tuple = Tuple::new(tuple_bytes, self.layout.clone());
+        let tuple = Tuple::new(tuple_bytes.clone(), self.layout.clone());
         let target_block = self.free_map.get_smallest_fit(tuple.tuple_size());
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         if let Some((free_size, block)) = target_block {
@@ -168,6 +178,13 @@ pub struct TableIter<'tblmgr> {
     current_page: HeapPage,
     current_tuple_index: usize,
     current_page_pointer_count: usize,
+}
+impl<'tblmgr> Iterator for TableIter<'tblmgr>{
+    type Item = HashMap<String, Option<Vec<u8>>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next()
+    }
 }
 impl<'tblmgr> TableIter<'tblmgr> {
     /// Constructs a TableIter instance and initializes it to use the first block of the heap file

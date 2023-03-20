@@ -1,13 +1,11 @@
-
 #[derive(Debug)]
 pub struct SqlSelect {
     distinct: bool,
     targets: Vec<ProjectionTarget>,
     from: FromClause,
     where_clause: Option<String>,
-    group_by : Option<Grouping>,
-    order_by : Option<Ordering>
-
+    group_by: Option<Grouping>,
+    order_by: Option<Ordering>,
 }
 
 impl SqlSelect {
@@ -16,8 +14,8 @@ impl SqlSelect {
         targets: Vec<ProjectionTarget>,
         from: FromClause,
         where_clause: Option<String>,
-        group_by : Option<Grouping>,
-        order_by : Option<Ordering>
+        group_by: Option<Grouping>,
+        order_by: Option<Ordering>,
     ) -> Self {
         Self {
             distinct,
@@ -25,7 +23,7 @@ impl SqlSelect {
             from,
             where_clause,
             group_by,
-            order_by
+            order_by,
         }
     }
 }
@@ -38,53 +36,64 @@ pub enum ProjectionTarget {
 }
 
 #[derive(Debug)]
-pub struct Grouping{
-    criteria : Vec<ProjectionTarget>,
-    having_condition : Option<String>
+pub struct Grouping {
+    criteria: Vec<ProjectionTarget>,
+    having_condition: Option<String>,
 }
 
 impl Grouping {
     pub fn new(criteria: Vec<ProjectionTarget>, having_condition: Option<String>) -> Self {
-        Self { criteria, having_condition }
+        Self {
+            criteria,
+            having_condition,
+        }
     }
 }
 
 #[derive(Debug)]
-pub struct Ordering{
-    criteria : Vec<ProjectionTarget>,
-    descending : bool
+pub struct Ordering {
+    criteria: Vec<ProjectionTarget>,
+    descending: bool,
 }
 
 impl Ordering {
     pub fn new(criteria: Vec<ProjectionTarget>, descending: bool) -> Self {
-        Self { criteria, descending }
+        Self {
+            criteria,
+            descending,
+        }
     }
 }
 
 #[derive(Debug)]
-pub enum FromClause{
+pub enum FromClause {
     Table(String),
-    JoinClause(JoinClause)
+    JoinClause(JoinClause),
 }
 
 #[derive(Debug)]
-pub struct JoinClause{
-    left : String,
-    right : String,
-    join_type : JoinType,
-    join_condition : String
+pub struct JoinClause {
+    left: String,
+    right: String,
+    join_type: JoinType,
+    join_condition: String,
 }
 
 impl JoinClause {
-    pub fn new(left: String, right: String, join_type:JoinType ,join_condition: String) -> Self {
-        Self { left, right,join_type, join_condition }
+    pub fn new(left: String, right: String, join_type: JoinType, join_condition: String) -> Self {
+        Self {
+            left,
+            right,
+            join_type,
+            join_condition,
+        }
     }
 }
 
 #[derive(Debug)]
-pub enum JoinType{
+pub enum JoinType {
     Inner,
     Left,
     Right,
-    Full
+    Full,
 }

@@ -1,3 +1,9 @@
+use crate::schema::types::CharType::VarChar;
+use crate::schema::types::NumericType::{BigInt, Double, Integer, Serial, Single, SmallInt};
+use crate::schema::types::Type;
+use crate::sql::create_table::Constraint::{NotNull, PrimaryKey, Unique};
+use crate::sql::create_table::{Constraint, CreateTable, TableField};
+use crate::sql::parser::Rule::foreign_key;
 use crate::sql::query::delete::SqlDelete;
 use crate::sql::query::insert::SqlInsert;
 use crate::sql::query::query::{SqlQuery as QUERY, SqlValue};
@@ -5,15 +11,9 @@ use crate::sql::query::select::{
     FromClause, Grouping, JoinClause, JoinType, Ordering, ProjectionTarget, SqlSelect,
 };
 use crate::sql::query::update::SqlUpdate;
+use crate::sql::Sql;
 use pest::error::ErrorVariant;
 use pest_consume::{match_nodes, Error, Parser as PestParser};
-use crate::schema::types::CharType::VarChar;
-use crate::schema::types::NumericType::{BigInt, Double, Integer, Serial, Single, SmallInt};
-use crate::schema::types::Type;
-use crate::sql::create_table::{Constraint, CreateTable, TableField};
-use crate::sql::create_table::Constraint::{NotNull, PrimaryKey, Unique};
-use crate::sql::parser::Rule::foreign_key;
-use crate::sql::Sql;
 
 type Result<T> = std::result::Result<T, Error<Rule>>;
 pub type Node<'i> = pest_consume::Node<'i, Rule, ()>;
@@ -285,17 +285,15 @@ impl SqlParser {
             [SqlInsert(i)] => QUERY::INSERT(i),
         ))
     }
-    fn Sql(input: Node) -> Result<Sql>{
-        Ok(
-            match_nodes!(
-                input.into_children();
-                [SqlQuery(q),EOI(_)] => Sql::new_query(q),
-                [SqlCreateTable(ct),EOI(_)] => Sql::new_table(ct)
-            )
-        )
+    fn Sql(input: Node) -> Result<Sql> {
+        Ok(match_nodes!(
+            input.into_children();
+            [SqlQuery(q),EOI(_)] => Sql::new_query(q),
+            [SqlCreateTable(ct),EOI(_)] => Sql::new_table(ct)
+        ))
     }
 
-    fn datatype(input: Node) -> Result<Type>{
+    fn datatype(input: Node) -> Result<Type> {
         Ok(match input.into_children().single().unwrap().as_rule() {
             Rule::SMALLINT => Type::Numeric(SmallInt),
             Rule::INTEGER => Type::Numeric(Integer),
@@ -304,41 +302,41 @@ impl SqlParser {
             Rule::DOUBLE => Type::Numeric(Double),
             Rule::SERIAL => Type::Numeric(Serial),
             Rule::VARCHAR => Type::Character(VarChar),
-            _ => unreachable!()
+            _ => unreachable!(),
         })
     }
-    fn foreign_key(input: Node) -> Result<Constraint>{
+    fn foreign_key(input: Node) -> Result<Constraint> {
         Ok(match_nodes!(
             input.into_children();
             [table_name(t),identifier(i)] => Constraint::References(t,i)
         ))
     }
-    fn constraint(input : Node) -> Result<Constraint>{
-        Ok(match input.clone().into_children().single().unwrap().as_rule() {
-            Rule::primary_key => PrimaryKey,
-            Rule::not_null => NotNull,
-            Rule::unique => Unique,
-            Rule::foreign_key => SqlParser::foreign_key(input.into_children().single().unwrap())?,
-            _ => unreachable!()
-        })
-    }
-
-    fn table_col(input: Node) -> Result<TableField>{
+    fn constraint(input: Node) -> Result<Constraint> {
         Ok(
-            match_nodes!(
-                input.into_children();
-                [identifier(i),datatype(d),constraint(c)..] => TableField::new(i,d,c.collect())
-            )
+            match input.clone().into_children().single().unwrap().as_rule() {
+                Rule::primary_key => PrimaryKey,
+                Rule::not_null => NotNull,
+                Rule::unique => Unique,
+                Rule::foreign_key => {
+                    SqlParser::foreign_key(input.into_children().single().unwrap())?
+                }
+                _ => unreachable!(),
+            },
         )
     }
 
-    fn SqlCreateTable(input: Node) -> Result<CreateTable>{
-        Ok(
-            match_nodes!(
-                input.into_children();
-                [table_name(t),table_col(tc)..] => CreateTable::new(t,tc.collect())
-            )
-        )
+    fn table_col(input: Node) -> Result<TableField> {
+        Ok(match_nodes!(
+            input.into_children();
+            [identifier(i),datatype(d),constraint(c)..] => TableField::new(i,d,c.collect())
+        ))
+    }
+
+    fn SqlCreateTable(input: Node) -> Result<CreateTable> {
+        Ok(match_nodes!(
+            input.into_children();
+            [table_name(t),table_col(tc)..] => CreateTable::new(t,tc.collect())
+        ))
     }
 }
 
