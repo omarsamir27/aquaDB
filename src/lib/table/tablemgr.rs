@@ -157,6 +157,16 @@ impl TableManager {
             self.layout.clone(),
         )
     }
+
+    pub fn add_index_block(&mut self, blk: &BlockId) {
+        self.table_blocks.push(blk.clone());
+    }
+
+    pub fn remove_index_block(&mut self, blk_num: u64) {
+        let pos = self.table_blocks.iter().position(|block| block.block_num == blk_num).unwrap();
+        self.table_blocks.remove(pos);
+    }
+
 }
 
 /// A Sequential Iterator over ALL tuples in a database table
