@@ -4,6 +4,6 @@
 #[macro_export]
 macro_rules! RcRefCell {
     ($a:expr) => {
-        std::rc::Rc::new(std::cell::Refcell::new($a))
+        std::rc::Rc::new(std::cell::RefCell::new($a))
     };
 }

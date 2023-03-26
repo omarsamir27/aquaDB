@@ -80,7 +80,7 @@ fn insert_tuples_then_scan() {
         ("job", Type::Character(VarChar), false, None),
     ];
     for attr in schema_vec {
-        schema.add_field(attr.0, attr.1, attr.2, attr.3);
+        schema.add_field_default_constraints(attr.0, attr.1, attr.3);
     }
     let layout = schema.to_layout();
     let layout = Rc::new(layout);
@@ -122,7 +122,7 @@ fn mark_delete() {
         ("job", Type::Character(VarChar), false, None),
     ];
     for attr in schema_vec {
-        schema.add_field(attr.0, attr.1, attr.2, attr.3);
+        schema.add_field_default_constraints(attr.0, attr.1, attr.3);
     }
     let layout = schema.to_layout();
     let layout = Rc::new(layout);
@@ -157,7 +157,7 @@ fn delete_vacuum_test() {
         ("job", Type::Character(VarChar), false, None),
     ];
     for attr in schema_vec {
-        schema.add_field(attr.0, attr.1, attr.2, attr.3);
+        schema.add_field_default_constraints(attr.0, attr.1, attr.3);
     }
     let layout = schema.to_layout();
     let layout = Rc::new(layout);

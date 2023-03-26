@@ -226,7 +226,7 @@ impl HeapPage {
     }
 
     /// A helper function used by new_from_empty to create an empty HeapPage
-    fn init_heap(frame: &FrameRef) {
+    pub fn init_heap(frame: &FrameRef) {
         let mut frame = frame.borrow_mut();
         let header = [
             4_u16.to_ne_bytes(),

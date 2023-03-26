@@ -14,7 +14,7 @@ use common::{random, utils};
 const db_dir: &str = "tests\\db\\";
 
 #[cfg(unix)]
-const db_dir: &str = "tests/db/";
+const db_dir: &str = "tests/db";
 
 fn create_table(table_name: &str) -> TableManager {
     let test_file = table_name;

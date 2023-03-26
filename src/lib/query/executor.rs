@@ -31,7 +31,7 @@ impl<'db> Executor<'db> {
         let (table, fields) = (node.table, node.fields);
         let tblmgr = self.db_tables.get(&table).unwrap();
         let mut table_iter = tblmgr.heapscan_iter();
-        let headers : HashMap<String,Type> = tblmgr
+        let headers: HashMap<String, Type> = tblmgr
             .get_layout()
             .type_map()
             .into_iter()
@@ -56,20 +56,20 @@ impl<'db> Executor<'db> {
             let mut context = evalexpr::HashMapContext::new();
             let tree = evalexpr::build_operator_tree(" id > 0 ").unwrap();
 
-            if Executor::filter(&tuple,&headers,&mut context,&tree){
-                let tuple = tuple
-                    .into_iter()
-                    .filter(|(k, v)| fields.contains(k) )
-                    .collect();
-                processing_table.add_row_map(tuple);
-            }
-            // let tuple = tuple
-            //     .into_iter()
-            //     .filter(|(k, v)| fields.contains(k) )
-            //     .collect();
-            // processing_table.add_row_map(tuple);
+            // if Executor::filter(&tuple,&headers,&mut context,&tree){
+            //     let tuple = tuple
+            //         .into_iter()
+            //         .filter(|(k, v)| fields.contains(k) )
+            //         .collect();
+            //     processing_table.add_row_map(tuple);
+            // }
+            let tuple = tuple
+                .into_iter()
+                .filter(|(k, v)| fields.contains(k))
+                .collect();
+            processing_table.add_row_map(tuple);
         }
-        processing_table.sort("name");
+        // processing_table.sort("name");
         processing_table.print_all();
         self.proc_tables.push(processing_table);
     }
@@ -81,8 +81,7 @@ impl<'db> Executor<'db> {
         expr: &Node,
     ) -> bool {
         for (field_name, value) in tuple {
-            if let Some(value) = value{
-
+            if let Some(value) = value {
                 match type_map.get(field_name).unwrap() {
                     Type::Numeric(num) => match num {
                         NumericType::SmallInt => context.set_value(
@@ -113,12 +112,13 @@ impl<'db> Executor<'db> {
                     Type::Character(_) => context.set_value(
                         field_name.to_string(),
                         Value::String(String::from_utf8(value.to_vec()).unwrap()),
-                    )
+                    ),
+                    Type::Boolean => {
+                        context.set_value(field_name.to_string(), Value::Boolean(value[0] == 1))
+                    }
                 };
             }
         }
         expr.eval_boolean_with_context(context).unwrap()
     }
 }
-
-

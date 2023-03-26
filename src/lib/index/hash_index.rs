@@ -16,7 +16,6 @@ use crate::common::numerical::ByteMagic;
 use crate::RcRefCell;
 use crate::storage::buffermgr::FrameRef;
 use crate::storage::storagemgr::StorageManager;
-use power_of_two::power_of_two;
 use crate::common::fileops::read_file;
 
 const IDX_RECORD_SIZE: usize = 15;
