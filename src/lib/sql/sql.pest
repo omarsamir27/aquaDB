@@ -1,0 +1,147 @@
+
+// Basics
+// {
+    NULL = {^"null"}
+    identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+    plain_number = @{ NUMBER+ }
+    /// purple
+    numeric_constant = @{ ("+"|"-")? ~ ( (plain_number ~ "." ~ plain_number?) | ("." ~ plain_number ) | plain_number ) }
+    /// red
+    text = { (ASCII_ALPHANUMERIC)+ }
+    /// blue
+    QUOTE = _{ "\"" }
+    /// green
+    string_literal = @{ QUOTE ~ text ~ QUOTE }
+    constant =  ${ numeric_constant | string_literal  }
+    /// green
+    term = ${ NULL |identifier | constant }
+    table_name = {identifier}
+    comparison_operator = {
+        "<>" | ">" | "<" | "<=" | ">=" | "="
+    }
+    LIKE = {^"like"}
+    IS = {^"is"}
+    NOT = {^"not"}
+    misc_operators = {
+        LIKE | (IS ~ NOT) | IS
+    }
+    OR = {^"or"}
+    AND = {^"and"}
+    /// blue
+    plain_condition =  { term ~ (comparison_operator | misc_operators) ~ term }
+
+    /// green
+    condition = _{ "(" ~ plain_condition ~ ")" | plain_condition }
+    /// red
+//     conditional_expression = {
+//     "(" ~(condition ~ (OR | AND) ~ conditional_expression)~ ")"
+//     | (condition ~ (OR | AND) ~ conditional_expression)
+//     | "(" ~ conditional_expression ~  ")" ~ ((OR|AND) ~ conditional_expression)?
+//     |  condition
+//     }
+/// green
+conditional_expression = {
+    condition ~ cond |
+    "(" ~ conditional_expression ~ ")" ~ cond?
+
+    }
+/// red
+cond = {
+    ((OR|AND) ~  conditional_expression  ~ cond?)?
+    }
+
+    WHERE = {^"where"}
+    where_clause = { WHERE ~ conditional_expression }
+// }
+/// blue
+projection_col = {!^"having" ~(table_name ~ ".")? ~ identifier}
+// SELECT block
+// {
+    SELECT = _{ ^"select" }
+    FROM = _{^"from"}
+    DISTINCT = _{^"distinct"}
+    GROUP_BY = {^"group by"  ~ (projection_col ~ ","?)+ ~ HAVING?}
+    HAVING = {^"having" ~ conditional_expression}
+    ORDER_BY = {^"order by" ~ project_on ~ (ASC | DSC)?}
+    ASC = _{^"asc"}
+    DSC = _{^"dsc"}
+    project_on = { projection_col ~ ("," ~ projection_col)*  | "*"    }
+// }
+/// red
+SqlSelect = {
+ SELECT
+ ~ DISTINCT?
+ ~ project_on
+ ~ FROM
+ ~ table_expression
+ ~ where_clause?
+ ~ GROUP_BY?
+ ~ ORDER_BY?
+ }
+
+
+
+table_expression = { join_clause |table_name}
+
+join_clause = { table_name ~ join_type? ~ ^"join" ~ table_name ~  ^"on" ~ conditional_expression  }
+
+join_type = {LEFT | RIGHT | FULL}
+
+LEFT = _{^"left"}
+RIGHT = _{^"right"}
+FULL = _{^"full"}
+
+
+WHITESPACE = _{WHITE_SPACE}
+
+
+
+//{
+    SMALLINT = {^"smallint"}
+    INTEGER  = {^"int"}
+    BIGINT   = {^"bigint"}
+    SINGLE   = {^"single"}
+    DOUBLE   = {^"double"}
+    SERIAL   = {^"serial"}
+    VARCHAR  = {^"varchar"}
+    datatype = { SMALLINT | INTEGER |BIGINT | SINGLE | DOUBLE | SERIAL | VARCHAR }
+//}
+
+//{
+    primary_key = { ^"primary key" }
+    foreign_key = {^"references" ~ table_name ~ "(" ~ identifier ~ ")" }
+    not_null = {^"not null"}
+    unique = {^"unique"}
+    constraint = {primary_key | foreign_key | not_null | unique}
+//}
+
+//{
+   /// orange
+   table_col = { identifier ~ datatype ~ constraint* }
+   /// red
+   SqlCreateTable = { ^"create" ~ ^"table" ~ table_name ~ "(" ~ (table_col ~ ","?)+ ~ ")" }
+//}
+
+//{
+    /// green
+    insert_cols = {"(" ~ (identifier ~ ","?)+ ~ ")"}
+    insert_vals = {"(" ~ (sql_value ~ ","?)+ ~ ")"}
+    sql_value = { NULL | constant }
+    SqlInsert = { ^"insert" ~ ^"into" ~ table_name ~ insert_cols ~  ^"values" ~ insert_vals  }
+//}
+
+//{
+    /// red
+    update_entry = { identifier ~ "=" ~ sql_value }
+    SqlUpdate = { ^"update" ~ table_name ~ ^"set" ~ ( update_entry ~ ","?)+ ~ where_clause? }
+//}
+
+//{
+    /// cyan
+    SqlDelete = { ^"delete" ~ ^"from" ~ table_name ~ where_clause? }
+//}
+
+
+SqlQuery = { SqlSelect  | SqlDelete | SqlInsert | SqlUpdate }
+
+Sql = {SOI ~ (SqlQuery | SqlCreateTable) ~ EOI }

@@ -1,6 +1,6 @@
 use crate::common::numerical::ByteMagic;
 use crate::query::concrete_types::ConcreteType::{
-    BigInt, Char, Double, Integer, Serial, Single, SmallInt, VarChar,
+    BigInt, Boolean, Char, Double, Integer, Serial, Single, SmallInt, VarChar,
 };
 use crate::schema::types::{CharType, NumericType, Type as SchemaType};
 use bincode::{Decode, Encode};
@@ -20,6 +20,7 @@ pub enum ConcreteType {
     Serial(i32),
     VarChar(String),
     Char(String),
+    Boolean(bool),
     NULL,
 }
 impl ConcreteType {
@@ -59,6 +60,7 @@ impl ConcreteType {
                     ConcreteType::VarChar(String::from_utf8_lossy(bytes).to_string())
                 }
             },
+            SchemaType::Boolean => Boolean(bytes[0] == 1),
         }
     }
 }
@@ -74,6 +76,7 @@ impl Display for ConcreteType {
             Serial(x) => write!(f, "{x}"),
             ConcreteType::VarChar(sth) => write!(f, "{sth}"),
             ConcreteType::Char(sth) => write!(f, "{sth}"),
+            Boolean(b) => write!(f, "{b}"),
             ConcreteType::NULL => write!(f, ""),
         }
     }
@@ -95,7 +98,7 @@ impl PartialEq<Self> for ConcreteType {
                 Single(num2) => NumOrd::num_eq(num1, num2),
                 Double(num2) => NumOrd::num_eq(num1, num2),
                 Serial(num2) => NumOrd::num_eq(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => false,
             },
             Integer(num1) => match other {
@@ -105,7 +108,7 @@ impl PartialEq<Self> for ConcreteType {
                 Single(num2) => NumOrd::num_eq(num1, num2),
                 Double(num2) => NumOrd::num_eq(num1, num2),
                 Serial(num2) => NumOrd::num_eq(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => false,
             },
             BigInt(num1) => match other {
@@ -115,7 +118,7 @@ impl PartialEq<Self> for ConcreteType {
                 Single(num2) => NumOrd::num_eq(num1, num2),
                 Double(num2) => NumOrd::num_eq(num1, num2),
                 Serial(num2) => NumOrd::num_eq(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => false,
             },
             Single(num1) => match other {
@@ -125,7 +128,7 @@ impl PartialEq<Self> for ConcreteType {
                 Single(num2) => NumOrd::num_eq(num1, num2),
                 Double(num2) => NumOrd::num_eq(num1, num2),
                 Serial(num2) => NumOrd::num_eq(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => false,
             },
             Double(num1) => match other {
@@ -135,7 +138,7 @@ impl PartialEq<Self> for ConcreteType {
                 Single(num2) => NumOrd::num_eq(num1, num2),
                 Double(num2) => NumOrd::num_eq(num1, num2),
                 Serial(num2) => NumOrd::num_eq(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => false,
             },
             Serial(num1) => match other {
@@ -145,7 +148,7 @@ impl PartialEq<Self> for ConcreteType {
                 Single(num2) => NumOrd::num_eq(num1, num2),
                 Double(num2) => NumOrd::num_eq(num1, num2),
                 Serial(num2) => NumOrd::num_eq(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => false,
             },
             VarChar(char1) | Char(char1) => match other {
@@ -154,6 +157,11 @@ impl PartialEq<Self> for ConcreteType {
                 _ => unreachable!(),
             },
             ConcreteType::NULL => other.is_null(),
+            Boolean(b1) => match other {
+                Boolean(b2) => b1 == b2,
+                ConcreteType::NULL => false,
+                _ => unreachable!(),
+            },
         }
     }
 }
@@ -170,7 +178,7 @@ impl PartialOrd for ConcreteType {
                 Single(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Double(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_partial_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Some(Less),
             },
             Integer(num1) => match other {
@@ -180,7 +188,7 @@ impl PartialOrd for ConcreteType {
                 Single(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Double(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_partial_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Some(Less),
             },
             BigInt(num1) => match other {
@@ -190,7 +198,7 @@ impl PartialOrd for ConcreteType {
                 Single(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Double(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_partial_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Some(Less),
             },
             Single(num1) => match other {
@@ -200,7 +208,7 @@ impl PartialOrd for ConcreteType {
                 Single(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Double(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_partial_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Some(Less),
             },
             Double(num1) => match other {
@@ -210,7 +218,7 @@ impl PartialOrd for ConcreteType {
                 Single(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Double(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_partial_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Some(Less),
             },
             Serial(num1) => match other {
@@ -220,7 +228,7 @@ impl PartialOrd for ConcreteType {
                 Single(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Double(num2) => NumOrd::num_partial_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_partial_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Some(Less),
             },
             VarChar(char1) | Char(char1) => match other {
@@ -235,6 +243,11 @@ impl PartialOrd for ConcreteType {
                     Some(Greater)
                 }
             }
+            Boolean(b1) => match other {
+                Boolean(b2) => b1.partial_cmp(b2),
+                ConcreteType::NULL => Some(Less),
+                _ => unreachable!(),
+            },
         }
     }
 }
@@ -249,7 +262,7 @@ impl Ord for ConcreteType {
                 Single(num2) => NumOrd::num_cmp(num1, num2),
                 Double(num2) => NumOrd::num_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Less,
             },
             Integer(num1) => match other {
@@ -259,7 +272,7 @@ impl Ord for ConcreteType {
                 Single(num2) => NumOrd::num_cmp(num1, num2),
                 Double(num2) => NumOrd::num_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Less,
             },
             BigInt(num1) => match other {
@@ -269,7 +282,7 @@ impl Ord for ConcreteType {
                 Single(num2) => NumOrd::num_cmp(num1, num2),
                 Double(num2) => NumOrd::num_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Less,
             },
             Single(num1) => match other {
@@ -279,7 +292,7 @@ impl Ord for ConcreteType {
                 Single(num2) => NumOrd::num_cmp(num1, num2),
                 Double(num2) => NumOrd::num_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Less,
             },
             Double(num1) => match other {
@@ -289,7 +302,7 @@ impl Ord for ConcreteType {
                 Single(num2) => NumOrd::num_cmp(num1, num2),
                 Double(num2) => NumOrd::num_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Less,
             },
             Serial(num1) => match other {
@@ -299,7 +312,7 @@ impl Ord for ConcreteType {
                 Single(num2) => NumOrd::num_cmp(num1, num2),
                 Double(num2) => NumOrd::num_cmp(num1, num2),
                 Serial(num2) => NumOrd::num_cmp(num1, num2),
-                ConcreteType::VarChar(_) | ConcreteType::Char(_) => unreachable!(),
+                ConcreteType::VarChar(_) | ConcreteType::Char(_) | Boolean(_) => unreachable!(),
                 ConcreteType::NULL => Less,
             },
             VarChar(char1) | Char(char1) => match other {
@@ -314,6 +327,11 @@ impl Ord for ConcreteType {
                     Greater
                 }
             }
+            Boolean(b1) => match other {
+                Boolean(b2) => b1.cmp(b2),
+                ConcreteType::NULL => Less,
+                _ => unreachable!(),
+            },
         }
     }
 }

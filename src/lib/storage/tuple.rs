@@ -4,6 +4,7 @@ use positioned_io2::WriteAt;
 use std::ops::Index;
 use std::rc::Rc;
 
+#[derive(Debug)]
 /// A helper Struct that acts as an converter between the raw form of a tuple supplied by the result
 /// of parsing a query statement and the Storage Engine
 ///

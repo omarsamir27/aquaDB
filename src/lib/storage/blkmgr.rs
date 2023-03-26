@@ -2,8 +2,10 @@ use crate::storage::blockid::BlockId;
 use crate::storage::page::Page;
 use positioned_io2::{RandomAccessFile, ReadAt, Size, WriteAt};
 use std::collections::hash_map::{Entry, HashMap};
+use std::fs;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::os::linux::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// BlockManager is an entity owned by a storage manager that is responsible for dealing with the
@@ -11,7 +13,7 @@ use std::path::{Path, PathBuf};
 pub struct BlockManager {
     db_dir: PathBuf,
     block_size: usize,
-    open_files: HashMap<String, File>,
+    open_files: HashMap<PathBuf, File>,
 }
 impl BlockManager {
     pub fn new(db_dir: &str, block_size: usize) -> Self {
@@ -25,9 +27,9 @@ impl BlockManager {
     /// Returns raw bytes written in a file given a certain block id and the number of bytes needed
     pub fn read_raw(&mut self, blockid: &BlockId, byte_count: usize) -> Vec<u8> {
         let blk_size = self.block_size;
-        let mut filepath = String::from(self.db_dir.to_str().unwrap());
-        filepath.push_str(&blockid.filename.as_str());
-        let file = self.get_file(filepath.as_str());
+        let mut filepath = self.db_dir.join(blockid.filename.as_str());
+        // filepath.push_str(&blockid.filename.as_str());
+        let file = self.get_file(filepath.to_str().unwrap());
         let mut vec = vec![0_u8; byte_count];
         file.read_at(blockid.block_num * 4096, vec.as_mut());
         vec
@@ -36,9 +38,9 @@ impl BlockManager {
     /// Fills a certain page with a specific block content from the disk to be loaded into memory
     pub fn read(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size;
-        let mut filepath = String::from(self.db_dir.to_str().unwrap());
-        filepath.push_str(&blockid.filename.as_str());
-        let file = self.get_file(filepath.as_str());
+        let mut filepath = self.db_dir.join(blockid.filename.as_str());
+        // filepath.push_str(&blockid.filename.as_str());
+        let file = self.get_file(filepath.to_str().unwrap());
         file.read_at(blockid.block_num * blk_size as u64, &mut page.payload)
             .unwrap();
     }
@@ -46,9 +48,9 @@ impl BlockManager {
     /// Writes a certain page's content from memory into a specific block on the disk
     pub fn write(&mut self, blockid: &BlockId, page: &mut Page) {
         let blk_size = self.block_size;
-        let mut filepath = String::from(self.db_dir.to_str().unwrap());
-        filepath.push_str(&blockid.filename.as_str());
-        let file = self.get_file(filepath.as_str());
+        let mut filepath = self.db_dir.join(blockid.filename.as_str());
+        // filepath.push_str();
+        let file = self.get_file(filepath.to_str().unwrap());
         file.write_at(blockid.block_num * blk_size as u64, &page.payload)
             .unwrap();
         file.sync_all().unwrap()
@@ -59,9 +61,8 @@ impl BlockManager {
     /// Returns the Block Id of the appended block
     pub fn extend_file(&mut self, filename: &str) -> BlockId {
         let blk_size = self.block_size;
-        let mut filepath = String::from(self.db_dir.to_str().unwrap());
-        filepath.push_str(filename);
-        let file = self.get_file(filepath.as_str());
+        let mut filepath = self.db_dir.join(filename);
+        let file = self.get_file(filepath.to_str().unwrap());
         file.seek(SeekFrom::End(0)).unwrap();
         let size = vec![0 as u8; blk_size];
         file.write(size.as_slice()).unwrap();
@@ -78,9 +79,9 @@ impl BlockManager {
     /// Returns a vector containing the Block Ids of the appended blocks
     pub fn extend_file_many(&mut self, filename: &str, count: u32) -> Vec<BlockId> {
         let blk_size = self.block_size;
-        let mut filepath = String::from(self.db_dir.to_str().unwrap());
-        filepath.push_str(filename);
-        let file = self.get_file(filepath.as_str());
+        let mut filepath = self.db_dir.join(filename);
+        // filepath.push_str(filename);
+        let file = self.get_file(filepath.to_str().unwrap());
         file.seek(SeekFrom::End(0)).unwrap();
         let size = vec![0 as u8; blk_size * count as usize];
         let idx_first_new = (file.metadata().unwrap().len() / blk_size as u64);
@@ -97,7 +98,7 @@ impl BlockManager {
     /// RW modes set to true
     fn get_file(&mut self, filename: &str) -> &mut File {
         self.open_files
-            .entry(filename.to_string())
+            .entry(PathBuf::from(filename))
             .or_insert_with(|| match Path::exists(filename.as_ref()) {
                 false => {
                     File::create(filename).unwrap();
