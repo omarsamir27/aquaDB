@@ -72,28 +72,46 @@ impl IdxRecord {
 }
 
 pub struct BucketDirectory {
+    index_dir_file: File,
     global_depth: u8,
+    buckets_num: u16,
     bucket_map: HashMap<u32, u64>,
     size_in_bytes: usize,
 }
 
 impl BucketDirectory {
 
-    pub fn new(index_dir_file: &mut File) -> Self {
+    pub fn new(mut index_dir_file: File) -> Self {
         let mut buffer = vec![];
         index_dir_file.read_to_end(&mut buffer).unwrap();
         let buffer = buffer.as_slice();
         let size = buffer.len();
         let global_depth = buffer[0];
+        let buckets_num = buffer.extract_u16(1);
         let mut bucket_map = HashMap::new();
-        for mut pos in 1..size {
+        let mut pos = 3_usize;
+        for i in 0..buckets_num {
             let bucket_id = buffer.extract_u32(pos);
             pos += 4;
             let block_num = buffer.extract_u64(pos);
             pos += 8;
             bucket_map.insert(bucket_id, block_num);
         }
-        Self { global_depth, bucket_map, size_in_bytes: size}
+        Self {index_dir_file, global_depth, buckets_num, bucket_map, size_in_bytes: size}
+    }
+
+    pub fn init(mut index_dir_file: File, initial_global_depth: u8) {
+        let global_depth = initial_global_depth;
+        let buckets_num = 2_u16.pow(global_depth as u32);
+        let mut data = Vec::new();
+        data.extend_from_slice(global_depth.to_ne_bytes().as_slice());
+        data.extend_from_slice(buckets_num.to_ne_bytes().as_slice());
+        let mut starting_blk_num = 0_u64;
+        for (starting_blk_num, i) in (0..buckets_num as u32).enumerate() {
+            data.extend_from_slice(i.to_ne_bytes().as_slice());
+            data.extend_from_slice((starting_blk_num as u64).to_ne_bytes().as_slice());
+        }
+        index_dir_file.write(data.as_slice());
     }
 
     pub fn insert_bucket(&mut self, bucket_id: u32, blk_num: u64) {
@@ -118,8 +136,8 @@ impl BucketDirectory {
         data
     }
 
-    pub fn flush(&self, index_dir_file: &mut File) {
-        index_dir_file.write(self.bucket_map_to_bytes().as_slice());
+    pub fn flush(&mut self) {
+        self.index_dir_file.write(self.bucket_map_to_bytes().as_slice());
     }
 
 }
@@ -160,6 +178,12 @@ impl HashIndex {
             storage_mgr,
             tbl_mgr,
         }
+    }
+
+    pub fn init(index_file: &mut File, initial_buckets_num: u16) {
+        let blk_size = 4096;
+        let size = vec![0_u8; blk_size * initial_buckets_num as usize];
+        index_file.write(size.as_slice());
     }
 
     /// Encoding the raw string to a 32 bit hash value.
@@ -235,7 +259,7 @@ impl HashIndex {
         if bucket_page.insert_record(&idx_record).is_err() {
             if bucket_page.overflow.is_some() {
                 let block = self.blocks.iter()
-                    .find(|block| block.block_num == bucket_page.overflow.unwrap() as u64).unwrap();
+                    .find(|block| block.block_num == bucket_page.overflow.unwrap()).unwrap();
                 let frame = self.storage_mgr.borrow_mut().pin(block.clone()).unwrap();
                 let mut overflow_bucket = BucketPage::new(frame);
                 if overflow_bucket.insert_record(&idx_record).is_err() {
@@ -317,6 +341,7 @@ impl HashIndex {
             self.reinsert_record(record);
         }
         self.reinsert_record(idx_record);
+        self.flush_directory();
     }
 
     /// Get all the rids of the matched index records with the search key.
@@ -334,8 +359,8 @@ impl HashIndex {
         rids
     }
 
-    pub fn flush_directory(&self, index_directory_file: &mut File) {
-        self.bucket_dir.flush(index_directory_file);
+    pub fn flush_directory(&mut self) {
+        self.bucket_dir.flush();
     }
 }
 
@@ -366,7 +391,7 @@ impl BucketPage {
     }
     fn init(frame: &FrameRef, depth: u8) {
         let mut frame = frame.borrow_mut();
-        let metadata = [depth, 0, 0, 0, 0];
+        let metadata = [depth, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         frame.update_replace_stats();
         frame.write(metadata.as_slice())
     }
