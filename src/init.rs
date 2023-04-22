@@ -1,7 +1,10 @@
 use aqua::meta::catalogmgr::CatalogManager;
+use aqua::schema::schema::Schema;
+use aqua::schema::types::CharType::VarChar;
+use aqua::schema::types::{NumericType, Type};
 use aqua::storage::blkmgr::BlockManager;
 use aqua::storage::storagemgr::StorageManager;
-use aqua::{AQUADIR, AQUA_HOME_VAR, RcRefCell};
+use aqua::{RcRefCell, AQUADIR, AQUA_HOME_VAR};
 use lazy_static::lazy_static;
 use std::cell::Cell;
 use std::env;
@@ -9,9 +12,6 @@ use std::fs::{create_dir, create_dir_all};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
-use aqua::schema::schema::Schema;
-use aqua::schema::types::{NumericType, Type};
-use aqua::schema::types::CharType::VarChar;
 
 const AQUA_HOME_DIR: &str = "AQUA";
 lazy_static! {
@@ -22,18 +22,18 @@ lazy_static! {
 pub fn init_aqua() {
     init_homedir();
     CatalogManager::init_catalogs();
-    let storage = RcRefCell!(StorageManager::new(&AQUADIR(),4096,100));
+    let storage = RcRefCell!(StorageManager::new(&AQUADIR(), 4096, 100));
     let mut catalogmgr = CatalogManager::startup(storage.clone());
     let path = Path::new(AQUADIR().as_str()).join("base").join("samir");
     create_dir(path).expect("could not create database dir ");
     catalogmgr.create_db_schema_table("samir");
     let mut schema = Schema::new();
     schema.set_name("omar");
-    schema.add_field_default_constraints("id",Type::Numeric(NumericType::Integer),None);
-    schema.add_field_default_constraints("name",Type::Character(VarChar),None);
+    schema.add_field_default_constraints("id", Type::Numeric(NumericType::Integer), None);
+    schema.add_field_default_constraints("name", Type::Character(VarChar), None);
     schema.set_primary_keys(vec!["id".to_string()]);
-    catalogmgr.add_schema("samir",&schema);
-    let omar = catalogmgr.get_schema("samir","omar");
+    catalogmgr.add_schema("samir", &schema);
+    let omar = catalogmgr.get_schema("samir", "omar");
     dbg!(omar);
 }
 

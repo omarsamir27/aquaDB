@@ -342,7 +342,7 @@ impl SqlParser {
 
 pub fn parse_query(query: &str) -> Result<Sql> {
     let select = <SqlParser as pest_consume::Parser>::parse(Rule::Sql, query)?;
-    dbg!(&select);
+    // dbg!(&select);
     let x = select.single()?;
     SqlParser::Sql(x)
 }

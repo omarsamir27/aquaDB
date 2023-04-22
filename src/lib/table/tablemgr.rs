@@ -173,10 +173,13 @@ impl TableManager {
     }
 
     pub fn remove_index_block(&mut self, blk_num: u64) {
-        let pos = self.table_blocks.iter().position(|block| block.block_num == blk_num).unwrap();
+        let pos = self
+            .table_blocks
+            .iter()
+            .position(|block| block.block_num == blk_num)
+            .unwrap();
         self.table_blocks.remove(pos);
     }
-
 }
 
 /// A Sequential Iterator over ALL tuples in a database table
@@ -189,7 +192,7 @@ pub struct TableIter<'tblmgr> {
     current_tuple_index: usize,
     current_page_pointer_count: usize,
 }
-impl<'tblmgr> Iterator for TableIter<'tblmgr>{
+impl<'tblmgr> Iterator for TableIter<'tblmgr> {
     type Item = HashMap<String, Option<Vec<u8>>>;
 
     fn next(&mut self) -> Option<Self::Item> {

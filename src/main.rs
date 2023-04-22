@@ -30,11 +30,6 @@ fn main() {
             init::init_aqua();
         }
     }
-    let server = DatabaseServer::new(
-        "hi",
-        vec![
-            "127.0.0.1:2710".to_string(),
-        ],
-    );
+    let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
     server.run()
 }

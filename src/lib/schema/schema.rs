@@ -117,18 +117,27 @@ impl Schema {
         for mut field in row_bytes {
             let name = String::from_utf8(field.remove("fieldname").unwrap().unwrap()).unwrap();
             let datatype = Type::from_str(
-                String::from_utf8(field.remove("fieldtype").unwrap().unwrap()).unwrap().as_str()
-            ).unwrap();
+                String::from_utf8(field.remove("fieldtype").unwrap().unwrap())
+                    .unwrap()
+                    .as_str(),
+            )
+            .unwrap();
             let pkey_piece = field.remove("pkey_piece").unwrap().unwrap()[0] == 1;
             let nullable = field.remove("nullable").unwrap().unwrap()[0] == 1;
             let unique = field.remove("unique").unwrap().unwrap()[0] == 1;
-            let foreign_ref = match (field.remove("foreign_table").unwrap(), field.remove("foreign_field").unwrap()){
-                (None,_) => None,
-                (Some(table),Some(field)) => Some((String::from_utf8(table).unwrap(),String::from_utf8(field).unwrap())),
-                _ => unreachable!()
+            let foreign_ref = match (
+                field.remove("foreign_table").unwrap(),
+                field.remove("foreign_field").unwrap(),
+            ) {
+                (None, _) => None,
+                (Some(table), Some(field)) => Some((
+                    String::from_utf8(table).unwrap(),
+                    String::from_utf8(field).unwrap(),
+                )),
+                _ => unreachable!(),
             };
-            schema.add_field(name.as_str(),datatype,nullable,unique,foreign_ref,None);
-            if pkey_piece{
+            schema.add_field(name.as_str(), datatype, nullable, unique, foreign_ref, None);
+            if pkey_piece {
                 schema.primary_key.push(name);
             }
         }
@@ -153,7 +162,7 @@ impl Schema {
 /// Entity containing a certain field's info such as:
 ///
 /// Name, Type, Whether it can be Null, Limit of characters if it is a Varchar
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct Field {
     name: String,
     field_type: Type,

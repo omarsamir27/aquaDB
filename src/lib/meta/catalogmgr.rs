@@ -52,13 +52,15 @@ impl CatalogManager {
         let mut storagemgr = RcRefCell!(StorageManager::new(AQUADIR().as_str(), 4096, 10));
         let database_tbl = Self::init_dbs_table(storagemgr);
     }
-    pub fn get_schema(&self,db_name:&str,table_name:&str) -> Option<Schema> {
+    pub fn get_schema(&self, db_name: &str, table_name: &str) -> Option<Schema> {
         let db_catalog = self.db_tbl_schema_catalogs.get(db_name)?;
         let db_catalog = db_catalog.heapscan_iter();
-        let schema_vec = db_catalog.filter(
-            |row| String::from_utf8(row.get("tablename").unwrap()
-                .as_ref().unwrap().clone()).unwrap() == table_name
-        ).collect::<Vec<_>>();
+        let schema_vec = db_catalog
+            .filter(|row| {
+                String::from_utf8(row.get("tablename").unwrap().as_ref().unwrap().clone()).unwrap()
+                    == table_name
+            })
+            .collect::<Vec<_>>();
         Some(Schema::deserialize(schema_vec))
     }
     pub fn add_schema(&mut self, db_name: &str, schema: &Schema) -> Result<(), String> {
@@ -82,7 +84,7 @@ impl CatalogManager {
         }
         let mut db_schema_catalog = self.db_tbl_schema_catalogs.get_mut(db_name).unwrap();
         let serialized = schema.serialize();
-        for field in serialized{
+        for field in serialized {
             db_schema_catalog.try_insert_tuple(field);
         }
         //

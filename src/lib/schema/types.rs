@@ -1,8 +1,8 @@
 use crate::common::numerical::ByteMagic;
 use crate::schema::types::CharType::{Char, VarChar};
+use crate::schema::types::NumericType::{BigInt, Double, Integer, Serial, Single, SmallInt};
 use std::ops::Add;
 use std::str::FromStr;
-use crate::schema::types::NumericType::{BigInt, Double, Integer, Serial, Single, SmallInt};
 
 /// An enumeration for the numeric data types in the database
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -15,7 +15,7 @@ pub enum NumericType {
     Serial,
 }
 
-impl ToString for NumericType{
+impl ToString for NumericType {
     fn to_string(&self) -> String {
         match self {
             NumericType::SmallInt => String::from("smallint"),
@@ -23,7 +23,7 @@ impl ToString for NumericType{
             NumericType::BigInt => String::from("bigint"),
             NumericType::Single => String::from("single"),
             NumericType::Double => String::from("double"),
-            NumericType::Serial => String::from("serial")
+            NumericType::Serial => String::from("serial"),
         }
     }
 }
@@ -64,11 +64,11 @@ pub enum CharType {
     VarChar,
 }
 
-impl ToString for CharType{
+impl ToString for CharType {
     fn to_string(&self) -> String {
         match self {
             CharType::Char => String::from("char"),
-            VarChar => String::from("varchar")
+            VarChar => String::from("varchar"),
         }
     }
 }
@@ -96,17 +96,17 @@ pub enum Type {
     Boolean,
 }
 
-impl ToString for Type{
+impl ToString for Type {
     fn to_string(&self) -> String {
         match self {
             Type::Numeric(num) => num.to_string(),
             Type::Character(char) => char.to_string(),
-            Type::Boolean => String::from("bool")
+            Type::Boolean => String::from("bool"),
         }
     }
 }
 
-impl FromStr for Type{
+impl FromStr for Type {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -120,7 +120,7 @@ impl FromStr for Type{
             "char" => Ok(Self::Character(Char)),
             "varchar" => Ok(Self::Character(VarChar)),
             "bool" => Ok(Self::Boolean),
-            _ => Err("Type Unknown".to_string())
+            _ => Err("Type Unknown".to_string()),
         }
     }
 }

@@ -7,13 +7,13 @@ extern crate core;
 
 pub mod common;
 pub mod database;
+pub mod index;
 pub mod meta;
 pub mod query;
 pub mod schema;
 pub mod sql;
 pub mod storage;
 pub mod table;
-pub mod index;
 
 pub const AQUA_HOME_VAR: &str = "AQUADATA";
 pub fn AQUADIR() -> String {
