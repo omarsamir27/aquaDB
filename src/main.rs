@@ -29,6 +29,8 @@ fn main() {
         if init == "init" {
             init::init_aqua();
         }
+    } else {
+        init::init_homedir();
     }
     let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
     server.run()

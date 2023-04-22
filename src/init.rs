@@ -22,28 +22,29 @@ lazy_static! {
 pub fn init_aqua() {
     init_homedir();
     CatalogManager::init_catalogs();
-    let storage = RcRefCell!(StorageManager::new(&AQUADIR(), 4096, 100));
-    let mut catalogmgr = CatalogManager::startup(storage.clone());
-    let path = Path::new(AQUADIR().as_str()).join("base").join("samir");
-    create_dir(path).expect("could not create database dir ");
-    catalogmgr.create_db_schema_table("samir");
-    let mut schema = Schema::new();
-    schema.set_name("omar");
-    schema.add_field_default_constraints("id", Type::Numeric(NumericType::Integer), None);
-    schema.add_field_default_constraints("name", Type::Character(VarChar), None);
-    schema.set_primary_keys(vec!["id".to_string()]);
-    catalogmgr.add_schema("samir", &schema);
-    let omar = catalogmgr.get_schema("samir", "omar");
-    dbg!(omar);
+    // let storage = RcRefCell!(StorageManager::new(&AQUADIR(),4096,100));
+    // let mut catalogmgr = CatalogManager::startup(storage.clone());
+    //
+    // catalogmgr.create_database("samir").unwrap();
+    // let mut schema = Schema::new();
+    // schema.set_name("omar");
+    // schema.add_field_default_constraints("id",Type::Numeric(NumericType::Integer),None);
+    // schema.add_field_default_constraints("name",Type::Character(VarChar),None);
+    // schema.set_primary_keys(vec!["id".to_string()]);
+    // catalogmgr.add_schema("samir",&schema).unwrap();
+    // let omar = catalogmgr.get_schema("samir","omar");
+    // dbg!(omar);
 }
 
-fn init_homedir() {
+pub fn init_homedir() {
     let AQUA_HOME_PATH = init_AQUADATA();
     let path = Path::new(AQUA_HOME_PATH.as_str());
-    create_dir(path).expect("Could not create Aqua Directory");
-    env::set_current_dir(path).unwrap();
-    create_dir_all(AQUA_BASE.clone()).unwrap();
-    create_dir_all("global").expect("Could not create Aqua Data Directory");
+    if !path.exists() {
+        create_dir(path).expect("Could not create Aqua Directory");
+        env::set_current_dir(path).unwrap();
+        create_dir_all(AQUA_BASE.clone()).unwrap();
+        create_dir_all("global").expect("Could not create Aqua Data Directory");
+    }
 }
 
 fn get_user_homedir() -> Option<String> {

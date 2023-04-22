@@ -25,23 +25,17 @@ pub enum ConcreteType {
 }
 impl ConcreteType {
     pub fn is_numeric(&self) -> bool {
-        match self {
-            SmallInt(_) | Integer(_) | BigInt(_) | Single(_) | Double(_) | Serial(_) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            SmallInt(_) | Integer(_) | BigInt(_) | Single(_) | Double(_) | Serial(_)
+        )
     }
     pub fn is_text(&self) -> bool {
-        match self {
-            VarChar(_) | Char(_) => true,
-            _ => false,
-        }
+        matches!(self, VarChar(_) | Char(_))
     }
 
     pub fn is_null(&self) -> bool {
-        match self {
-            Self::NULL => true,
-            _ => false,
-        }
+        matches!(self, Self::NULL)
     }
 
     pub fn from_bytes(datatype: SchemaType, bytes: &[u8]) -> Self {
