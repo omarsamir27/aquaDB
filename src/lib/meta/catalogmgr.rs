@@ -7,13 +7,38 @@ use crate::table::tablemgr::TableManager;
 use crate::{RcRefCell, AQUADIR};
 use std::collections::{HashMap, HashSet};
 use std::fs::create_dir;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{cell::RefCell, rc::Rc};
 
 struct InstanceCatalog {
     schemas: TableManager,
     tables_filepaths: TableManager,
     indexes: TableManager,
+}
+
+impl InstanceCatalog {
+    fn get_db_tables(&self, storage: &Rc<RefCell<StorageManager>>) -> HashMap<String,TableManager>{
+        let tables = self.tables_filepaths.heapscan_iter().map(| r |
+            (String::from_utf8(r.get("tablename").unwrap().as_ref().unwrap().clone()).unwrap(),
+            String::from_utf8(r.get("filepath").unwrap().as_ref().unwrap().clone()).unwrap()))
+            .collect::<HashMap<String,String>>();
+        tables.into_iter()
+            .map(|(name,path)| {
+                let schema = self.get_schema(&name) ;
+                let table = TableManager::from_file(storage.clone(),PathBuf::from(path),Rc::new(schema.to_layout()));
+                (name,table)
+            } ).collect()
+    }
+    fn get_schema(&self,schema_name:&str) -> Schema{
+        let schemas_catalog = self.schemas.heapscan_iter();
+        let schema_vec = schemas_catalog
+            .filter(|row| {
+                String::from_utf8(row.get("tablename").unwrap().as_ref().unwrap().clone()).unwrap()
+                    == schema_name
+            })
+            .collect::<Vec<_>>();
+        Schema::deserialize(schema_vec)
+    }
 }
 pub struct CatalogManager {
     storage_mgr: Rc<RefCell<StorageManager>>,
@@ -59,6 +84,9 @@ impl CatalogManager {
             .collect();
         Self::new(storagemgr, databases_tbl, db_tbl_schema_catalogs)
     }
+    pub fn get_db_tables(&self,db_name:&str) -> HashMap<String,TableManager>{
+        self.databases_catalogs.get(db_name).unwrap().get_db_tables(&self.storage_mgr)
+    }
     pub fn has_db(&self, db_name: &str) -> bool {
         // self.databases_tbl
         //     .heapscan_iter()
@@ -71,14 +99,7 @@ impl CatalogManager {
     }
     pub fn get_schema(&self, db_name: &str, table_name: &str) -> Option<Schema> {
         let db_catalog = self.databases_catalogs.get(db_name)?;
-        let db_catalog = db_catalog.schemas.heapscan_iter();
-        let schema_vec = db_catalog
-            .filter(|row| {
-                String::from_utf8(row.get("tablename").unwrap().as_ref().unwrap().clone()).unwrap()
-                    == table_name
-            })
-            .collect::<Vec<_>>();
-        Some(Schema::deserialize(schema_vec))
+        Some(db_catalog.get_schema(table_name))
     }
     pub fn add_schema(&mut self, db_name: &str, schema: &Schema) -> Result<(), String> {
         let mut db_catalog = self

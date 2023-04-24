@@ -17,6 +17,9 @@ impl Schema {
             fields: vec![],
         }
     }
+    pub fn field_types(&self) -> HashMap<&str, Type> {
+        self.fields.iter().map(|f| (f.name(),f.field_type)).collect::<HashMap<&str,Type>>()
+    }
     pub fn set_primary_keys(&mut self, mut keys: Vec<String>) {
         keys.sort_unstable();
         self.primary_key.append(keys.as_mut())

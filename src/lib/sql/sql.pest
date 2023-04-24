@@ -12,7 +12,9 @@
     QUOTE = _{ "\"" }
     /// green
     string_literal = @{ QUOTE ~ text ~ QUOTE }
-    constant =  ${ numeric_constant | string_literal  }
+    TRUE  = {^"true"}
+    FALSE = {^"false"}
+    constant =  ${ numeric_constant | string_literal | TRUE | FALSE }
     /// green
     term = ${ NULL |identifier | constant }
     table_name = {identifier}
@@ -97,6 +99,7 @@ WHITESPACE = _{WHITE_SPACE}
 
 
 //{
+    BOOL     = {^"bool"}
     SMALLINT = {^"smallint"}
     INTEGER  = {^"int"}
     BIGINT   = {^"bigint"}
@@ -104,7 +107,7 @@ WHITESPACE = _{WHITE_SPACE}
     DOUBLE   = {^"double"}
     SERIAL   = {^"serial"}
     VARCHAR  = {^"varchar"}
-    datatype = { SMALLINT | INTEGER |BIGINT | SINGLE | DOUBLE | SERIAL | VARCHAR }
+    datatype = { BOOL |SMALLINT | INTEGER |BIGINT | SINGLE | DOUBLE | SERIAL | VARCHAR }
 //}
 
 //{

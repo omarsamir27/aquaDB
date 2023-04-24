@@ -31,5 +31,6 @@ impl SqlQuery {
 pub enum SqlValue {
     Text(String),
     Numeric(String),
+    Bool(bool),
     NULL,
 }

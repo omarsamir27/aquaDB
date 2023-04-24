@@ -3,7 +3,7 @@ use crate::schema::types::NumericType::{BigInt, Double, Integer, Serial, Single,
 use crate::schema::types::Type;
 use crate::sql::create_table::Constraint::{NotNull, PrimaryKey, Unique};
 use crate::sql::create_table::{Constraint, CreateTable, TableField};
-use crate::sql::parser::Rule::foreign_key;
+use crate::sql::parser::Rule::{foreign_key};
 use crate::sql::query::delete::SqlDelete;
 use crate::sql::query::insert::SqlInsert;
 use crate::sql::query::query::{SqlQuery as QUERY, SqlValue};
@@ -248,8 +248,16 @@ impl SqlParser {
         Ok(match_nodes!(
             input.into_children();
             [numeric_constant(n)] => n,
-            [string_literal(s)] => s
+            [string_literal(s)] => s,
+            [TRUE(_)] => SqlValue::Bool(true),
+            [FALSE(_)] => SqlValue::Bool(false)
         ))
+    }
+    fn TRUE(_input:Node) -> Result<SqlValue>{
+        Ok(SqlValue::Bool(true))
+    }
+    fn FALSE(_input:Node) -> Result<SqlValue>{
+        Ok(SqlValue::Bool(false))
     }
     fn numeric_constant(input: Node) -> Result<SqlValue> {
         Ok(SqlValue::Numeric(input.as_str().to_string()))
