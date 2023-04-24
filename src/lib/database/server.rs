@@ -29,7 +29,7 @@ impl DatabaseServer {
             .map(|ip| {
                 let socket =
                     TcpListener::bind(ip).expect(format!("Could not bind to {ip}").as_str());
-                socket.set_nonblocking(true);
+                socket.set_nonblocking(false);
                 socket
             })
             .collect()
@@ -54,14 +54,14 @@ impl DatabaseServer {
             match self.catalog.borrow_mut().create_database(cmd[2]) {
                 Ok(()) => send_string(
                     &mut conn,
-                    &format!("Database{} created successfully", cmd[2]),
+                    &format!("Database {} created successfully", cmd[2]),
                 )
                 .unwrap(),
                 Err(s) => send_string(&mut conn, &s).unwrap(),
             }
         } else if cmd[0].eq_ignore_ascii_case("connect") && cmd[1].eq_ignore_ascii_case("db") {
-            let catalog = self.catalog.borrow();
-            if catalog.has_db(cmd[2]) {
+            let has_db = self.catalog.borrow().has_db(cmd[2]);
+            if has_db {
                 send_string(
                     &mut conn,
                     &format!("Now Connected to Database {} successfully", cmd[2]),
@@ -74,8 +74,12 @@ impl DatabaseServer {
                 );
                 db_instance.handle_connection();
             }
+            else {
+                send_string(&mut conn,"WOTT");
+            }
         } else {
-            conn.write_fmt(format_args!("What do you want??")).unwrap();
+            send_string(&mut conn,"What do you want??");
+            // conn.write_fmt(format_args!("What do you want??")).unwrap();
         }
     }
     pub fn new(home_dir: &str, addr: Vec<String>) -> Self {

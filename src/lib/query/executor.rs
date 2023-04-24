@@ -15,9 +15,7 @@ pub struct Executor<'db> {
 }
 
 impl<'db> Executor<'db> {
-    // fn execute_select(&self,node:select_node){
-    //     todo!()
-    // }
+    
 
     pub fn new(max_table_memory: usize, db_tables: &'db HashMap<String, TableManager>) -> Self {
         Self {
