@@ -56,7 +56,12 @@ impl Schema {
     ) {
         self.add_field(name, field_type, true, false, None, char_limit);
     }
-    pub fn serialize(&self) -> Vec<Vec<(String, Option<Vec<u8>>)>> {
+    pub fn add_index(&mut self,index_name:&str,fieldname:&str,index_type:IndexType){
+        self.indexes.push(
+            FieldIndex::new(index_name,fieldname,index_type)
+        )
+    }
+    pub fn serialize(&self) -> (Vec<Vec<(String, Option<Vec<u8>>)>>, Vec<Vec<(String, Option<Vec<u8>>)>>) {
         let mut ret = Vec::with_capacity(self.fields.len());
         for field in &self.fields {
             let mut row = [
@@ -103,10 +108,10 @@ impl Schema {
             // dbg!(&row);
             ret.push(row);
         }
-        ret
+        (ret,self.serialize_indexes())
     }
 
-    pub fn deserialize(row_bytes: Vec<HashMap<String, Option<Vec<u8>>>>) -> Self {
+    pub fn deserialize(row_bytes: Vec<HashMap<String, Option<Vec<u8>>>>,indexes:Vec<HashMap<String,Option<Vec<u8>>>>) -> Self {
         let mut schema = Self::new();
         schema.set_name(
             String::from_utf8(
@@ -147,7 +152,11 @@ impl Schema {
                 schema.primary_key.push(name);
             }
         }
+        schema.indexes.extend(indexes.into_iter().map(|idx| FieldIndex::deserialize(idx)));
         schema
+    }
+    fn serialize_indexes(&self)-> Vec<Vec<(String,Option<Vec<u8>>)>>{
+        self.indexes.iter().map(|idx| idx.serialize(self.name())).collect()
     }
     /// Convert the schema to a layout
     pub fn to_layout(&self) -> Layout {
@@ -289,15 +298,13 @@ impl Layout {
 #[derive(Debug)]
 pub struct FieldIndex{
     name : String,
-    directory_file : String,
-    index_file : String,
     fieldname : String,
     index_type : IndexType
 }
 
 impl FieldIndex {
-    pub fn new(name: &str, directory_file: &str, index_file: &str, fieldname: String,index_type:&str) -> Self {
-        Self { name:name.to_string(), directory_file:directory_file.to_string(), index_file:index_file.to_string(), fieldname, index_type:IndexType::from_str(index_type).unwrap() }
+    pub fn new(name: &str, fieldname: &str,index_type:IndexType) -> Self {
+        Self { name:name.to_string(), fieldname:fieldname.to_string(), index_type }
     }
 
     pub fn serialize(&self,tablename:&str) -> Vec<(String,Option<Vec<u8>>)>{
@@ -305,9 +312,19 @@ impl FieldIndex {
          ("tablename".to_string(),Some(tablename.as_bytes().to_vec()))  ,
          ("index_name".to_string(),Some(self.name.as_bytes().to_vec()) ) ,
          ("fieldname".to_string(),Some(self.fieldname.as_bytes().to_vec())),
-         ("directory_file".to_string(), Some(self.directory_file.as_bytes().to_vec())),
-         ("index_file".to_string(),Some(self.index_type.to_string().as_bytes().to_vec())),
-            ]
+         ("index_type".to_string(),Some(self.index_type.to_string().as_bytes().to_vec())),
+         ("directory_file".to_string(),Some(format!("{}_idx_directory",&self.name).into_bytes())),
+         ("index_file".to_string(),Some(format!("{}_idx_file",&self.name).into_bytes())),
+        ]
+    }
+    pub fn deserialize(mut row:HashMap<String,Option<Vec<u8>>>) -> Self{
+        let name = String::from_utf8(row.remove("index_name").unwrap().unwrap()).unwrap();
+        let fieldname = String::from_utf8(row.remove("fieldname").unwrap().unwrap()).unwrap();
+        let index_type = IndexType::from_str(&String::from_utf8(row.remove("index_type").unwrap().unwrap()).unwrap()).unwrap();
+        Self{
+            name,fieldname,index_type
+        }
+
     }
 }
 

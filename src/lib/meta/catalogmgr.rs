@@ -29,15 +29,57 @@ impl InstanceCatalog {
                 (name,table)
             } ).collect()
     }
+    fn get_schema_indexes(&self,schema_name:&str) -> Vec<HashMap<String,Option<Vec<u8>>>>{
+        self.indexes.heapscan_iter().filter(|row| {
+            row.get("tablename").unwrap().as_ref().unwrap() == schema_name.as_bytes()
+        }).collect()
+    }
     fn get_schema(&self,schema_name:&str) -> Schema{
         let schemas_catalog = self.schemas.heapscan_iter();
         let schema_vec = schemas_catalog
             .filter(|row| {
-                String::from_utf8(row.get("tablename").unwrap().as_ref().unwrap().clone()).unwrap()
-                    == schema_name
+                row.get("tablename").unwrap().as_ref().unwrap() == schema_name.as_bytes()
             })
             .collect::<Vec<_>>();
-        Schema::deserialize(schema_vec)
+        Schema::deserialize(schema_vec,self.get_schema_indexes(schema_name))
+    }
+    fn add_schema(&mut self,schema:Schema) -> Result<(),String>{
+        let mut catalog_iter = self.tables_filepaths.heapscan_iter();
+        if catalog_iter.any(|row| {
+            row.get("tablename")
+                .unwrap()
+                .as_ref()
+                .map(|t| String::from_utf8(t.clone()).unwrap())
+                .unwrap()
+                == *schema.name()
+        }) {
+            return Err(format!("Table '{}' already exists ", schema.name()));
+        }
+        let mut schema_catalog = &mut self.schemas;
+        let (serde_schema, mut serde_indexes) = schema.serialize();
+        for field in serde_schema {
+            schema_catalog.try_insert_tuple(field);
+        }
+        //
+        let mut tablesfiles_catalog = &mut self.tables_filepaths;
+        tablesfiles_catalog.try_insert_tuple(vec![
+            (
+                "tablename".to_string(),
+                Some(schema.name().as_bytes().to_vec()),
+            ),
+            (
+                "filepath".to_string(),
+                Some(format!("{}_heap0", schema.name()).into_bytes()),
+            ),
+        ]);
+        let mut indexes_catalog = &mut self.indexes;
+        for idx in serde_indexes{
+            indexes_catalog.try_insert_tuple(idx);
+        }
+        tablesfiles_catalog.flush_all();
+        schema_catalog.flush_all();
+        indexes_catalog.flush_all();
+        Ok(())
     }
 }
 pub struct CatalogManager {
@@ -107,45 +149,7 @@ impl CatalogManager {
             .get_mut(db_name)
             .ok_or("Database does not exist")?;
         // IF THIS IS INDEXABLE THEN BETTER
-        let mut catalog_iter = db_catalog.tables_filepaths.heapscan_iter();
-        // let tables: HashSet<String> = catalog_iter.any()
-        //     .map(|row| {
-        //         row.get("tablename")
-        //             .unwrap()
-        //             .as_ref()
-        //             .map(|t| String::from_utf8(t.clone()).unwrap())
-        //             .unwrap()
-        //     })
-        //     .collect();
-        if catalog_iter.any(|row| {
-            row.get("tablename")
-                .unwrap()
-                .as_ref()
-                .map(|t| String::from_utf8(t.clone()).unwrap())
-                .unwrap()
-                == *schema.name()
-        }) {
-            return Err(format!("Table '{}' already exists ", schema.name()));
-        }
-        let mut db_schema_catalog = &mut db_catalog.schemas;
-        let serialized = schema.serialize();
-        for field in serialized {
-            db_schema_catalog.try_insert_tuple(field);
-        }
-        //
-        let mut db_tablesfiles_catalog = &mut db_catalog.tables_filepaths;
-        db_tablesfiles_catalog.try_insert_tuple(vec![
-            (
-                "tablename".to_string(),
-                Some(schema.name().as_bytes().to_vec()),
-            ),
-            (
-                "filepath".to_string(),
-                Some(format!("{}_heap0", schema.name()).into_bytes()),
-            ),
-        ]);
-        db_tablesfiles_catalog.flush_all();
-        db_schema_catalog.flush_all();
+
         Ok(())
     }
     fn load_dbs_table(storage: &Rc<RefCell<StorageManager>>) -> TableManager {
