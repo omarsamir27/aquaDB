@@ -2,7 +2,7 @@ use crate::schema::types::CharType::VarChar;
 use crate::schema::types::NumericType::{BigInt, Double, Integer, Serial, Single, SmallInt};
 use crate::schema::types::Type;
 use crate::sql::create_table::Constraint::{NotNull, PrimaryKey, Unique};
-use crate::sql::create_table::{Constraint, CreateTable, TableField};
+use crate::sql::create_table::{Constraint, CreateTable, CreateTableEntry, Index, IndexType, TableField};
 use crate::sql::parser::Rule::{foreign_key};
 use crate::sql::query::delete::SqlDelete;
 use crate::sql::query::insert::SqlInsert;
@@ -340,10 +340,34 @@ impl SqlParser {
         ))
     }
 
+    fn index_method(input:Node) -> Result<IndexType>{
+        Ok(match input.as_str().to_ascii_lowercase().as_str(){
+            "hash" => IndexType::Hash,
+            "btree" => IndexType::Btree,
+            _ => unreachable!()
+        })
+        // IndexType::from_str(input.as_str())
+    }
+
+    fn index(input:Node) -> Result<Index>{
+        Ok(match_nodes!(
+            input.into_children();
+            [index_method(im),identifier(idx_name),identifier(idx_fields)..] => Index::new(idx_name,idx_fields.collect(),im)
+        ))
+    }
+    fn createTableEntry(input:Node) -> Result<CreateTableEntry>{
+        Ok(match_nodes!(
+            input.into_children();
+            [table_col(tc)] => CreateTableEntry::TableField(tc),
+            [index(i)] => CreateTableEntry::Index(i)
+        ))
+
+    }
     fn SqlCreateTable(input: Node) -> Result<CreateTable> {
         Ok(match_nodes!(
             input.into_children();
-            [table_name(t),table_col(tc)..] => CreateTable::new(t,tc.collect())
+            [table_name(t),createTableEntry(cte)..] => CreateTable::new(t,cte.collect()),
+            // [table_name(t),table_col(tc)..,index(i)..] => CreateTable::new(t,tc.collect(),i.c),
         ))
     }
 }

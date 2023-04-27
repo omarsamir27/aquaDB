@@ -95,13 +95,19 @@ impl DatabaseServer {
         }
     }
     pub fn run(&self) {
-        for socket in self.sockets.iter().cycle() {
-            if let Ok(conn) = socket.accept() {
-                println!("accepted");
-                self.dispatch(conn.0);
-            } else {
-                sleep(Duration::from_micros(200));
+        let mut socket = self.sockets[0].incoming();
+        for conn in socket{
+            if let Ok(net) = conn{
+                self.dispatch(net)
             }
         }
+        // for socket in self.sockets.iter().cycle() {
+        //     if let Ok(conn) = socket.accept() {
+        //         println!("accepted");
+        //         self.dispatch(conn.0);
+        //     } else {
+        //         sleep(Duration::from_micros(200));
+        //     }
+        // }
     }
 }

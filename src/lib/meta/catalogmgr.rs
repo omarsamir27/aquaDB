@@ -366,6 +366,14 @@ impl CatalogManager {
             None,
             None,
         );
+        schema.add_field(
+            "index_type",
+            Type::Character(VarChar),
+            false,
+            false,
+            None,
+            None
+        );
         schema.set_name(tablename);
         schema.set_primary_keys(vec![
             "tablename".to_string(),

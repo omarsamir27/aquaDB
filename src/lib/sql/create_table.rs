@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::str::FromStr;
 use crate::schema::schema::Schema;
 use crate::schema::types::Type;
 use crate::sql::create_table::Constraint::{NotNull, PrimaryKey, References, Unique};
@@ -7,11 +8,21 @@ use crate::sql::create_table::Constraint::{NotNull, PrimaryKey, References, Uniq
 pub struct CreateTable {
     table_name: String,
     fields: Vec<TableField>,
+    indexes : Vec<Index>
 }
 
 impl CreateTable {
-    pub fn new(table_name: String, fields: Vec<TableField>) -> Self {
-        Self { table_name, fields }
+    pub fn new(table_name: String, create_entries : Vec<CreateTableEntry>) -> Self {
+        let mut fields = vec![];
+        let mut indexes  = vec![];
+        for entry in create_entries{
+            match entry {
+                CreateTableEntry::TableField(t) => fields.push(t),
+                CreateTableEntry::Index(i) => indexes.push(i)
+            }
+        }
+        Self{ table_name,fields,indexes }
+        // Self { table_name, fields , indexes }
     }
     pub fn to_schema(&self)-> Schema{
         let mut schema =  Schema::new();
@@ -59,4 +70,51 @@ pub enum Constraint {
     References(String, String),
 }
 
+pub enum CreateTableEntry{
+    TableField(TableField),
+    Index(Index)
+}
 
+#[derive(Debug,Eq,PartialEq)]
+pub struct Index{
+    name : String,
+    fields : Vec<String>,
+    index_type: IndexType
+}
+
+impl Index {
+    pub fn new(name: String, fields: Vec<String>, index_type: IndexType) -> Self {
+        Self { name, fields, index_type }
+    }
+}
+
+#[derive(Debug,Eq,PartialEq)]
+pub enum IndexType{
+    Hash,
+    Btree
+}
+
+impl FromStr for IndexType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("hash"){
+            Ok(Self::Hash)
+        }
+        else if s.eq_ignore_ascii_case("btree") {
+            Ok(Self::Btree)
+        }
+        else {
+            Err(())
+        }
+    }
+}
+
+impl ToString for IndexType {
+    fn to_string(&self) -> String {
+        match self{
+            IndexType::Hash => String::from("hash"),
+            IndexType::Btree => String::from("btree")
+        }
+    }
+}

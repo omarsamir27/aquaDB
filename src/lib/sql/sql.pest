@@ -121,8 +121,19 @@ WHITESPACE = _{WHITE_SPACE}
 //{
    /// orange
    table_col = { identifier ~ datatype ~ constraint* }
+
+   index_method = { ^"hash" | ^"btree" }
+
+   /// blue
+   index = { ^"create" ~ ^"index" ~ index_method ~ identifier  ~ ^"on" ~ "(" ~ (identifier ~ ","?)+ ~ ")"   }
+
+   /// purple
+   createTableEntry = {  (table_col ~ ","?) | (index ~ ","?) }
+
+//    indexes = { (index ~ ","?)+ }
+
    /// red
-   SqlCreateTable = { ^"create" ~ ^"table" ~ table_name ~ "(" ~ (table_col ~ ","?)+ ~ ")" }
+   SqlCreateTable = { ^"create" ~ ^"table" ~ table_name ~ "(" ~ (createTableEntry ~ ","?)+  ~ ")"  }
 //}
 
 //{

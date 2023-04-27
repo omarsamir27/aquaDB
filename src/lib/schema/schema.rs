@@ -1,6 +1,7 @@
 use super::types::Type;
 use std::collections::HashMap;
 use std::str::FromStr;
+use crate::sql::create_table::IndexType;
 
 #[derive(Debug)]
 /// Vector of fields that are in a table (tuple)
@@ -8,6 +9,7 @@ pub struct Schema {
     name: String,
     primary_key: Vec<String>,
     fields: Vec<Field>,
+    indexes : Vec<FieldIndex>
 }
 impl Schema {
     pub fn new() -> Self {
@@ -15,6 +17,7 @@ impl Schema {
             name: "".to_string(),
             primary_key: vec![],
             fields: vec![],
+            indexes : vec![]
         }
     }
     pub fn field_types(&self) -> HashMap<&str, Type> {
@@ -282,3 +285,29 @@ impl Layout {
             .collect()
     }
 }
+
+#[derive(Debug)]
+pub struct FieldIndex{
+    name : String,
+    directory_file : String,
+    index_file : String,
+    fieldname : String,
+    index_type : IndexType
+}
+
+impl FieldIndex {
+    pub fn new(name: &str, directory_file: &str, index_file: &str, fieldname: String,index_type:&str) -> Self {
+        Self { name:name.to_string(), directory_file:directory_file.to_string(), index_file:index_file.to_string(), fieldname, index_type:IndexType::from_str(index_type).unwrap() }
+    }
+
+    pub fn serialize(&self,tablename:&str) -> Vec<(String,Option<Vec<u8>>)>{
+        vec![
+         ("tablename".to_string(),Some(tablename.as_bytes().to_vec()))  ,
+         ("index_name".to_string(),Some(self.name.as_bytes().to_vec()) ) ,
+         ("fieldname".to_string(),Some(self.fieldname.as_bytes().to_vec())),
+         ("directory_file".to_string(), Some(self.directory_file.as_bytes().to_vec())),
+         ("index_file".to_string(),Some(self.index_type.to_string().as_bytes().to_vec())),
+            ]
+    }
+}
+
