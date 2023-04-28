@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::{cell::RefCell, rc::Rc};
 
 struct InstanceCatalog {
+    db_name:String,
     schemas: TableManager,
     tables_filepaths: TableManager,
     indexes: TableManager,
@@ -22,10 +23,11 @@ impl InstanceCatalog {
             (String::from_utf8(r.get("tablename").unwrap().as_ref().unwrap().clone()).unwrap(),
             String::from_utf8(r.get("filepath").unwrap().as_ref().unwrap().clone()).unwrap()))
             .collect::<HashMap<String,String>>();
+        let db_path = Path::new(AQUADIR().as_str()).join("base").join(&self.db_name);
         tables.into_iter()
-            .map(|(name,path)| {
+            .map(|(name,heap_path)| {
                 let schema = self.get_schema(&name) ;
-                let table = TableManager::from_file(storage.clone(),PathBuf::from(path),Rc::new(schema.to_layout()));
+                let table = TableManager::from_file(storage.clone(),db_path.join(heap_path),Rc::new(schema.to_layout()));
                 (name,table)
             } ).collect()
     }
@@ -117,6 +119,7 @@ impl CatalogManager {
                 let indexes = Self::load_db_indexes_table(&storagemgr, db.as_str());
                 let tables_filepaths = Self::load_db_tables_files_table(&storagemgr, db.as_str());
                 let instance = InstanceCatalog {
+                    db_name:db.clone(),
                     schemas,
                     indexes,
                     tables_filepaths,
@@ -211,7 +214,7 @@ impl CatalogManager {
         if self.databases_catalogs.contains_key(db_name) {
             return Err(format!("Database {} already exists", db_name));
         }
-        let path = Path::new(AQUADIR().as_str()).join("base").join("samir");
+        let path = Path::new(AQUADIR().as_str()).join("base").join(db_name);
         create_dir(path).expect("could not create database dir ");
         self.databases_tbl.try_insert_tuple(vec![(
             "database_name".to_string(),
@@ -224,6 +227,7 @@ impl CatalogManager {
         self.databases_catalogs.insert(
             db_name.to_string(),
             InstanceCatalog {
+                db_name:db_name.to_string(),
                 schemas,
                 indexes,
                 tables_filepaths,
