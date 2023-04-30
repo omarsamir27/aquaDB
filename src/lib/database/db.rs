@@ -3,26 +3,26 @@ use crate::meta::catalogmgr::CatalogManager;
 // use crate::query::plan::{create_plan, QueryPlan};
 use crate::schema::schema::Schema;
 use crate::sql::parser::{parse_query, SqlParser};
+use crate::sql::query::query::SqlQuery;
 use crate::sql::Sql;
 use crate::storage;
 use crate::storage::storagemgr::StorageManager;
+use crate::table::tablemgr::TableManager;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Read;
 use std::net::TcpStream;
 use std::rc::Rc;
 use std::time::Duration;
-use crate::sql::query::query::SqlQuery;
-use crate::table::tablemgr::TableManager;
 
 type Storage = Rc<RefCell<StorageManager>>;
 type Catalog = Rc<RefCell<CatalogManager>>;
-type Record = Result<Vec<(String, Option<Vec<u8>>)>,()>;
-type DbTables = HashMap<String,TableManager>;
+type Record = Result<Vec<(String, Option<Vec<u8>>)>, ()>;
+type DbTables = HashMap<String, TableManager>;
 
-pub enum QueryPlan{
+pub enum QueryPlan {
     CreateTable(Schema),
-    Insert(Record)
+    Insert(Record),
 }
 
 pub struct DatabaseInstance {
@@ -30,7 +30,7 @@ pub struct DatabaseInstance {
     storage: Storage,
     catalog: Catalog,
     conn: TcpStream,
-    tables : DbTables
+    tables: DbTables,
 }
 
 impl DatabaseInstance {
@@ -41,7 +41,7 @@ impl DatabaseInstance {
             storage,
             catalog,
             conn,
-            tables
+            tables,
         }
     }
     pub fn handle_connection(&mut self) {
@@ -62,10 +62,9 @@ impl DatabaseInstance {
             match plan {
                 QueryPlan::CreateTable(schema) => self.add_schema(schema),
                 QueryPlan::Insert(record) => todo!(),
-                _ => todo!()
+                _ => todo!(),
             }
-        }
-        else{
+        } else {
             send_string(&mut self.conn, "DAMNN").unwrap()
         }
     }
@@ -79,20 +78,20 @@ impl DatabaseInstance {
             Err(s) => send_string(&mut self.conn, s).unwrap(),
         }
     }
-    fn create_plan(&self,query_tree:Sql)-> Result<QueryPlan,()> {
+    fn create_plan(&self, query_tree: Sql) -> Result<QueryPlan, ()> {
         match query_tree {
             Sql::CreateTable(ct) => Ok(QueryPlan::CreateTable(ct.to_schema())),
             Sql::Query(query) => match query {
                 SqlQuery::SELECT(_) => todo!(),
                 SqlQuery::INSERT(i) => {
                     let catalog = self.catalog.borrow();
-                    let schema = catalog.get_schema(&self.name,i.target_table()).ok_or(())?;
+                    let schema = catalog.get_schema(&self.name, i.target_table()).ok_or(())?;
                     let record = i.raw_bytes(&schema);
                     Ok(QueryPlan::Insert(record))
-                },
+                }
                 SqlQuery::DELETE(_) => todo!(),
-                SqlQuery::UPDATE(_) => todo!()
-            }
+                SqlQuery::UPDATE(_) => todo!(),
+            },
         }
-}
+    }
 }

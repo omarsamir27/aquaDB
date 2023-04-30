@@ -73,12 +73,11 @@ impl DatabaseServer {
                     conn.try_clone().unwrap(),
                 );
                 db_instance.handle_connection();
-            }
-            else {
-                send_string(&mut conn,"WOTT");
+            } else {
+                send_string(&mut conn, "WOTT");
             }
         } else {
-            send_string(&mut conn,"What do you want??");
+            send_string(&mut conn, "What do you want??");
             // conn.write_fmt(format_args!("What do you want??")).unwrap();
         }
     }
@@ -96,8 +95,8 @@ impl DatabaseServer {
     }
     pub fn run(&self) {
         let mut socket = self.sockets[0].incoming();
-        for conn in socket{
-            if let Ok(net) = conn{
+        for conn in socket {
+            if let Ok(net) = conn {
                 self.dispatch(net)
             }
         }

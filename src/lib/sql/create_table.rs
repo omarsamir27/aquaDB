@@ -1,53 +1,69 @@
-use std::any::Any;
-use std::collections::HashSet;
-use std::str::FromStr;
 use crate::schema::schema::Schema;
 use crate::schema::types::Type;
 use crate::sql::create_table::Constraint::{NotNull, PrimaryKey, References, Unique};
+use std::any::Any;
+use std::collections::HashSet;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct CreateTable {
     table_name: String,
     fields: Vec<TableField>,
-    indexes : Vec<Index>
+    indexes: Vec<Index>,
 }
 
 impl CreateTable {
-    pub fn new(table_name: String, create_entries : Vec<CreateTableEntry>) -> Self {
+    pub fn new(table_name: String, create_entries: Vec<CreateTableEntry>) -> Self {
         let mut fields = vec![];
-        let mut indexes  = vec![];
-        for entry in create_entries{
+        let mut indexes = vec![];
+        for entry in create_entries {
             match entry {
                 CreateTableEntry::TableField(t) => fields.push(t),
-                CreateTableEntry::Index(i) => indexes.push(i)
+                CreateTableEntry::Index(i) => indexes.push(i),
             }
         }
-        Self{ table_name,fields,indexes }
+        Self {
+            table_name,
+            fields,
+            indexes,
+        }
         // Self { table_name, fields , indexes }
     }
-    pub fn to_schema(&self)-> Schema{
-        let mut schema =  Schema::new();
+    pub fn to_schema(&self) -> Schema {
+        let mut schema = Schema::new();
         let mut field_names = HashSet::new();
         schema.set_name(&self.table_name);
-        for field in self.fields.iter(){
+        for field in self.fields.iter() {
             field_names.insert(field.name.as_str());
             let nullable = field.constraints.contains(&NotNull);
             let primary = field.constraints.contains(&PrimaryKey);
             let unique = field.constraints.contains(&Unique);
-            let references = field.constraints
+            let references = field
+                .constraints
                 .iter()
-                .find(|c| !matches!(**c,Constraint::NotNull| Constraint::PrimaryKey|Constraint::Unique))
+                .find(|c| {
+                    !matches!(
+                        **c,
+                        Constraint::NotNull | Constraint::PrimaryKey | Constraint::Unique
+                    )
+                })
                 .map(|c| match c {
                     PrimaryKey | NotNull | Unique => unreachable!(),
-                    References(c, t) => (c.to_owned(),t.to_owned())
+                    References(c, t) => (c.to_owned(), t.to_owned()),
                 });
-            schema.add_field(&field.name, field.datatype, nullable , unique, references, None)
+            schema.add_field(
+                &field.name,
+                field.datatype,
+                nullable,
+                unique,
+                references,
+                None,
+            )
         }
-        for idx in self.indexes.iter(){
-            if field_names.contains(idx.name.as_str()){
-                schema.add_index(&idx.name,&idx.field,idx.index_type)
-            }
-            else {
+        for idx in self.indexes.iter() {
+            if field_names.contains(idx.name.as_str()) {
+                schema.add_index(&idx.name, &idx.field, idx.index_type)
+            } else {
                 todo!()
             }
         }
@@ -70,10 +86,9 @@ impl TableField {
             constraints,
         }
     }
-
 }
 
-#[derive(Debug,Eq,PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Constraint {
     PrimaryKey,
     NotNull,
@@ -81,41 +96,43 @@ pub enum Constraint {
     References(String, String),
 }
 
-pub enum CreateTableEntry{
+pub enum CreateTableEntry {
     TableField(TableField),
-    Index(Index)
+    Index(Index),
 }
 
-#[derive(Debug,Eq,PartialEq)]
-pub struct Index{
-    name : String,
-    field : String,
-    index_type: IndexType
+#[derive(Debug, Eq, PartialEq)]
+pub struct Index {
+    name: String,
+    field: String,
+    index_type: IndexType,
 }
 
 impl Index {
     pub fn new(name: String, field: String, index_type: IndexType) -> Self {
-        Self { name, field, index_type }
+        Self {
+            name,
+            field,
+            index_type,
+        }
     }
 }
 
-#[derive(Clone,Copy,Debug,Eq,PartialEq)]
-pub enum IndexType{
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IndexType {
     Hash,
-    Btree
+    Btree,
 }
 
 impl FromStr for IndexType {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.eq_ignore_ascii_case("hash"){
+        if s.eq_ignore_ascii_case("hash") {
             Ok(Self::Hash)
-        }
-        else if s.eq_ignore_ascii_case("btree") {
+        } else if s.eq_ignore_ascii_case("btree") {
             Ok(Self::Btree)
-        }
-        else {
+        } else {
             Err(())
         }
     }
@@ -123,9 +140,9 @@ impl FromStr for IndexType {
 
 impl ToString for IndexType {
     fn to_string(&self) -> String {
-        match self{
+        match self {
             IndexType::Hash => String::from("hash"),
-            IndexType::Btree => String::from("btree")
+            IndexType::Btree => String::from("btree"),
         }
     }
 }

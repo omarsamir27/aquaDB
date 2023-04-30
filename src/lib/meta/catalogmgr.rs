@@ -11,41 +11,59 @@ use std::path::{Path, PathBuf};
 use std::{cell::RefCell, rc::Rc};
 
 struct InstanceCatalog {
-    db_name:String,
+    db_name: String,
     schemas: TableManager,
     tables_filepaths: TableManager,
     indexes: TableManager,
 }
 
 impl InstanceCatalog {
-    fn get_db_tables(&self, storage: &Rc<RefCell<StorageManager>>) -> HashMap<String,TableManager>{
-        let tables = self.tables_filepaths.heapscan_iter().map(| r |
-            (String::from_utf8(r.get("tablename").unwrap().as_ref().unwrap().clone()).unwrap(),
-            String::from_utf8(r.get("filepath").unwrap().as_ref().unwrap().clone()).unwrap()))
-            .collect::<HashMap<String,String>>();
-        let db_path = Path::new(AQUADIR().as_str()).join("base").join(&self.db_name);
-        tables.into_iter()
-            .map(|(name,heap_path)| {
-                let schema = self.get_schema(&name) ;
-                let table = TableManager::from_file(storage.clone(),db_path.join(heap_path),Rc::new(schema.to_layout()));
-                (name,table)
-            } ).collect()
+    fn get_db_tables(
+        &self,
+        storage: &Rc<RefCell<StorageManager>>,
+    ) -> HashMap<String, TableManager> {
+        let tables = self
+            .tables_filepaths
+            .heapscan_iter()
+            .map(|r| {
+                (
+                    String::from_utf8(r.get("tablename").unwrap().as_ref().unwrap().clone())
+                        .unwrap(),
+                    String::from_utf8(r.get("filepath").unwrap().as_ref().unwrap().clone())
+                        .unwrap(),
+                )
+            })
+            .collect::<HashMap<String, String>>();
+        let db_path = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(&self.db_name);
+        tables
+            .into_iter()
+            .map(|(name, heap_path)| {
+                let schema = self.get_schema(&name);
+                let table = TableManager::from_file(
+                    storage.clone(),
+                    db_path.join(heap_path),
+                    Rc::new(schema.to_layout()),
+                );
+                (name, table)
+            })
+            .collect()
     }
-    fn get_schema_indexes(&self,schema_name:&str) -> Vec<HashMap<String,Option<Vec<u8>>>>{
-        self.indexes.heapscan_iter().filter(|row| {
-            row.get("tablename").unwrap().as_ref().unwrap() == schema_name.as_bytes()
-        }).collect()
+    fn get_schema_indexes(&self, schema_name: &str) -> Vec<HashMap<String, Option<Vec<u8>>>> {
+        self.indexes
+            .heapscan_iter()
+            .filter(|row| row.get("tablename").unwrap().as_ref().unwrap() == schema_name.as_bytes())
+            .collect()
     }
-    fn get_schema(&self,schema_name:&str) -> Schema{
+    fn get_schema(&self, schema_name: &str) -> Schema {
         let schemas_catalog = self.schemas.heapscan_iter();
         let schema_vec = schemas_catalog
-            .filter(|row| {
-                row.get("tablename").unwrap().as_ref().unwrap() == schema_name.as_bytes()
-            })
+            .filter(|row| row.get("tablename").unwrap().as_ref().unwrap() == schema_name.as_bytes())
             .collect::<Vec<_>>();
-        Schema::deserialize(schema_vec,self.get_schema_indexes(schema_name))
+        Schema::deserialize(schema_vec, self.get_schema_indexes(schema_name))
     }
-    fn add_schema(&mut self,schema:Schema) -> Result<(),String>{
+    fn add_schema(&mut self, schema: Schema) -> Result<(), String> {
         let mut catalog_iter = self.tables_filepaths.heapscan_iter();
         if catalog_iter.any(|row| {
             row.get("tablename")
@@ -75,7 +93,7 @@ impl InstanceCatalog {
             ),
         ]);
         let mut indexes_catalog = &mut self.indexes;
-        for idx in serde_indexes{
+        for idx in serde_indexes {
             indexes_catalog.try_insert_tuple(idx);
         }
         tablesfiles_catalog.flush_all();
@@ -119,7 +137,7 @@ impl CatalogManager {
                 let indexes = Self::load_db_indexes_table(&storagemgr, db.as_str());
                 let tables_filepaths = Self::load_db_tables_files_table(&storagemgr, db.as_str());
                 let instance = InstanceCatalog {
-                    db_name:db.clone(),
+                    db_name: db.clone(),
                     schemas,
                     indexes,
                     tables_filepaths,
@@ -129,8 +147,11 @@ impl CatalogManager {
             .collect();
         Self::new(storagemgr, databases_tbl, db_tbl_schema_catalogs)
     }
-    pub fn get_db_tables(&self,db_name:&str) -> HashMap<String,TableManager>{
-        self.databases_catalogs.get(db_name).unwrap().get_db_tables(&self.storage_mgr)
+    pub fn get_db_tables(&self, db_name: &str) -> HashMap<String, TableManager> {
+        self.databases_catalogs
+            .get(db_name)
+            .unwrap()
+            .get_db_tables(&self.storage_mgr)
     }
     pub fn has_db(&self, db_name: &str) -> bool {
         // self.databases_tbl
@@ -227,7 +248,7 @@ impl CatalogManager {
         self.databases_catalogs.insert(
             db_name.to_string(),
             InstanceCatalog {
-                db_name:db_name.to_string(),
+                db_name: db_name.to_string(),
                 schemas,
                 indexes,
                 tables_filepaths,
@@ -380,7 +401,7 @@ impl CatalogManager {
             false,
             false,
             None,
-            None
+            None,
         );
         schema.set_name(tablename);
         schema.set_primary_keys(vec![

@@ -29,7 +29,6 @@ fn main() {
     // let query = parse_query(query);
     // dbg!(query);
 
-
     let opts = env::args().collect::<Vec<_>>();
     if let Some(init) = opts.get(1) {
         if init == "init" {

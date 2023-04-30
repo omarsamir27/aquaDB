@@ -15,8 +15,6 @@ pub struct Executor<'db> {
 }
 
 impl<'db> Executor<'db> {
-    
-
     pub fn new(max_table_memory: usize, db_tables: &'db HashMap<String, TableManager>) -> Self {
         Self {
             max_table_memory,
@@ -119,6 +117,4 @@ impl<'db> Executor<'db> {
         }
         expr.eval_boolean_with_context(context).unwrap()
     }
-
-
 }

@@ -1,4 +1,5 @@
 use crate::common::numerical::ByteMagic;
+use crate::index::{Index, IndexInfo};
 use crate::schema::schema::Layout;
 use crate::storage::blockid::BlockId;
 use crate::storage::free_space::FreeMap;
@@ -19,6 +20,7 @@ pub struct TableManager {
     table_blocks: Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
     layout: Rc<Layout>,
+    indexes: HashMap<String, Box<dyn Index>>,
 }
 
 impl TableManager {
@@ -31,6 +33,7 @@ impl TableManager {
         storage_mgr: Rc<RefCell<StorageManager>>,
         free_map: Option<FreeMap>,
         layout: Rc<Layout>,
+        indexes: Vec<IndexInfo>,
     ) -> Self {
         let free_map = if free_map.is_none() {
             let mut strg_mgr = storage_mgr.borrow_mut();
@@ -49,11 +52,23 @@ impl TableManager {
             free_map.unwrap()
         };
 
+        let indexes = indexes
+            .into_iter()
+            .map(|idx| {
+                let column = idx.column.clone();
+                let blks = storage_mgr
+                    .borrow_mut()
+                    .file_blks(idx.index_file_path.clone());
+                (column, Index::load_index(idx, blks))
+            })
+            .collect();
+
         Self {
             free_map,
             table_blocks: blocks,
             storage_mgr,
             layout,
+            indexes,
         }
     }
 
