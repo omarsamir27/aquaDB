@@ -4,6 +4,7 @@ use crate::storage::blockid::BlockId;
 use crate::storage::storagemgr::StorageManager;
 use std::cell::RefMut;
 use std::path::PathBuf;
+use crate::schema::schema::FieldIndex;
 
 pub mod hash_index;
 
@@ -61,7 +62,8 @@ impl Index {
     }
     pub fn load_index(index_info:IndexInfo,blks:Vec<BlockId>) -> Self{
         match index_info.index_type{
-            Hash=> Self::Hash( HashIndex::new(index_info.directory_file_path.as_path(), index_info.index_name, blks))
+            IndexType::Hash=> Self::Hash( HashIndex::new(index_info.directory_file_path.as_path(), index_info.index_name, blks)),
+            IndexType::Btree=> todo!()
         }
     }
     pub fn get_rid(&self, search_key: String, storage_mgr: RefMut<StorageManager>) -> Vec<Rid>{
@@ -94,3 +96,11 @@ impl IndexInfo {
         }
     }
 }
+
+// impl From<FieldIndex> for IndexInfo {
+//     fn from(value: FieldIndex) -> Self {
+//         Self{
+//             index_name : value
+//         }
+//     }
+// }

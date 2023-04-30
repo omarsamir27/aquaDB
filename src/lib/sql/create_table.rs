@@ -61,10 +61,10 @@ impl CreateTable {
             )
         }
         for idx in self.indexes.iter() {
-            if field_names.contains(idx.name.as_str()) {
+            if field_names.contains(idx.field.as_str()) {
                 schema.add_index(&idx.name, &idx.field, idx.index_type)
             } else {
-                todo!()
+                 todo!()
             }
         }
         schema

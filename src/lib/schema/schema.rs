@@ -1,6 +1,8 @@
 use super::types::Type;
+use crate::index::IndexInfo;
 use crate::sql::create_table::IndexType;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 #[derive(Debug)]
@@ -313,7 +315,7 @@ impl Layout {
     }
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct FieldIndex {
     name: String,
     fieldname: String,
@@ -366,5 +368,14 @@ impl FieldIndex {
             fieldname,
             index_type,
         }
+    }
+    pub fn to_index_info(&self) -> IndexInfo {
+        IndexInfo::new(
+            self.name.clone(),
+            self.index_type,
+            self.fieldname.clone(),
+            PathBuf::from(format!("{}_idx_file", &self.name)),
+            PathBuf::from(format!("{}_idx_directory", &self.name)),
+        )
     }
 }
