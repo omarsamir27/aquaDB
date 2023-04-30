@@ -180,7 +180,7 @@ impl CatalogManager {
         let database_tbl_file = Path::new(AQUADIR().as_str())
             .join("global")
             .join("aqua_database");
-        TableManager::from_file(storage.clone(), database_tbl_file, Self::dbs_table_layout())
+        TableManager::from_file(storage.clone(), database_tbl_file, Self::dbs_table_layout(),vec![])
     }
     fn load_db_tables_files_table(
         storage: &Rc<RefCell<StorageManager>>,
@@ -195,6 +195,7 @@ impl CatalogManager {
             storage.clone(),
             db_schema_file,
             Self::db_tables_file_layout(schema_name.as_str()),
+            vec![]
         )
     }
     fn load_db_schema_table(storage: &Rc<RefCell<StorageManager>>, db_name: &str) -> TableManager {
@@ -207,6 +208,7 @@ impl CatalogManager {
             storage.clone(),
             db_schema_file,
             Self::db_schema_layout(schema_name.as_str()),
+            vec![]
         )
     }
     fn load_db_indexes_table(storage: &Rc<RefCell<StorageManager>>, db_name: &str) -> TableManager {
@@ -219,6 +221,7 @@ impl CatalogManager {
             storage.clone(),
             db_schema_file,
             Self::db_indexes_layout(schema_name.as_str()),
+            vec![]
         )
     }
     fn init_dbs_table(storage: Rc<RefCell<StorageManager>>) -> TableManager {
@@ -229,7 +232,7 @@ impl CatalogManager {
         let blks = storage
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, storage, None, layout)
+        TableManager::new(blks, storage, None, layout,vec![])
     }
     pub fn create_database(&mut self, db_name: &str) -> Result<(), String> {
         if self.databases_catalogs.contains_key(db_name) {
@@ -267,7 +270,7 @@ impl CatalogManager {
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout)
+        TableManager::new(blks, self.storage_mgr.clone(), None, layout,vec![])
     }
     fn create_db_schema_table(&mut self, db_name: &str) -> TableManager {
         let layout = Self::db_schema_layout(db_name);
@@ -280,7 +283,7 @@ impl CatalogManager {
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout)
+        TableManager::new(blks, self.storage_mgr.clone(), None, layout,vec![])
     }
     fn create_db_tables_files(&mut self, db_name: &str) -> TableManager {
         let layout = Self::db_tables_file_layout(db_name);
@@ -293,7 +296,7 @@ impl CatalogManager {
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout)
+        TableManager::new(blks, self.storage_mgr.clone(), None, layout,vec![])
     }
     fn dbs_table_layout() -> Rc<Layout> {
         let mut schema = Schema::new();

@@ -9,35 +9,63 @@ pub mod hash_index;
 
 const GLOBAL_DEPTH: u8 = 4;
 
-pub trait Index {
-    fn get_rid(&self, search_key: String, storage_mgr: RefMut<StorageManager>) -> Vec<Rid>;
+// pub trait Index {
+//     fn get_rid(&self, search_key: String, storage_mgr: RefMut<StorageManager>) -> Vec<Rid>;
+//
+//     fn index_type(&self) -> IndexType;
+// }
+//
+// fn init_index(index_info: IndexInfo) {
+//     match index_info.index_type {
+//         IndexType::Hash => HashIndex::init(
+//             index_info.index_file_path.as_path(),
+//             index_info.directory_file_path.as_path(),
+//             GLOBAL_DEPTH,
+//         ),
+//         IndexType::Btree => {
+//             todo!()
+//         }
+//     }
+// }
+// fn load_index(index_info: IndexInfo, blks: Vec<BlockId>) -> Box<dyn Index> {
+//     match index_info.index_type {
+//         IndexType::Hash => {
+//             let idx: Box<dyn Index> = Box::new(HashIndex::new(
+//                 index_info.directory_file_path.as_path(),
+//                 index_info.index_name,
+//                 blks,
+//             ));
+//             idx
+//         }
+//         IndexType::Btree => todo!(),
+//     }
+// }
 
-    fn index_type(&self) -> IndexType;
+pub enum Index{
+    Hash(HashIndex),
+    // Btree(Btree)
 }
 
-fn init_index(index_info: IndexInfo) {
-    match index_info.index_type {
-        IndexType::Hash => HashIndex::init(
-            index_info.index_file_path.as_path(),
-            index_info.directory_file_path.as_path(),
-            GLOBAL_DEPTH,
-        ),
-        IndexType::Btree => {
-            todo!()
+impl Index {
+    pub fn init_index(index_info: IndexInfo) {
+        match index_info.index_type {
+            IndexType::Hash => HashIndex::init(
+                index_info.index_file_path.as_path(),
+                index_info.directory_file_path.as_path(),
+                GLOBAL_DEPTH,
+            ),
+            IndexType::Btree => {
+                todo!()
+            }
         }
     }
-}
-fn load_index(index_info: IndexInfo, blks: Vec<BlockId>) -> Box<dyn Index> {
-    match index_info.index_type {
-        IndexType::Hash => {
-            let idx: Box<dyn Index> = Box::new(HashIndex::new(
-                index_info.directory_file_path.as_path(),
-                index_info.index_name,
-                blks,
-            ));
-            idx
+    pub fn load_index(index_info:IndexInfo,blks:Vec<BlockId>) -> Self{
+        match index_info.index_type{
+            Hash=> Self::Hash( HashIndex::new(index_info.directory_file_path.as_path(), index_info.index_name, blks))
         }
-        IndexType::Btree => todo!(),
+    }
+    pub fn get_rid(&self, search_key: String, storage_mgr: RefMut<StorageManager>) -> Vec<Rid>{
+        match self { Index::Hash(h) => h.get_rids(search_key,storage_mgr) }
     }
 }
 

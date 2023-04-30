@@ -187,6 +187,9 @@ impl Schema {
     pub fn primary_key(&self) -> &Vec<String> {
         &self.primary_key
     }
+    pub fn indexes(&self) -> &Vec<FieldIndex> {
+        &self.indexes
+    }
 }
 
 /// Entity containing a certain field's info such as:
@@ -310,7 +313,7 @@ impl Layout {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone,Debug)]
 pub struct FieldIndex {
     name: String,
     fieldname: String,

@@ -407,15 +407,7 @@ impl HashIndex {
     }
 }
 
-impl Index for HashIndex {
-    fn get_rid(&self, search_key: String, mut storage_mgr: RefMut<StorageManager>) -> Vec<Rid> {
-        self.get_rids(search_key, storage_mgr)
-    }
 
-    fn index_type(&self) -> IndexType {
-        IndexType::Hash
-    }
-}
 
 struct BucketPage {
     pub frame: FrameRef,
