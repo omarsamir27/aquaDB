@@ -407,8 +407,6 @@ impl HashIndex {
     }
 }
 
-
-
 struct BucketPage {
     pub frame: FrameRef,
     depth: u8,

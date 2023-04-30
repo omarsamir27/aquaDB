@@ -1,6 +1,7 @@
 use crate::common::net::{receive_string, send_string};
 use crate::meta::catalogmgr::CatalogManager;
 // use crate::query::plan::{create_plan, QueryPlan};
+use crate::query::executor::Executor;
 use crate::schema::schema::Schema;
 use crate::sql::parser::{parse_query, SqlParser};
 use crate::sql::query::query::SqlQuery;
@@ -19,6 +20,8 @@ type Storage = Rc<RefCell<StorageManager>>;
 type Catalog = Rc<RefCell<CatalogManager>>;
 type Record = Result<Vec<(String, Option<Vec<u8>>)>, ()>;
 type DbTables = HashMap<String, TableManager>;
+
+const MAX_WORKING_MEMORY: usize = 16000;
 
 pub enum QueryPlan {
     CreateTable(Schema),
@@ -59,11 +62,21 @@ impl DatabaseInstance {
     }
     fn execute_cmd(&mut self, query: Sql) {
         if let Ok(plan) = self.create_plan(query) {
-            match plan {
-                QueryPlan::CreateTable(schema) => self.add_schema(schema),
-                QueryPlan::Insert(record) => todo!(),
-                _ => todo!(),
+            if let QueryPlan::CreateTable(schema) = plan {
+                self.add_schema(schema);
+            } else {
+                let executor = Executor::new(MAX_WORKING_MEMORY, &self.tables);
+                if let QueryPlan::Insert(record) = plan {
+                    if let Ok(record) = record {
+                        executor.insert_record(record)
+                    }
+                }
             }
+            // match plan {
+            //     QueryPlan::CreateTable(schema) => self.add_schema(schema),
+            //     QueryPlan::Insert(record) => todo!(),
+            //     _ => todo!(),
+            // }
         } else {
             send_string(&mut self.conn, "DAMNN").unwrap()
         }

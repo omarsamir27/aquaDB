@@ -1,3 +1,4 @@
+use crate::index::Index;
 use crate::schema::schema::{Layout, Schema};
 use crate::schema::types::CharType::VarChar;
 use crate::schema::types::{CharType, NumericType, Type};
@@ -41,12 +42,17 @@ impl InstanceCatalog {
             .into_iter()
             .map(|(name, heap_path)| {
                 let schema = self.get_schema(&name);
-                let indexes = schema.indexes().iter().map(|idx| idx.to_index_info()).collect();
+                let indexes = schema
+                    .indexes()
+                    .iter()
+                    .map(|idx| idx.to_index_info(self.db_name.as_str()))
+                    .collect();
                 let table = TableManager::from_file(
                     storage.clone(),
                     db_path.join(heap_path),
                     Rc::new(schema.to_layout()),
-                    indexes);
+                    indexes,
+                );
                 (name, table)
             })
             .collect()
@@ -76,6 +82,11 @@ impl InstanceCatalog {
         }) {
             return Err(format!("Table '{}' already exists ", schema.name()));
         }
+        schema
+            .indexes()
+            .iter()
+            .map(|idx| idx.to_index_info(self.db_name.as_str()))
+            .for_each(Index::init_index);
         let mut schema_catalog = &mut self.schemas;
         let (serde_schema, mut serde_indexes) = schema.serialize();
         for field in serde_schema {
@@ -90,7 +101,7 @@ impl InstanceCatalog {
             ),
             (
                 "filepath".to_string(),
-                Some(format!("{}_heap0", schema.name()).into_bytes()),
+                Some(format!("{}_heap0", &schema.name()).into_bytes()),
             ),
         ]);
         let mut indexes_catalog = &mut self.indexes;
@@ -180,7 +191,12 @@ impl CatalogManager {
         let database_tbl_file = Path::new(AQUADIR().as_str())
             .join("global")
             .join("aqua_database");
-        TableManager::from_file(storage.clone(), database_tbl_file, Self::dbs_table_layout(),vec![])
+        TableManager::from_file(
+            storage.clone(),
+            database_tbl_file,
+            Self::dbs_table_layout(),
+            vec![],
+        )
     }
     fn load_db_tables_files_table(
         storage: &Rc<RefCell<StorageManager>>,
@@ -195,7 +211,7 @@ impl CatalogManager {
             storage.clone(),
             db_schema_file,
             Self::db_tables_file_layout(schema_name.as_str()),
-            vec![]
+            vec![],
         )
     }
     fn load_db_schema_table(storage: &Rc<RefCell<StorageManager>>, db_name: &str) -> TableManager {
@@ -208,7 +224,7 @@ impl CatalogManager {
             storage.clone(),
             db_schema_file,
             Self::db_schema_layout(schema_name.as_str()),
-            vec![]
+            vec![],
         )
     }
     fn load_db_indexes_table(storage: &Rc<RefCell<StorageManager>>, db_name: &str) -> TableManager {
@@ -221,7 +237,7 @@ impl CatalogManager {
             storage.clone(),
             db_schema_file,
             Self::db_indexes_layout(schema_name.as_str()),
-            vec![]
+            vec![],
         )
     }
     fn init_dbs_table(storage: Rc<RefCell<StorageManager>>) -> TableManager {
@@ -232,7 +248,7 @@ impl CatalogManager {
         let blks = storage
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, storage, None, layout,vec![])
+        TableManager::new(blks, storage, None, layout, vec![])
     }
     pub fn create_database(&mut self, db_name: &str) -> Result<(), String> {
         if self.databases_catalogs.contains_key(db_name) {
@@ -270,7 +286,7 @@ impl CatalogManager {
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout,vec![])
+        TableManager::new(blks, self.storage_mgr.clone(), None, layout, vec![])
     }
     fn create_db_schema_table(&mut self, db_name: &str) -> TableManager {
         let layout = Self::db_schema_layout(db_name);
@@ -283,7 +299,7 @@ impl CatalogManager {
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout,vec![])
+        TableManager::new(blks, self.storage_mgr.clone(), None, layout, vec![])
     }
     fn create_db_tables_files(&mut self, db_name: &str) -> TableManager {
         let layout = Self::db_tables_file_layout(db_name);
@@ -296,7 +312,7 @@ impl CatalogManager {
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout,vec![])
+        TableManager::new(blks, self.storage_mgr.clone(), None, layout, vec![])
     }
     fn dbs_table_layout() -> Rc<Layout> {
         let mut schema = Schema::new();

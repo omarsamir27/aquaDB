@@ -64,7 +64,7 @@ impl CreateTable {
             if field_names.contains(idx.field.as_str()) {
                 schema.add_index(&idx.name, &idx.field, idx.index_type)
             } else {
-                 todo!()
+                todo!()
             }
         }
         schema

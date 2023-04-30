@@ -369,8 +369,9 @@ impl FieldIndex {
             index_type,
         }
     }
-    pub fn to_index_info(&self) -> IndexInfo {
+    pub fn to_index_info(&self, db_name: &str) -> IndexInfo {
         IndexInfo::new(
+            db_name,
             self.name.clone(),
             self.index_type,
             self.fieldname.clone(),

@@ -112,6 +112,9 @@ impl StorageManager {
     }
 
     pub fn file_blks(&self, filepath: PathBuf) -> Vec<BlockId> {
+        if !filepath.exists() {
+            return vec![];
+        }
         let size = file_size(&filepath);
         let num_blks = size / self.blk_size() as u64;
         let filename = filepath.to_str().unwrap();

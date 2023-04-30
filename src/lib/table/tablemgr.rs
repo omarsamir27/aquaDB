@@ -76,10 +76,10 @@ impl TableManager {
         storage_mgr: Rc<RefCell<StorageManager>>,
         filepath: PathBuf,
         layout: Rc<Layout>,
-        indexes: Vec<IndexInfo>
+        indexes: Vec<IndexInfo>,
     ) -> Self {
         let blks = storage_mgr.borrow().file_blks(filepath);
-        Self::new(blks, storage_mgr, None, layout,indexes)
+        Self::new(blks, storage_mgr, None, layout, indexes)
     }
 
     /// Marks a tuple for deletion using it's BlockId and Page slot number

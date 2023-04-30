@@ -7,6 +7,7 @@ use evalexpr::{ContextWithMutableVariables, FloatType, HashMapContext, IntType, 
 use std::collections::HashMap;
 
 type TupleField = Option<Vec<u8>>;
+type Record = Vec<(String, Option<Vec<u8>>)>;
 
 pub struct Executor<'db> {
     max_table_memory: usize,
@@ -21,6 +22,9 @@ impl<'db> Executor<'db> {
             db_tables,
             proc_tables: vec![],
         }
+    }
+    pub fn insert_record(&mut self, record: Record) -> Result<(), String> {
+        Ok(())
     }
 
     pub fn execute_seqscan(&mut self, node: SeqScan) {

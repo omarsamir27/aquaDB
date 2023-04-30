@@ -1,10 +1,10 @@
 use crate::index::hash_index::{HashIndex, Rid};
+use crate::schema::schema::FieldIndex;
 use crate::sql::create_table::IndexType;
 use crate::storage::blockid::BlockId;
 use crate::storage::storagemgr::StorageManager;
 use std::cell::RefMut;
-use std::path::PathBuf;
-use crate::schema::schema::FieldIndex;
+use std::path::{Path, PathBuf};
 
 pub mod hash_index;
 
@@ -42,7 +42,7 @@ const GLOBAL_DEPTH: u8 = 4;
 //     }
 // }
 
-pub enum Index{
+pub enum Index {
     Hash(HashIndex),
     // Btree(Btree)
 }
@@ -60,14 +60,20 @@ impl Index {
             }
         }
     }
-    pub fn load_index(index_info:IndexInfo,blks:Vec<BlockId>) -> Self{
-        match index_info.index_type{
-            IndexType::Hash=> Self::Hash( HashIndex::new(index_info.directory_file_path.as_path(), index_info.index_name, blks)),
-            IndexType::Btree=> todo!()
+    pub fn load_index(index_info: IndexInfo, blks: Vec<BlockId>) -> Self {
+        match index_info.index_type {
+            IndexType::Hash => Self::Hash(HashIndex::new(
+                index_info.directory_file_path.as_path(),
+                index_info.index_name,
+                blks,
+            )),
+            IndexType::Btree => todo!(),
         }
     }
-    pub fn get_rid(&self, search_key: String, storage_mgr: RefMut<StorageManager>) -> Vec<Rid>{
-        match self { Index::Hash(h) => h.get_rids(search_key,storage_mgr) }
+    pub fn get_rid(&self, search_key: String, storage_mgr: RefMut<StorageManager>) -> Vec<Rid> {
+        match self {
+            Index::Hash(h) => h.get_rids(search_key, storage_mgr),
+        }
     }
 }
 
@@ -81,12 +87,15 @@ pub struct IndexInfo {
 
 impl IndexInfo {
     pub fn new(
+        db_name: &str,
         index_name: String,
         index_type: IndexType,
         column: String,
         index_file_path: PathBuf,
         directory_file_path: PathBuf,
     ) -> Self {
+        let index_file_path = Path::new("base").join(db_name).join(index_file_path);
+        let directory_file_path = Path::new("base").join(db_name).join(directory_file_path);
         Self {
             index_name,
             index_type,
