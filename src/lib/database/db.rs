@@ -25,7 +25,7 @@ const MAX_WORKING_MEMORY: usize = 16000;
 
 pub enum QueryPlan {
     CreateTable(Schema),
-    Insert(Record),
+    Insert(Record,Schema),
 }
 
 pub struct DatabaseInstance {
@@ -65,11 +65,11 @@ impl DatabaseInstance {
             if let QueryPlan::CreateTable(schema) = plan {
                 self.add_schema(schema);
             } else {
-                let executor = Executor::new(MAX_WORKING_MEMORY, &self.tables);
-                if let QueryPlan::Insert(record) = plan {
+                let executor = Executor::new(MAX_WORKING_MEMORY, &mut self.tables);
+                if let QueryPlan::Insert(record,schema) = plan {
                     if let Ok(record) = record {
                         todo!();
-                        // executor.insert_record(record)
+                        executor.insert_record(record,schema);
                     }
                 }
             }
@@ -101,7 +101,7 @@ impl DatabaseInstance {
                     let catalog = self.catalog.borrow();
                     let schema = catalog.get_schema(&self.name, i.target_table()).ok_or(())?;
                     let record = i.raw_bytes(&schema);
-                    Ok(QueryPlan::Insert(record))
+                    Ok(QueryPlan::Insert(record,schema))
                 }
                 SqlQuery::DELETE(_) => todo!(),
                 SqlQuery::UPDATE(_) => todo!(),

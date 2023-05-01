@@ -65,6 +65,7 @@ impl Schema {
         self.indexes
             .push(FieldIndex::new(index_name, fieldname, index_type))
     }
+
     pub fn serialize(
         &self,
     ) -> (
@@ -192,6 +193,9 @@ impl Schema {
     pub fn indexes(&self) -> &Vec<FieldIndex> {
         &self.indexes
     }
+    pub fn fields_info(&self) -> HashMap<&str,&Field>{
+        self.fields.iter().map(|f| (f.name.as_str(),f) ).collect()
+    }
 }
 
 /// Entity containing a certain field's info such as:
@@ -236,6 +240,12 @@ impl Field {
     }
     pub fn char_limit(&self) -> Option<u32> {
         self.char_limit
+    }
+    pub fn unique(&self) -> bool {
+        self.unique
+    }
+    pub fn foreign_reference(&self) -> &Option<(String, String)> {
+        &self.foreign_reference
     }
 }
 

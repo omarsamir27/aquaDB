@@ -5,25 +5,79 @@ use crate::schema::types::{NumericType, Type};
 use crate::table::tablemgr::TableManager;
 use evalexpr::{ContextWithMutableVariables, FloatType, HashMapContext, IntType, Node, Value};
 use std::collections::HashMap;
+use crate::schema::schema::Schema;
 
 type TupleField = Option<Vec<u8>>;
 type Record = Vec<(String, Option<Vec<u8>>)>;
 
 pub struct Executor<'db> {
     max_table_memory: usize,
-    db_tables: &'db HashMap<String, TableManager>,
+    db_tables: &'db mut HashMap<String, TableManager>,
     proc_tables: Vec<Table>,
 }
 
 impl<'db> Executor<'db> {
-    pub fn new(max_table_memory: usize, db_tables: &'db HashMap<String, TableManager>) -> Self {
+    pub fn new(max_table_memory: usize, db_tables: &'db mut HashMap<String, TableManager>) -> Self {
         Self {
             max_table_memory,
             db_tables,
             proc_tables: vec![],
         }
     }
-    pub fn insert_record(&mut self, record: Record) -> Result<(), String> {
+    pub fn insert_record(&mut self, record: Record,schema:Schema) -> Result<(), String> {
+        let target_table = self.db_tables.get(schema.name()).ok_or(String::default())?;
+        let available_indexes = target_table.indexes();
+        let fields = schema.fields_info();
+        let mut need_fullscan = false;
+        for (k,v) in &fields{
+            if v.unique() && !fields.contains_key(k){
+                need_fullscan = true;
+                break
+            }
+        }
+        let foreign_referring = fields.iter().filter(|(_,v)| v.foreign_reference().is_some() );
+        if !need_fullscan{
+            let unique_fields = fields.iter().filter(|(_,v)| v.unique());
+            for (k,v) in unique_fields{
+                let search_key = record.iter().find(|(f,_)| f == k).unwrap().1.as_ref().unwrap();
+                let mut index = target_table.hashscan_iter(k, search_key).unwrap();
+                if index.next().is_some(){
+                    return Err(String::default())
+                }
+
+            }
+            for (k,v) in foreign_referring{
+                let (ref_table,ref_col) = v.foreign_reference().as_ref().unwrap();
+                let referred_tbl = self.db_tables.get(ref_table);
+                if let Some(referred_tbl) = referred_tbl{
+                    if referred_tbl.field_exists(ref_col){
+                        let search_key = record.iter().find(|(f,_)| f == k).unwrap().1.as_ref().unwrap();
+                        if let Some(mut ref_col_idx) = referred_tbl.hashscan_iter(ref_col,search_key){
+                            if ref_col_idx.next().is_none(){
+                                return Err("No Value for Refer".to_string())
+                            }
+                        }else {
+                            let mut heapiter = referred_tbl.heapscan_iter();
+                            if !heapiter.any(|ref_row| ref_row.get(ref_col).unwrap().as_ref().unwrap().eq(search_key)){
+                                return Err("No Value for Refer".to_string())
+                            }
+                        }
+                    }
+                    else {
+                        return Err("Where COL??".to_string())
+                    }
+                }
+                else {
+                    return Err("Where Table??".to_string())
+                }
+
+
+            }
+            let target_table = self.db_tables.get_mut(schema.name()).ok_or(String::default())?;
+            target_table.try_insert_tuple(record);
+
+        }
+
         Ok(())
     }
 

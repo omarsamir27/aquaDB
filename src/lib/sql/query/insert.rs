@@ -5,6 +5,10 @@ use std::num::ParseIntError;
 
 // type Result<>
 
+type Record = Vec<(String, Option<Vec<u8>>)>;
+
+
+
 #[derive(Debug)]
 pub struct SqlInsert {
     target_table: String,
@@ -18,16 +22,15 @@ impl SqlInsert {
             record: fields.into_iter().zip(values.into_iter()).collect(),
         }
     }
-    pub fn raw_bytes(self, schema: &Schema) -> Result<Vec<(String, Option<Vec<u8>>)>, ()> {
+    pub fn raw_bytes(self, schema: &Schema) -> Result<(Record), ()> {
         let mut ret = vec![];
-        let field_types = schema.field_types();
+        let fields = schema.fields_info();
         for (col_name, col_val) in self.record {
-            if let Some(field_type) = field_types.get(col_name.as_str()) {
-                // match Self::column_bytes(col_val,field_type.clone()){
-                //     Ok(res) => ret.push(res)
-                //     Err(_) => return E
-                // }
-                ret.push((col_name, Self::column_bytes(col_val, *field_type)?))
+            if let Some(field) = fields.get(col_name.as_str()) {
+                if !field.nullable() && matches!(col_val,SqlValue::NULL){
+                    return Err(())
+                }
+                ret.push((col_name, Self::column_bytes(col_val, field.field_type())?))
             } else {
                 return Err(());
             }
