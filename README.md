@@ -28,8 +28,12 @@ This project is an oppurtunity to experiement with database design , develop com
   - [x] Tuple Format
 
 - [ ] Indexing
-
+  - [x] Hash Index
+  
+  - [ ] B+Tree
+  
 - [ ] Query Execution
+  - [x] Table Creation 
   
   - [x] Table Scan
   
@@ -45,7 +49,7 @@ This project is an oppurtunity to experiement with database design , develop com
   
   - [ ] Aggregation (Group By)
 
-- [ ] Parser
+- [x] Parser
 
 - [ ] Planner
 
