@@ -178,7 +178,10 @@ impl HashIndex {
 
     pub fn init(index_file: &Path, dir_file: &Path, global_depth: u8) {
         let blk_size = 4096;
-        let data = vec![0_u8; blk_size * 2_u32.pow(global_depth as u32) as usize];
+        let mut data = vec![0_u8; blk_size * 2_u32.pow(global_depth as u32) as usize];
+        for i in 0..2_u32.pow(global_depth as u32) as usize {
+            data[i * blk_size] = global_depth;
+        }
         write_file(index_file, data);
         BucketDirectory::init(dir_file, global_depth);
     }
@@ -239,7 +242,7 @@ impl HashIndex {
     ) -> BucketPage {
         let bucket_id = self.hash_code(data_val);
         let block_num = self.bucket_dir.bucket_map.get(&bucket_id);
-        let block = BlockId::new(self.idx_name.as_str(), *block_num.unwrap());
+        let block = BlockId::new(self.blocks[0].filename.as_str(), *block_num.unwrap());
         let frame = storage_mgr.pin(block).unwrap();
         BucketPage::new(frame)
     }
@@ -252,7 +255,7 @@ impl HashIndex {
     ) -> BucketPage {
         let bucket_id = self.hash_val_to_bucket(hash_val);
         let block_num = self.bucket_dir.bucket_map.get(&bucket_id);
-        let block = BlockId::new(self.idx_name.as_str(), *block_num.unwrap());
+        let block = BlockId::new(self.blocks[0].filename.as_str(), *block_num.unwrap());
         let frame = storage_mgr.pin(block).unwrap();
         BucketPage::new(frame)
     }
@@ -472,7 +475,7 @@ impl BucketPage {
         self.num_records += 1;
         frame
             .page
-            .write_bytes(self.num_records.to_ne_bytes().as_slice(), 3);
+            .write_bytes(self.num_records.to_ne_bytes().as_slice(), 1);
         frame
             .page
             .write_bytes(record.to_bytes().as_slice(), pos as u64);

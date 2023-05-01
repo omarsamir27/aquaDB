@@ -269,19 +269,22 @@ impl HeapPage {
             .tuple_pointers
             .iter_mut()
             .position(|pointer| pointer.size == 0);
+        let mut inserted_at = 0;
         let (tuple_pointer_bytes, index) = if pointer_pos.is_some() {
             let tuple_pointer = self.tuple_pointers.get_mut(pointer_pos.unwrap()).unwrap();
             tuple_pointer.offset = self.header.space_end - tuple_size as usize;
             tuple_pointer.size = tuple_size;
             self.header.space_end = tuple_pointer.offset;
-            (tuple_pointer.clone().to_bytes(), pointer_pos.unwrap())
+            inserted_at = pointer_pos.unwrap();
+            (tuple_pointer.clone().to_bytes(), inserted_at)
         } else {
             let mut tuple_pointer =
                 TuplePointer::new(self.header.space_end - tuple_size as usize, tuple_size);
             self.header.space_start += 4;
             self.header.space_end = tuple_pointer.offset;
             self.tuple_pointers.push(tuple_pointer.clone());
-            (tuple_pointer.to_bytes(), self.tuple_pointers.len())
+            inserted_at = self.tuple_pointers.len() - 1;
+            (tuple_pointer.to_bytes(), inserted_at + 1)
         };
         let mut borrowed_frame = self.frame.borrow_mut();
         borrowed_frame.update_replace_stats();
@@ -289,7 +292,7 @@ impl HeapPage {
         borrowed_frame.write_at(tuple.to_bytes().as_slice(), self.header.space_end as u64);
         borrowed_frame.write_at((self.header.space_start as u16).to_ne_bytes().as_slice(), 0);
         borrowed_frame.write_at((self.header.space_end as u16).to_ne_bytes().as_slice(), 2);
-        index
+        inserted_at
     }
 
     /// Calculates the number of free bytes inside a Heap Page to be stored in Free Space Map
