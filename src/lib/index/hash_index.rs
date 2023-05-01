@@ -1,20 +1,22 @@
 use crate::common::fileops::{read_file, write_file};
 use crate::common::numerical::ByteMagic;
-use crate::index::Index;
+use crate::index::{Index, Rid};
 use crate::query::concrete_types::ConcreteType;
 use crate::schema::schema::Layout;
 use crate::sql::create_table::IndexType;
 use crate::storage::blockid::BlockId;
 use crate::storage::buffermgr::FrameRef;
 use crate::storage::storagemgr::StorageManager;
-use crate::table::tablemgr::{TableIter, TableManager};
+// use crate::table::tablemgr::{TableIter, TableManager};
 use crate::RcRefCell;
 use positioned_io2::WriteAt;
 use sdbm::sdbm_hash;
 use std::cell::{RefCell, RefMut};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
@@ -23,22 +25,6 @@ use std::ptr::addr_of_mut;
 use std::rc::Rc;
 
 const IDX_RECORD_SIZE: usize = 15;
-
-/// Record ID entity encapsulating the block number and the slot number of a certain tuple.
-#[derive(Clone, Eq, PartialEq)]
-pub struct Rid {
-    block_num: u64,
-    slot_num: u16,
-}
-
-impl Rid {
-    pub fn new(block_num: u64, slot_num: u16) -> Self {
-        Self {
-            block_num,
-            slot_num,
-        }
-    }
-}
 
 type Column = ConcreteType;
 type Row = Vec<Column>;
@@ -166,20 +152,25 @@ pub struct HashIndex {
     bucket_dir: BucketDirectory,
     num_buckets: u16,
     idx_name: String,
-    search_key: Option<String>,
+    search_key: String,
     global_depth: u8,
     blocks: Vec<BlockId>,
 }
 
 impl HashIndex {
-    pub fn new(bucket_dir_path: &Path, idx_name: String, blocks: Vec<BlockId>) -> Self {
+    pub fn new(
+        bucket_dir_path: &Path,
+        idx_name: String,
+        blocks: Vec<BlockId>,
+        search_key: String,
+    ) -> Self {
         let bucket_dir = BucketDirectory::new(bucket_dir_path);
         Self {
             global_depth: bucket_dir.global_depth,
             num_buckets: 2_u16.pow(bucket_dir.global_depth as u32),
             bucket_dir,
             idx_name,
-            search_key: None,
+            search_key,
             blocks,
         }
     }
@@ -192,9 +183,13 @@ impl HashIndex {
     }
 
     /// Encoding the raw string to a 32 bit hash value.
-    pub fn hash_value(&self, data_val: String) -> u32 {
-        let hash_val = sdbm_hash(data_val.as_str());
-        hash_val
+    pub fn hash_value(data_val: &[u8]) -> u32 {
+        // let hash_val = sdbm_hash(data_val.as_str());
+        let mut hasher = DefaultHasher::new();
+        data_val.hash(&mut hasher);
+        hasher.finish() as u32
+        // let hash_val = hash as u32;
+        // hash_val
     }
 
     /// After encoding the string, returning the bucket number corresponding to the hash value.
@@ -209,8 +204,9 @@ impl HashIndex {
     /// hash values sharing (0 0 0 0 0 0 1 0 1) and the other will have hash values sharing (1 0 0 0 0 0 1 0 1).
     /// Now 5, 517, 1029 and the newly inserted 1541 after the modulus by 2^9 will hash to the same bucket of ID "5",
     /// while 261, 773, and 1285 after the modulus by 2^9 will hash to the other bucket of ID "261".
-    pub fn hash_code(&self, data_val: String) -> u32 {
-        let hash_val = sdbm_hash(data_val.as_str());
+    pub fn hash_code(&self, data_val: &[u8]) -> u32 {
+        // let hash_val = sdbm_hash(data_val.as_str());
+        let hash_val = Self::hash_value(data_val);
         let bucket_id = ((hash_val) % (2_u32.pow(self.global_depth as u32)));
         let block_num = self.bucket_dir.bucket_map.get(&bucket_id);
         if let Some(..) = block_num {
@@ -237,7 +233,7 @@ impl HashIndex {
     /// Creates a bucket page from an existing block by hashing the data value to get bucket ID.
     fn create_bucket(
         &self,
-        data_val: String,
+        data_val: &[u8],
         mut storage_mgr: &mut RefMut<StorageManager>,
     ) -> BucketPage {
         let bucket_id = self.hash_code(data_val);
@@ -265,14 +261,14 @@ impl HashIndex {
     /// space in the overflow bucket, now we need to split it and re insert the record after splitting.
     pub fn insert_record(
         &mut self,
-        data_val: String,
+        data_val: &[u8],
         blk_num: u64,
         slot_num: u16,
         mut storage_mgr: RefMut<StorageManager>,
     ) {
-        let mut bucket_page = self.create_bucket(data_val.clone(), &mut storage_mgr);
+        let mut bucket_page = self.create_bucket(data_val, &mut storage_mgr);
         let rid = Rid::new(blk_num, slot_num);
-        let hash_val = self.hash_value(data_val);
+        let hash_val = Self::hash_value(data_val);
         let idx_record = IdxRecord::new(rid, hash_val);
         if bucket_page.insert_record(&idx_record).is_err() {
             if bucket_page.overflow.is_some() {
@@ -381,12 +377,8 @@ impl HashIndex {
     }
 
     /// Get all the rids of the matched index records with the search key.
-    pub fn get_rids(
-        &self,
-        search_key: String,
-        mut storage_mgr: RefMut<StorageManager>,
-    ) -> Vec<Rid> {
-        let hash_val = self.hash_value(search_key.clone());
+    pub fn get_rids(&self, search_key: &[u8], mut storage_mgr: RefMut<StorageManager>) -> Vec<Rid> {
+        let hash_val = Self::hash_value(search_key);
         let mut bucket_page = self.create_bucket(search_key, &mut storage_mgr);
         let mut rids = bucket_page.find_all(hash_val);
         if bucket_page.overflow.is_some() {

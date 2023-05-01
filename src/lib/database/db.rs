@@ -68,7 +68,8 @@ impl DatabaseInstance {
                 let executor = Executor::new(MAX_WORKING_MEMORY, &self.tables);
                 if let QueryPlan::Insert(record) = plan {
                     if let Ok(record) = record {
-                        executor.insert_record(record)
+                        todo!();
+                        // executor.insert_record(record)
                     }
                 }
             }

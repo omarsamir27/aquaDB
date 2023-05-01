@@ -1,4 +1,4 @@
-use crate::index::hash_index::{HashIndex, Rid};
+use crate::index::hash_index::HashIndex;
 use crate::schema::schema::FieldIndex;
 use crate::sql::create_table::IndexType;
 use crate::storage::blockid::BlockId;
@@ -66,11 +66,12 @@ impl Index {
                 index_info.directory_file_path.as_path(),
                 index_info.index_name,
                 blks,
+                index_info.column,
             )),
             IndexType::Btree => todo!(),
         }
     }
-    pub fn get_rid(&self, search_key: String, storage_mgr: RefMut<StorageManager>) -> Vec<Rid> {
+    pub fn get_rid(&self, search_key: &[u8], storage_mgr: RefMut<StorageManager>) -> Vec<Rid> {
         match self {
             Index::Hash(h) => h.get_rids(search_key, storage_mgr),
         }
@@ -113,3 +114,31 @@ impl IndexInfo {
 //         }
 //     }
 // }
+
+/// Record ID entity encapsulating the block number and the slot number of a certain tuple.
+#[derive(Clone, Eq, PartialEq)]
+pub struct Rid {
+    block_num: u64,
+    slot_num: u16,
+}
+
+impl Rid {
+    pub fn new(block_num: u64, slot_num: u16) -> Self {
+        Self {
+            block_num,
+            slot_num,
+        }
+    }
+    pub fn block_num(&self) -> u64 {
+        self.block_num
+    }
+    pub fn slot_num(&self) -> u16 {
+        self.slot_num
+    }
+    pub fn rid_blk_num(&self, heap_file: &str) -> (BlockId, usize) {
+        (
+            BlockId::new(heap_file, self.block_num),
+            self.slot_num as usize,
+        )
+    }
+}
