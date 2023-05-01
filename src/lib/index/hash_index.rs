@@ -78,6 +78,7 @@ pub struct BucketDirectory {
 
 impl BucketDirectory {
     pub fn new(mut index_dir_file: &Path) -> Self {
+        // dbg!(&index_dir_file);
         let mut buffer = fs::read(index_dir_file).unwrap();
         let buffer = buffer.as_slice();
         let size = buffer.len();

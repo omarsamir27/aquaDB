@@ -104,6 +104,7 @@ impl InstanceCatalog {
                 Some(format!("{}_heap0", &schema.name()).into_bytes()),
             ),
         ]);
+
         let mut indexes_catalog = &mut self.indexes;
         for idx in serde_indexes {
             indexes_catalog.try_insert_tuple(idx);

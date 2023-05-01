@@ -3,6 +3,7 @@ use crate::schema::schema::FieldIndex;
 use crate::sql::create_table::IndexType;
 use crate::storage::blockid::BlockId;
 use crate::storage::storagemgr::StorageManager;
+use crate::AQUADIR;
 use std::cell::RefMut;
 use std::path::{Path, PathBuf};
 
@@ -76,6 +77,17 @@ impl Index {
             Index::Hash(h) => h.get_rids(search_key, storage_mgr),
         }
     }
+    pub fn insert_record(
+        &mut self,
+        data_val: &[u8],
+        blk: u64,
+        slot: usize,
+        storage_mgr: RefMut<StorageManager>,
+    ) {
+        match self {
+            Index::Hash(h) => h.insert_record(data_val, blk, slot as u16, storage_mgr),
+        }
+    }
 }
 
 pub struct IndexInfo {
@@ -95,8 +107,10 @@ impl IndexInfo {
         index_file_path: PathBuf,
         directory_file_path: PathBuf,
     ) -> Self {
-        let index_file_path = Path::new("base").join(db_name).join(index_file_path);
-        let directory_file_path = Path::new("base").join(db_name).join(directory_file_path);
+        let index_file_path =
+            Path::new(&AQUADIR()).join(Path::new("base").join(db_name).join(index_file_path));
+        let directory_file_path =
+            Path::new(&AQUADIR()).join(Path::new("base").join(db_name).join(directory_file_path));
         Self {
             index_name,
             index_type,

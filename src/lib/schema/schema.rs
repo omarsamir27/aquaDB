@@ -193,8 +193,8 @@ impl Schema {
     pub fn indexes(&self) -> &Vec<FieldIndex> {
         &self.indexes
     }
-    pub fn fields_info(&self) -> HashMap<&str,&Field>{
-        self.fields.iter().map(|f| (f.name.as_str(),f) ).collect()
+    pub fn fields_info(&self) -> HashMap<&str, &Field> {
+        self.fields.iter().map(|f| (f.name.as_str(), f)).collect()
     }
 }
 

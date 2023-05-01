@@ -263,7 +263,7 @@ impl HeapPage {
     /// Search for an empty tuple pointer and modify it
     /// If there is no empty tuple pointers, add a new tuple pointer
     /// Write the tuple at its correct position
-    pub fn insert_tuple(&mut self, tuple: Tuple) {
+    pub fn insert_tuple(&mut self, tuple: Tuple) -> usize {
         let tuple_size = tuple.tuple_size();
         let pointer_pos = self
             .tuple_pointers
@@ -289,6 +289,7 @@ impl HeapPage {
         borrowed_frame.write_at(tuple.to_bytes().as_slice(), self.header.space_end as u64);
         borrowed_frame.write_at((self.header.space_start as u16).to_ne_bytes().as_slice(), 0);
         borrowed_frame.write_at((self.header.space_end as u16).to_ne_bytes().as_slice(), 2);
+        index
     }
 
     /// Calculates the number of free bytes inside a Heap Page to be stored in Free Space Map

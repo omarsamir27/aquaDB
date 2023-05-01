@@ -7,8 +7,6 @@ use std::num::ParseIntError;
 
 type Record = Vec<(String, Option<Vec<u8>>)>;
 
-
-
 #[derive(Debug)]
 pub struct SqlInsert {
     target_table: String,
@@ -27,8 +25,8 @@ impl SqlInsert {
         let fields = schema.fields_info();
         for (col_name, col_val) in self.record {
             if let Some(field) = fields.get(col_name.as_str()) {
-                if !field.nullable() && matches!(col_val,SqlValue::NULL){
-                    return Err(())
+                if !field.nullable() && matches!(col_val, SqlValue::NULL) {
+                    return Err(());
                 }
                 ret.push((col_name, Self::column_bytes(col_val, field.field_type())?))
             } else {

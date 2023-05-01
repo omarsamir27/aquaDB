@@ -81,7 +81,14 @@ impl TableManager {
         layout: Rc<Layout>,
         indexes: Vec<IndexInfo>,
     ) -> Self {
-        let blks = storage_mgr.borrow().file_blks(filepath);
+        let mut blks = storage_mgr.borrow().file_blks(filepath.clone());
+        if blks.is_empty() {
+            blks.append(
+                &mut storage_mgr
+                    .borrow_mut()
+                    .empty_heap_pages(filepath.to_str().unwrap(), 1),
+            )
+        }
         Self::new(blks, storage_mgr, None, layout, indexes)
     }
 
@@ -127,7 +134,7 @@ impl TableManager {
     pub fn indexes(&self) -> &HashMap<String, Index> {
         &self.indexes
     }
-    pub fn field_exists(&self,field:&str) -> bool{
+    pub fn field_exists(&self, field: &str) -> bool {
         self.layout.type_map().contains_key(field)
     }
 
@@ -137,24 +144,37 @@ impl TableManager {
     /// it in , if None exists , the Heap File representing the table is extended by 1 block and the
     /// tuple is inserted into this page and the remaining space in it is added to the FSM
     pub fn try_insert_tuple(&mut self, tuple_bytes: Vec<(String, Option<Vec<u8>>)>) {
-        let tuple = Tuple::new(tuple_bytes, self.layout.clone());
+        let tuple = Tuple::new(tuple_bytes.clone(), self.layout.clone());
         let target_block = self.free_map.get_smallest_fit(tuple.tuple_size());
         let mut storage_mgr = self.storage_mgr.borrow_mut();
-        if let Some((free_size, block)) = target_block {
+        let (blk, slot) = if let Some((free_size, block)) = target_block {
             let mut frame = storage_mgr.pin(block.clone()).unwrap();
             let mut target_page = HeapPage::new(frame, &block, self.layout.clone());
-            target_page.insert_tuple(tuple);
+            let idx = target_page.insert_tuple(tuple);
             self.free_map
-                .add_blockspace(target_page.free_space(), &block)
+                .add_blockspace(target_page.free_space(), &block);
+            (block, idx)
         } else {
             let blkid = storage_mgr.extend_file(self.table_blocks[0].filename.as_str());
             self.table_blocks.push(blkid.clone());
             let mut frame = storage_mgr.pin(blkid.clone()).unwrap();
             let mut target_page = HeapPage::new_from_empty(frame, &blkid, self.layout.clone());
-            target_page.insert_tuple(tuple);
+            let idx = target_page.insert_tuple(tuple);
             self.free_map
                 .add_blockspace(target_page.free_space(), &blkid);
+            (blkid, idx)
         };
+        drop(storage_mgr);
+        for (k, data) in tuple_bytes {
+            if let Some(data) = data {
+                self.indexes
+                    .iter_mut()
+                    .filter(|(field, _)| **field == k)
+                    .for_each(|(_, v)| {
+                        v.insert_record(&data, blk.block_num, slot, self.storage_mgr.borrow_mut())
+                    })
+            }
+        }
     }
     /// Flush the frame holding a BlockId to disk , resetting the necessary stats
     pub fn flush(&self, blk: &BlockId) {
