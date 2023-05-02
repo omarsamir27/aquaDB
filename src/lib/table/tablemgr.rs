@@ -171,10 +171,12 @@ impl TableManager {
                     .iter_mut()
                     .filter(|(field, _)| **field == k)
                     .for_each(|(_, v)| {
-                        v.insert_record(&data, blk.block_num, slot, self.storage_mgr.borrow_mut())
+                        v.insert_record(&data, blk.block_num, slot, self.storage_mgr.borrow_mut());
+                        v.flush_all(self.storage_mgr.borrow_mut());
                     })
             }
         }
+        self.flush_all();
     }
     /// Flush the frame holding a BlockId to disk , resetting the necessary stats
     pub fn flush(&self, blk: &BlockId) {

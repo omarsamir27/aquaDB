@@ -401,6 +401,14 @@ impl HashIndex {
     pub fn flush_directory(&mut self) {
         self.bucket_dir.flush();
     }
+
+    pub fn flush_all(&self, mut storage_mgr: RefMut<StorageManager>) {
+        for blk in &self.blocks {
+            let mut frame = storage_mgr.pin(blk.clone()).unwrap();
+            storage_mgr.flush_frame(frame.clone());
+            storage_mgr.unpin(frame);
+        }
+    }
 }
 
 struct BucketPage {
@@ -473,12 +481,8 @@ impl BucketPage {
             return Err("Insufficient Space".to_string());
         }
         self.num_records += 1;
-        frame
-            .page
-            .write_bytes(self.num_records.to_ne_bytes().as_slice(), 1);
-        frame
-            .page
-            .write_bytes(record.to_bytes().as_slice(), pos as u64);
+        frame.write_at(self.num_records.to_ne_bytes().as_slice(), 1);
+        frame.write_at(record.to_bytes().as_slice(), pos as u64);
         Ok(())
     }
 

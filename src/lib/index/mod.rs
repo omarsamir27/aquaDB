@@ -6,6 +6,7 @@ use crate::storage::storagemgr::StorageManager;
 use crate::AQUADIR;
 use std::cell::RefMut;
 use std::path::{Path, PathBuf};
+use std::process::id;
 
 pub mod hash_index;
 
@@ -86,6 +87,14 @@ impl Index {
     ) {
         match self {
             Index::Hash(h) => h.insert_record(data_val, blk, slot as u16, storage_mgr),
+        }
+    }
+
+    pub fn flush_all(&self, mut storage_mgr: RefMut<StorageManager>) {
+        match self {
+            Index::Hash(idx) => {
+                idx.flush_all(storage_mgr);
+        }
         }
     }
 }

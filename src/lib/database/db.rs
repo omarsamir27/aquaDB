@@ -48,6 +48,8 @@ impl DatabaseInstance {
         }
     }
     pub fn handle_connection(&mut self) {
+        let mut executor = Executor::new(MAX_WORKING_MEMORY, &mut self.tables);
+        executor.simulate_join("names".to_string(), "jobs".to_string(), "id".to_string());
         self.conn.set_nonblocking(false);
         loop {
             let query = match receive_string(&mut self.conn) {
