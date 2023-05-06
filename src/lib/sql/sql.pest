@@ -30,7 +30,7 @@
     OR = {^"or"}
     AND = {^"and"}
     /// blue
-    plain_condition =  { term ~ (comparison_operator | misc_operators) ~ term }
+    plain_condition =  { (term | (table_name ~ ".")? ~ identifier) ~ (comparison_operator | misc_operators) ~ (term | (table_name ~ ".")? ~ identifier) }
 
     /// green
     condition = _{ "(" ~ plain_condition ~ ")" | plain_condition }

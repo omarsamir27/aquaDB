@@ -47,9 +47,15 @@ impl DatabaseInstance {
             tables,
         }
     }
+    fn flush_everything(&self){
+        for tbl in self.tables.values(){
+            tbl.flush_all();
+        }
+    }
     pub fn handle_connection(&mut self) {
-        let mut executor = Executor::new(MAX_WORKING_MEMORY, &mut self.tables);
-        executor.simulate_join("names".to_string(), "jobs".to_string(), "id".to_string());
+        // ctrlc::set_handler(|| self.flush_everything());
+        // let mut executor = Executor::new(MAX_WORKING_MEMORY, &mut self.tables);
+        // executor.simulate_join("names".to_string(), "jobs".to_string(), "id".to_string());
         self.conn.set_nonblocking(false);
         loop {
             let query = match receive_string(&mut self.conn) {
@@ -85,13 +91,16 @@ impl DatabaseInstance {
         }
     }
     fn add_schema(&mut self, schema: Schema) {
-        match &self.catalog.borrow_mut().add_schema(&self.name, &schema) {
-            Ok(_) => send_string(
-                &mut self.conn,
-                &format!("Table: {} created successfully", schema.name()),
-            )
+        match self.catalog.borrow_mut().add_schema(&self.name, &schema) {
+            Ok(table) => {
+                self.tables.insert(schema.name().to_string(),table);
+                send_string(
+                    &mut self.conn,
+                    &format!("Table: {} created successfully", schema.name()),
+                )
+            }
             .unwrap(),
-            Err(s) => send_string(&mut self.conn, s).unwrap(),
+            Err(s) => send_string(&mut self.conn, s.as_str()).unwrap(),
         }
     }
     fn create_plan(&self, query_tree: Sql) -> Result<QueryPlan, ()> {
@@ -109,5 +118,11 @@ impl DatabaseInstance {
                 SqlQuery::UPDATE(_) => todo!(),
             },
         }
+    }
+}
+
+impl Drop for DatabaseInstance {
+    fn drop(&mut self) {
+        self.flush_everything()
     }
 }

@@ -172,11 +172,11 @@ impl TableManager {
                     .filter(|(field, _)| **field == k)
                     .for_each(|(_, v)| {
                         v.insert_record(&data, blk.block_num, slot, self.storage_mgr.borrow_mut());
-                        v.flush_all(self.storage_mgr.borrow_mut());
+                        // v.flush_all(&mut self.storage_mgr.borrow_mut());
                     })
             }
         }
-        self.flush_all();
+        // self.flush_all();
     }
     /// Flush the frame holding a BlockId to disk , resetting the necessary stats
     pub fn flush(&self, blk: &BlockId) {
@@ -192,6 +192,9 @@ impl TableManager {
             let mut frame = storage_mgr.pin(blk.clone()).unwrap();
             storage_mgr.flush_frame(frame.clone());
             storage_mgr.unpin(frame);
+        }
+        for idx in self.indexes().values(){
+            idx.flush_all(&mut storage_mgr)
         }
     }
 
@@ -227,15 +230,13 @@ impl TableManager {
     }
 
     pub fn hashscan_iter(&self, index_field: &str, key: &[u8]) -> Option<HashIter> {
-        if let Some(idx) = self.indexes.get(index_field) {
-            if let Index::Hash(idx) = idx {
+        if let Some( Index::Hash(idx)) = self.indexes.get(index_field) {
                 return Some(HashIter::new(
                     &self,
                     idx,
                     key,
                     self.storage_mgr.borrow_mut(),
                 ));
-            }
         }
         None
     }

@@ -138,7 +138,7 @@ impl BucketDirectory {
         data
     }
 
-    pub fn flush(&mut self) {
+    pub fn flush(&self) {
         write_file(self.index_dir_file.as_path(), self.bucket_map_to_bytes());
     }
 }
@@ -398,16 +398,17 @@ impl HashIndex {
         rids
     }
 
-    pub fn flush_directory(&mut self) {
+    pub fn flush_directory(&self) {
         self.bucket_dir.flush();
     }
 
-    pub fn flush_all(&self, mut storage_mgr: RefMut<StorageManager>) {
+    pub fn flush_all(&self, mut storage_mgr: &mut RefMut<StorageManager>) {
         for blk in &self.blocks {
             let mut frame = storage_mgr.pin(blk.clone()).unwrap();
             storage_mgr.flush_frame(frame.clone());
             storage_mgr.unpin(frame);
         }
+        self.flush_directory()
     }
 }
 

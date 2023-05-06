@@ -25,18 +25,18 @@ fn main() {
     // let query = parse_query(query);
     // dbg!(query);
 
-    // let query = "insert into omar (ok) values (123)";
-    // let query = parse_query(query);
-    // dbg!(query);
+    let query = "select * from names join jobs on id=id where id =3";
+    let query = parse_query(query);
+    dbg!(query);
 
-    let opts = env::args().collect::<Vec<_>>();
-    if let Some(init) = opts.get(1) {
-        if init == "init" {
-            init::init_aqua();
-        }
-    } else {
-        init::init_homedir();
-    }
-    let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
-    server.run()
+    // let opts = env::args().collect::<Vec<_>>();
+    // if let Some(init) = opts.get(1) {
+    //     if init == "init" {
+    //         init::init_aqua();
+    //     }
+    // } else {
+    //     init::init_homedir();
+    // }
+    // let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
+    // server.run()
 }

@@ -70,7 +70,7 @@ impl InstanceCatalog {
             .collect::<Vec<_>>();
         Schema::deserialize(schema_vec, self.get_schema_indexes(schema_name))
     }
-    fn add_schema(&mut self, schema: &Schema) -> Result<(), String> {
+    fn add_schema(&mut self, schema: &Schema,storage:Rc<RefCell<StorageManager>>) -> Result<TableManager, String> {
         let mut catalog_iter = self.tables_filepaths.heapscan_iter();
         if catalog_iter.any(|row| {
             row.get("tablename")
@@ -112,7 +112,22 @@ impl InstanceCatalog {
         tablesfiles_catalog.flush_all();
         schema_catalog.flush_all();
         indexes_catalog.flush_all();
-        Ok(())
+        let table_path = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(&self.db_name)
+            .join(format!("{}_heap0", &schema.name()));
+        let indexes = schema
+            .indexes()
+            .iter()
+            .map(|idx| idx.to_index_info(self.db_name.as_str()))
+            .collect();
+        let table = TableManager::from_file(
+            storage,
+            table_path,
+            Rc::new(schema.to_layout()),
+            indexes,
+        );
+        Ok(table)
     }
 }
 pub struct CatalogManager {
@@ -180,13 +195,13 @@ impl CatalogManager {
         let db_catalog = self.databases_catalogs.get(db_name)?;
         Some(db_catalog.get_schema(table_name))
     }
-    pub fn add_schema(&mut self, db_name: &str, schema: &Schema) -> Result<(), String> {
+    pub fn add_schema(&mut self, db_name: &str, schema: &Schema) -> Result<TableManager, String> {
         let mut db_catalog = self
             .databases_catalogs
             .get_mut(db_name)
             .ok_or("Database does not exist")?;
         // IF THIS IS INDEXABLE THEN BETTER
-        db_catalog.add_schema(schema)
+        db_catalog.add_schema(schema,self.storage_mgr.clone())
     }
     fn load_dbs_table(storage: &Rc<RefCell<StorageManager>>) -> TableManager {
         let database_tbl_file = Path::new(AQUADIR().as_str())

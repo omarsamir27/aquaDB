@@ -90,7 +90,7 @@ impl Index {
         }
     }
 
-    pub fn flush_all(&self, mut storage_mgr: RefMut<StorageManager>) {
+    pub fn flush_all(&self, mut storage_mgr: &mut RefMut<StorageManager>) {
         match self {
             Index::Hash(idx) => {
                 idx.flush_all(storage_mgr);
