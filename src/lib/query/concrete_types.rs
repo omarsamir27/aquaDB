@@ -39,6 +39,9 @@ impl ConcreteType {
     }
 
     pub fn from_bytes(datatype: SchemaType, bytes: &[u8]) -> Self {
+        if bytes.is_empty() {
+            return Self::NULL;
+        }
         match datatype {
             SchemaType::Numeric(num) => match num {
                 NumericType::SmallInt => SmallInt(bytes.to_i16()),
@@ -55,6 +58,23 @@ impl ConcreteType {
                 }
             },
             SchemaType::Boolean => Boolean(bytes[0] == 1),
+        }
+    }
+}
+
+impl From<ConcreteType> for String {
+    fn from(value: ConcreteType) -> Self {
+        match value {
+            SmallInt(x) => format!("{x}"),
+            Integer(x) => format!("{x}"),
+            BigInt(x) => format!("{x}"),
+            Single(x) => format!("{x}"),
+            Double(x) => format!("{x}"),
+            Serial(x) => format!("{x}"),
+            ConcreteType::VarChar(sth) => format!("{sth}"),
+            ConcreteType::Char(sth) => format!("{sth}"),
+            Boolean(b) => format!("{b}"),
+            ConcreteType::NULL => format!(""),
         }
     }
 }

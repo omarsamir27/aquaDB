@@ -1,11 +1,12 @@
 use crate::common::numerical::ByteMagic;
 use crate::schema::types::CharType::{Char, VarChar};
 use crate::schema::types::NumericType::{BigInt, Double, Integer, Serial, Single, SmallInt};
+use bincode::{Decode, Encode};
 use std::ops::Add;
 use std::str::FromStr;
 
 /// An enumeration for the numeric data types in the database
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Debug)]
 pub enum NumericType {
     SmallInt,
     Integer,
@@ -58,7 +59,7 @@ impl NumericType {
 }
 
 /// An enumeration for the String data types in the database
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Debug)]
 pub enum CharType {
     Char,
     VarChar,
@@ -89,7 +90,7 @@ impl CharType {
 }
 
 /// Helper type classifier into Numeric or Character
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Debug)]
 pub enum Type {
     Numeric(NumericType),
     Character(CharType),

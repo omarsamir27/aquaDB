@@ -1,11 +1,11 @@
 #[derive(Debug)]
 pub struct SqlSelect {
-    distinct: bool,
-    targets: Vec<ProjectionTarget>,
-    from: FromClause,
-    where_clause: Option<String>,
-    group_by: Option<Grouping>,
-    order_by: Option<Ordering>,
+    pub distinct: bool,
+    pub targets: Vec<ProjectionTarget>,
+    pub from: FromClause,
+    pub where_clause: Option<String>,
+    pub group_by: Option<Grouping>,
+    pub order_by: Option<Ordering>,
 }
 
 impl SqlSelect {
@@ -28,7 +28,7 @@ impl SqlSelect {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ProjectionTarget {
     AllFields,
     FullyQualified(String, String),
@@ -52,8 +52,8 @@ impl Grouping {
 
 #[derive(Debug)]
 pub struct Ordering {
-    criteria: Vec<ProjectionTarget>,
-    descending: bool,
+    pub criteria: Vec<ProjectionTarget>,
+    pub descending: bool,
 }
 
 impl Ordering {
@@ -65,32 +65,74 @@ impl Ordering {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum FromClause {
     Table(String),
     JoinClause(JoinClause),
 }
 
-#[derive(Debug)]
-pub struct JoinClause {
-    left: String,
-    right: String,
-    join_type: JoinType,
-    join_condition: String,
-}
-
-impl JoinClause {
-    pub fn new(left: String, right: String, join_type: JoinType, join_condition: String) -> Self {
-        Self {
-            left,
-            right,
-            join_type,
-            join_condition,
+impl FromClause {
+    pub fn get_table(&self) -> Option<String> {
+        match self {
+            FromClause::Table(t) => Some(t.to_string()),
+            FromClause::JoinClause(_) => None,
+        }
+    }
+    pub fn get_join(&self) -> Option<JoinClause>{
+        match self {
+            FromClause::Table(_) => None,
+            FromClause::JoinClause(j) => Some(j.clone())
         }
     }
 }
+#[derive(Debug,Clone)]
+pub struct Join{
+    pub table : String,
+    pub join_type : JoinType,
+    pub join_condition : Option<String>
+}
 
-#[derive(Debug)]
+impl Join {
+    pub fn new(table:String,join_type:JoinType,join_condition:Option<String>) -> Self{
+        Self{table,join_type,join_condition}
+    }
+}
+
+
+#[derive(Debug,Clone)]
+pub struct JoinClause {
+    pub first: String,
+    // right: String,
+    // join_type: JoinType,
+    // join_condition: String,
+    pub joins : Vec<Join>
+}
+
+impl JoinClause {
+    // pub fn new(left: String, right: String, join_type: JoinType, join_condition: String) -> Self {
+    //     Self {
+    //         left,
+    //         right,
+    //         join_type,
+    //         join_condition,
+    //     }
+    pub fn new(first:String,joins:Vec<Join>) -> Self{
+        Self{first,joins}
+    }
+    pub fn get_tables(&self) -> Vec<String>{
+        let mut ret = self.joins.iter().map(|j|j.table.clone()).collect::<Vec<_>>();
+        ret.push(self.first.clone());
+        ret
+    }
+    // pub fn get_tables(&self) -> (String,String){
+    //     (self.left.clone(),self.right.clone())
+    // }
+    // pub fn join_condition(&self) -> &str {
+    //     &self.join_condition
+    // }
+}
+
+#[derive(Debug,Clone,Copy)]
 pub enum JoinType {
     Inner,
     Left,

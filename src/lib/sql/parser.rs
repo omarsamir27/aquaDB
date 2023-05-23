@@ -9,9 +9,7 @@ use crate::sql::parser::Rule::foreign_key;
 use crate::sql::query::delete::SqlDelete;
 use crate::sql::query::insert::SqlInsert;
 use crate::sql::query::query::{SqlQuery as QUERY, SqlValue};
-use crate::sql::query::select::{
-    FromClause, Grouping, JoinClause, JoinType, Ordering, ProjectionTarget, SqlSelect,
-};
+use crate::sql::query::select::{FromClause, Grouping, Join, JoinClause, JoinType, Ordering, ProjectionTarget, SqlSelect};
 use crate::sql::query::update::SqlUpdate;
 use crate::sql::Sql;
 use pest::error::ErrorVariant;
@@ -144,10 +142,21 @@ impl SqlParser {
     fn join_clause(input: Node) -> Result<JoinClause> {
         Ok(match_nodes!(
             input.into_children();
-            [table_name(t1),join_type(j),table_name(t2),conditional_expression(c)] => JoinClause::new(t1,t2,j,c),
-            [table_name(t1),table_name(t2),conditional_expression(c)] => JoinClause::new(t1,t2,JoinType::Inner,c)
+            [table_name(t1),join_r(j)..] => JoinClause::new(t1,j.collect())
+            // [table_name(t1),join_type(j),table_name(t2),conditional_expression(c)] => JoinClause::new(t1,t2,j,c),
+            // [table_name(t1),table_name(t2),conditional_expression(c)] => JoinClause::new(t1,t2,JoinType::Inner,c)
         ))
     }
+    fn join_r(input:Node) -> Result<Join>{
+        Ok(match_nodes!(
+            input.into_children();
+            [join_type(jt),table_name(t2),conditional_expression(c)] => Join::new(t2,jt,Some(c)),
+            [join_type(jt),table_name(t2)] => Join::new(t2,jt,None),
+            [table_name(t2),conditional_expression(c)] => Join::new(t2,JoinType::Inner,Some(c)),
+            [table_name(t2)] => Join::new(t2,JoinType::Inner,None)
+        ))
+    }
+
     fn table_expression(input: Node) -> Result<FromClause> {
         Ok(match_nodes!(
             input.into_children();

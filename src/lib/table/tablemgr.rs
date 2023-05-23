@@ -7,6 +7,7 @@ use crate::storage::free_space::FreeMap;
 use crate::storage::heap::{HeapPage, PageIter};
 use crate::storage::storagemgr::StorageManager;
 use crate::storage::tuple::Tuple;
+use crate::table::direct_access::DirectAccessor;
 use crate::table::hash_iter::HashIter;
 use crate::table::heap_iter::TableIter;
 use std::cell::RefCell;
@@ -118,15 +119,17 @@ impl TableManager {
     }
 
     pub fn get_tuple(&self, blk: &BlockId, slot_num: usize) -> HashMap<String, Option<Vec<u8>>> {
-        self.get_fields(
-            blk,
-            slot_num,
-            self.layout
-                .index_map()
-                .keys()
-                .map(|k| k.to_string())
-                .collect::<Vec<String>>(),
-        )
+        // self.get_fields(
+        //     blk,
+        //     slot_num,
+        //     self.layout
+        //         .index_map()
+        //         .keys()
+        //         .map(|k| k.to_string())
+        //         .collect::<Vec<String>>(),
+        // )
+        let heap = self.get_heap_page(blk);
+        heap.get_tuple_fields(slot_num)
     }
     pub fn get_heapfile_name(&self) -> &str {
         self.table_blocks[0].filename.as_str()
@@ -193,7 +196,7 @@ impl TableManager {
             storage_mgr.flush_frame(frame.clone());
             storage_mgr.unpin(frame);
         }
-        for idx in self.indexes().values(){
+        for idx in self.indexes().values() {
             idx.flush_all(&mut storage_mgr)
         }
     }
@@ -223,20 +226,28 @@ impl TableManager {
     /// Creates a TableIter instance that is an sequential iterator over ALL the tuples in a table
     pub fn heapscan_iter(&self) -> TableIter {
         TableIter::new(
-            &self.table_blocks,
+            self.table_blocks.clone(),
+            self.storage_mgr.clone(),
+            self.layout.clone(),
+        )
+    }
+
+    pub fn direct_accessor(&self) -> DirectAccessor {
+        DirectAccessor::new(
+            self.table_blocks.clone(),
             self.storage_mgr.clone(),
             self.layout.clone(),
         )
     }
 
     pub fn hashscan_iter(&self, index_field: &str, key: &[u8]) -> Option<HashIter> {
-        if let Some( Index::Hash(idx)) = self.indexes.get(index_field) {
-                return Some(HashIter::new(
-                    &self,
-                    idx,
-                    key,
-                    self.storage_mgr.borrow_mut(),
-                ));
+        if let Some(Index::Hash(idx)) = self.indexes.get(index_field) {
+            return Some(HashIter::new(
+                self.direct_accessor(),
+                idx,
+                key,
+                self.storage_mgr.borrow_mut(),
+            ));
         }
         None
     }

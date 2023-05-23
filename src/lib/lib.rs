@@ -3,11 +3,10 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
-extern crate core;
-
 pub mod common;
 pub mod database;
 pub mod index;
+pub mod interface;
 pub mod meta;
 pub mod query;
 pub mod schema;

@@ -15,7 +15,7 @@
     TRUE  = {^"true"}
     FALSE = {^"false"}
     constant =  ${ numeric_constant | string_literal | TRUE | FALSE }
-    /// green
+    /// pink
     term = ${ NULL |identifier | constant }
     table_name = {identifier}
     comparison_operator = {
@@ -32,8 +32,8 @@
     /// blue
     plain_condition =  { (term | (table_name ~ ".")? ~ identifier) ~ (comparison_operator | misc_operators) ~ (term | (table_name ~ ".")? ~ identifier) }
 
-    /// green
-    condition = _{ "(" ~ plain_condition ~ ")" | plain_condition }
+    /// black
+    condition = { "(" ~ plain_condition ~ ")" | plain_condition }
     /// red
 //     conditional_expression = {
 //     "(" ~(condition ~ (OR | AND) ~ conditional_expression)~ ")"
@@ -47,7 +47,7 @@ conditional_expression = {
     "(" ~ conditional_expression ~ ")" ~ cond?
 
     }
-/// red
+/// blue
 cond = {
     ((OR|AND) ~  conditional_expression  ~ cond?)?
     }
@@ -82,10 +82,14 @@ SqlSelect = {
  }
 
 
-
+/// orange
 table_expression = { join_clause |table_name}
 
-join_clause = { table_name ~ join_type? ~ ^"join" ~ table_name ~  ^"on" ~ conditional_expression  }
+/// yellow
+join_clause = { table_name ~ join_r+  }
+
+/// green
+join_r = {join_type? ~ ^"join" ~ table_name ~ (^"on" ~ conditional_expression)? }
 
 join_type = {LEFT | RIGHT | FULL}
 

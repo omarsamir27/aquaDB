@@ -198,7 +198,7 @@ impl<'db> Executor<'db> {
         expr.eval_boolean_with_context(context).unwrap()
     }
 
-    pub fn simulate_join(&self, table1: String, table2: String, join_field: String){
+    pub fn simulate_join(&self, table1: String, table2: String, join_field: String) {
         let mut res_vec = vec![];
         let target_table1 = self.db_tables.get(table1.as_str()).unwrap();
         let target_table2 = self.db_tables.get(table2.as_str()).unwrap();
@@ -206,18 +206,23 @@ impl<'db> Executor<'db> {
         for record in outer_iter {
             let rec_copy = record.clone();
             let value = record.get(join_field.as_str()).unwrap().as_ref().unwrap();
-            let mut inner_iter = target_table2.hashscan_iter(join_field.as_str(),value).unwrap();
+            let mut inner_iter = target_table2
+                .hashscan_iter(join_field.as_str(), value)
+                .unwrap();
             for inner_record in inner_iter {
                 let mut final_copy = rec_copy.clone();
                 final_copy.extend(inner_record.into_iter());
                 res_vec.push(final_copy);
             }
         }
-        let result : Vec<u8> = res_vec.into_iter()
-            .flat_map(|k| k.values()
-                .flat_map(|v| v.as_ref().unwrap().clone())
-                .collect::<Vec<u8>>()).collect();
+        let result: Vec<u8> = res_vec
+            .into_iter()
+            .flat_map(|k| {
+                k.values()
+                    .flat_map(|v| v.as_ref().unwrap().clone())
+                    .collect::<Vec<u8>>()
+            })
+            .collect();
         let joined_file = fs::write("/home/ahmed/join", result);
     }
-
 }

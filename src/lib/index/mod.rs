@@ -94,7 +94,7 @@ impl Index {
         match self {
             Index::Hash(idx) => {
                 idx.flush_all(storage_mgr);
-        }
+            }
         }
     }
 }

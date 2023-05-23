@@ -1,36 +1,36 @@
 use crate::index::hash_index::HashIndex;
 use crate::index::Rid;
 use crate::storage::storagemgr::StorageManager;
+use crate::table::direct_access::DirectAccessor;
 use crate::table::tablemgr::TableManager;
 use std::cell::RefMut;
 use std::collections::HashMap;
 
-pub struct HashIter<'tblmgr> {
-    tblmgr: &'tblmgr TableManager,
+pub struct HashIter {
+    direct_access: DirectAccessor,
     rids: Vec<Rid>,
 }
 
-impl<'tblmgr> HashIter<'tblmgr> {
+impl HashIter {
     pub fn new(
-        tblmgr: &'tblmgr TableManager,
+        direct_access: DirectAccessor,
         index: &HashIndex,
         key: &[u8],
         storage: RefMut<StorageManager>,
     ) -> Self {
         Self {
-            tblmgr,
+            direct_access,
             rids: index.get_rids(key, storage),
         }
     }
 }
 
-impl<'tblmgr> Iterator for HashIter<'tblmgr> {
+impl Iterator for HashIter {
     type Item = HashMap<String, Option<Vec<u8>>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(rid) = self.rids.pop() {
-            let (blk, slot) = rid.rid_blk_num(self.tblmgr.get_heapfile_name());
-            Some(self.tblmgr.get_tuple(&blk, slot))
+            Some(self.direct_access.get_tuple(rid))
         } else {
             None
         }

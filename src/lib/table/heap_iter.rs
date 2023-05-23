@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 /// A Sequential Iterator over ALL tuples in a database table
-pub struct TableIter<'tblmgr> {
-    table_blocks: &'tblmgr Vec<BlockId>,
+pub struct TableIter {
+    table_blocks: Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
     layout: Rc<Layout>,
     current_block_index: usize,
@@ -17,7 +17,7 @@ pub struct TableIter<'tblmgr> {
     current_page_pointer_count: usize,
 }
 
-impl<'tblmgr> Iterator for TableIter<'tblmgr> {
+impl Iterator for TableIter {
     type Item = HashMap<String, Option<Vec<u8>>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -48,11 +48,11 @@ impl<'tblmgr> Iterator for TableIter<'tblmgr> {
     }
 }
 
-impl<'tblmgr> TableIter<'tblmgr> {
+impl TableIter {
     /// Constructs a TableIter instance and initializes it to use the first block of the heap file
     /// representing the Table.
     pub fn new(
-        table_blocks: &'tblmgr Vec<BlockId>,
+        table_blocks: Vec<BlockId>,
         storage_mgr: Rc<RefCell<StorageManager>>,
         layout: Rc<Layout>,
     ) -> Self {
