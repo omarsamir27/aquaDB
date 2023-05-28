@@ -5,6 +5,8 @@ use aqua::database::server::DatabaseServer;
 use aqua::sql::parser::parse_query;
 use std::env;
 use std::process::exit;
+use aqua::index::btree_index::{BPTree, Rid};
+use aqua::sql::create_table::IndexType::Btree;
 
 // fn btree_write_test() {
 //     let mut tree = BTreeMultimap::new();
@@ -29,14 +31,29 @@ fn main() {
     // let query = parse_query(query);
     // dbg!(query);
 
-    let opts = env::args().collect::<Vec<_>>();
-    if let Some(init) = opts.get(1) {
-        if init == "init" {
-            init::init_aqua();
-        }
-    } else {
-        init::init_homedir();
+    // let opts = env::args().collect::<Vec<_>>();
+    // if let Some(init) = opts.get(1) {
+    //     if init == "init" {
+    //         init::init_aqua();
+    //     }
+    // } else {
+    //     init::init_homedir();
+    // }
+    // let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
+    // server.run()
+
+    let mut btree = BPTree::new();
+    for i in 0..12 {
+        let rid = Rid::new(0, i);
+        btree.insert((i * 4) as u32, rid);
+        println!("Inserted {}", i);
     }
-    let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
-    server.run()
+    for i in 12..100 {
+        let rid = Rid::new(0, i);
+        btree.insert((i * 4) as u32, rid);
+        println!("Inserted {}", i);
+    }
+    for i in 0..100 {
+        println!("{:?}", btree.search(i * 4));
+    }
 }

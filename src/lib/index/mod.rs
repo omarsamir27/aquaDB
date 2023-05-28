@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::id;
 
 pub mod hash_index;
+pub mod btree_index;
 
 const GLOBAL_DEPTH: u8 = 4;
 
@@ -139,7 +140,7 @@ impl IndexInfo {
 // }
 
 /// Record ID entity encapsulating the block number and the slot number of a certain tuple.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rid {
     block_num: u64,
     slot_num: u16,
