@@ -56,6 +56,12 @@ impl BufferManager {
             .unwrap()
             .flush(blk_mgr);
     }
+    
+    pub fn flush_all(&mut self, blk_mgr: &mut BlockManager) {
+        for frame in &self.frame_pool {
+            frame.borrow_mut().flush(blk_mgr);
+        }
+    }
 
     /// Try to find if an unpinned page is still in memory and has not been replaced out
     /// if it still exists, pin it and return index to its frame,

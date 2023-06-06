@@ -688,9 +688,10 @@ impl InternalNodePage {
                         if child_index >= mid as usize {
                             right_heap_page.insert_tuple(new_child_tuple);
                             let last_inserted = right_heap_page.tuple_pointers.pop().unwrap();
+                            let index_to_put = child_index - self.heap_page.tuple_pointers.len();
                             right_heap_page
                                 .tuple_pointers
-                                .insert(child_index - right_tuple_pointers.len(), last_inserted);
+                                .insert(index_to_put, last_inserted);
                             right_heap_page.rewrite_tuple_pointers_to_frame();
                         } else {
                             self.heap_page.insert_tuple(new_child_tuple);
@@ -721,22 +722,20 @@ impl InternalNodePage {
             .extract_u64(0);
         let target_blockid = BlockId::new("test_btree", target_block_num);
 
-        let target_heap_page = HeapPage::new(
-            self.storage_manager
-                .borrow_mut()
-                .pin(target_blockid.clone())
-                .unwrap(),
-            &target_blockid,
-            self.heap_page.layout.clone(),
-        );
-
-        let frame = self
+        let target_frame = self
             .storage_manager
             .borrow_mut()
             .pin(target_blockid.clone())
             .unwrap();
+
+        let target_heap_page = HeapPage::new(
+            target_frame.clone(),
+            &target_blockid,
+            self.heap_page.layout.clone(),
+        );
+
         let mut node_page = NodePage::new(
-            frame,
+            target_frame,
             self.key_type,
             self.storage_manager.clone(),
             self.internal_layout.clone(),
@@ -897,6 +896,20 @@ impl LeafNodePage {
             let mid = self.heap_page.tuple_pointers.len() as u16 / 2;
             let split_key = self.heap_page.get_field("key", mid);
             let mut right_index_records = Vec::new();
+            let mut left_index_records = Vec::new();
+            for tuple_pointer_index in 0..mid {
+                let tuple_bytes = self.heap_page.get_multiple_fields(
+                    vec![
+                        "key".to_string(),
+                        "block_num".to_string(),
+                        "slot_num".to_string(),
+                    ],
+                    tuple_pointer_index,
+                );
+                let index_record =
+                    IndexRecord::from_bytes(tuple_bytes, self.heap_page.layout.clone());
+                left_index_records.push(index_record);
+            }
             for tuple_pointer_index in mid..pointers_num as u16 {
                 let tuple_bytes = self.heap_page.get_multiple_fields(
                     vec![
@@ -929,12 +942,17 @@ impl LeafNodePage {
             for record in right_index_records {
                 right_heap_page.insert_tuple(record.to_tuple());
             }
+
+            let mut last_record_for_check = self.heap_page.tuple_pointers.len() - 1;
+            let mut last_index_rec = self.heap_page.get_tuple_fields(last_record_for_check);
+
             if index >= mid as usize {
                 right_heap_page.insert_tuple(new_index_record);
                 let last_inserted = right_heap_page.tuple_pointers.pop().unwrap();
+                let index_to_put = index - self.heap_page.tuple_pointers.len();
                 right_heap_page
                     .tuple_pointers
-                    .insert(index - right_tuple_pointers.len(), last_inserted);
+                    .insert(index_to_put, last_inserted);
                 right_heap_page.rewrite_tuple_pointers_to_frame();
             } else {
                 self.heap_page.insert_tuple(new_index_record);
@@ -942,13 +960,24 @@ impl LeafNodePage {
                 self.heap_page.tuple_pointers.insert(index, last_inserted);
                 self.heap_page.rewrite_tuple_pointers_to_frame();
             }
+
+            last_record_for_check = self.heap_page.tuple_pointers.len() - 1;
+            last_index_rec = self.heap_page.get_tuple_fields(last_record_for_check);
+
             self.meta_data.next_node_blockid = new_block.block_num;
             self.heap_page.write_special_area(self.meta_data.to_bytes());
             let right_meta_data = LeafMetaData {
                 next_node_blockid: 0,
                 prev_node_blockid: self.heap_page.blk.block_num,
             };
+
+            last_record_for_check = self.heap_page.tuple_pointers.len() - 1;
+            last_index_rec = self.heap_page.get_tuple_fields(last_record_for_check);
+
             right_heap_page.write_special_area(right_meta_data.to_bytes());
+
+            last_record_for_check = self.heap_page.tuple_pointers.len() - 1;
+            last_index_rec = self.heap_page.get_tuple_fields(last_record_for_check);
             return (split_key, Some(new_block.block_num));
         }
 

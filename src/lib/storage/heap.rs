@@ -243,8 +243,8 @@ impl HeapPage {
         } else {
             header = [
                 6_u16.to_ne_bytes(),
-                ((frame.page.payload.len()) as u16 - special_area - 2).to_ne_bytes(),
                 ((frame.page.payload.len()) as u16 - special_area - 1).to_ne_bytes(),
+                ((frame.page.payload.len()) as u16 - special_area).to_ne_bytes(),
             ].concat();
         }
         frame.update_replace_stats();
@@ -331,7 +331,14 @@ impl HeapPage {
         self.vacuuming = true;
         let mut new_page = Page::new(4096);
         let mut space_start = 6_u16;
-        let mut space_end = 4096_u16;
+
+        let mut space_end = if self.header.special_area_offset == 4095 {
+            4095
+        }
+        else {
+            self.header.special_area_offset as u16 - 1
+        };
+
         let mut special_area = self.header.special_area_offset as u16;
         for mut tuple_pointer_index in 0..self.tuple_pointers.len() {
             let tuple = self.get_tuple(tuple_pointer_index);
