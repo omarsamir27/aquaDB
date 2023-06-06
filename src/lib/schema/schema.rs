@@ -252,7 +252,7 @@ impl Field {
 /// Entity used to order fields inside a tuple
 ///
 /// Used when reading and writing tuples
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct Layout {
     map: HashMap<String, (Type, u16)>,
     index_map: HashMap<String, u8>,

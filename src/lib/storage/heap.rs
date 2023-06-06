@@ -11,14 +11,16 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::iter::zip;
+use std::ops::Deref;
 use std::rc::Rc;
 
 /// An Entity that is owned by a certain Heap Page that encapsulates the byte that indicates the
 /// start and the end of the free space inside a Heap Page
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PageHeader {
     pub space_start: usize,
     pub space_end: usize,
+    pub special_area_offset: usize,
 }
 
 impl PageHeader {
@@ -27,6 +29,7 @@ impl PageHeader {
         Self {
             space_start: payload.extract_u16(0) as usize,
             space_end: payload.extract_u16(2) as usize,
+            special_area_offset: payload.extract_u16(4) as usize,
         }
     }
 }
@@ -35,7 +38,7 @@ impl PageHeader {
 /// of a corresponding tuple inside this Heap Page and the number of bytes needed for that tuple
 /// to be stored
 #[derive(Clone, Debug)]
-struct TuplePointer {
+pub struct TuplePointer {
     offset: usize,
     size: u16,
 }
@@ -68,14 +71,14 @@ impl TuplePointer {
 }
 
 /// HeapPage is
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HeapPage {
     //tx_id,layout,schema
-    blk: BlockId,
+    pub blk: BlockId,
     pub frame: FrameRef,
     pub header: PageHeader,
-    tuple_pointers: Vec<TuplePointer>,
-    layout: Rc<Layout>,
+    pub tuple_pointers: Vec<TuplePointer>,
+    pub layout: Rc<Layout>,
     vacuuming: bool,
 }
 
@@ -91,7 +94,7 @@ impl HeapPage {
         let mut frame_ref = heap_frame.borrow_mut();
         frame_ref.update_replace_stats();
         let header = PageHeader::new(frame_ref.page.payload.as_slice());
-        let mut current_offset = 4_usize;
+        let mut current_offset = 6_usize;
         let mut tuple_pointers: Vec<TuplePointer> = Vec::new();
         if header.space_start != header.space_end {
             while current_offset != header.space_start {
@@ -154,7 +157,8 @@ impl HeapPage {
     /// Uses the function extract_field_from_tuple to do the algorithm of physically getting the
     /// field bytes
     pub fn get_field(&self, field_name: &str, index: u16) -> Option<Vec<u8>> {
-        let mut bitmap = NullBitMap::new(self.layout.clone());
+        let layout = self.layout.as_ref().clone();
+        let mut bitmap = NullBitMap::new(layout);
         let pointer = &self.tuple_pointers[index as usize];
         let mut frame = self.frame.borrow_mut();
         frame.update_replace_stats();
@@ -173,7 +177,8 @@ impl HeapPage {
         field_names: Vec<String>,
         index: u16,
     ) -> HashMap<String, Option<Vec<u8>>> {
-        let mut bitmap = NullBitMap::new(self.layout.clone());
+        let layout = self.layout.as_ref().clone();
+        let mut bitmap = NullBitMap::new(layout);
         let pointer = &self.tuple_pointers[index as usize];
         let mut frame = self.frame.borrow_mut();
         frame.update_replace_stats();
@@ -226,20 +231,34 @@ impl HeapPage {
     }
 
     /// A helper function used by new_from_empty to create an empty HeapPage
-    pub fn init_heap(frame: &FrameRef) {
+    pub fn init_heap(frame: &FrameRef, special_area: u16) {
         let mut frame = frame.borrow_mut();
-        let header = [
-            4_u16.to_ne_bytes(),
-            ((frame.page.payload.len()) as u16).to_ne_bytes(),
-        ]
-        .concat();
+        let mut header : Vec<u8> = Vec::new();
+        if special_area == 0{
+            header = [
+                6_u16.to_ne_bytes(),
+                ((frame.page.payload.len()) as u16 - 1).to_ne_bytes(),
+                ((frame.page.payload.len()) as u16 - 1).to_ne_bytes(),
+            ].concat();
+        } else {
+            header = [
+                6_u16.to_ne_bytes(),
+                ((frame.page.payload.len()) as u16 - special_area - 2).to_ne_bytes(),
+                ((frame.page.payload.len()) as u16 - special_area - 1).to_ne_bytes(),
+            ].concat();
+        }
         frame.update_replace_stats();
-        frame.write(header.as_slice())
-    }
+        frame.write(header.as_slice())}
 
     /// Creates an empty Heap Page and returns it
     pub fn new_from_empty(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>) -> Self {
-        HeapPage::init_heap(&frame);
+        HeapPage::init_heap(&frame, 0);
+        HeapPage::new(frame, blk, layout)
+    }
+
+    /// Creates an empty Heap Page for Btree index and returns it
+    pub fn new_from_empty_special(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>, special_area: u16) -> Self {
+        HeapPage::init_heap(&frame, special_area);
         HeapPage::new(frame, blk, layout)
     }
 
@@ -288,7 +307,7 @@ impl HeapPage {
         };
         let mut borrowed_frame = self.frame.borrow_mut();
         borrowed_frame.update_replace_stats();
-        borrowed_frame.write_at(tuple_pointer_bytes.as_slice(), (index * 4) as u64);
+        borrowed_frame.write_at(tuple_pointer_bytes.as_slice(), ((index * 4) + 2) as u64);
         borrowed_frame.write_at(tuple.to_bytes().as_slice(), self.header.space_end as u64);
         borrowed_frame.write_at((self.header.space_start as u16).to_ne_bytes().as_slice(), 0);
         borrowed_frame.write_at((self.header.space_end as u16).to_ne_bytes().as_slice(), 2);
@@ -311,8 +330,9 @@ impl HeapPage {
     pub fn vacuum(&mut self) {
         self.vacuuming = true;
         let mut new_page = Page::new(4096);
-        let mut space_start = 4_u16;
+        let mut space_start = 6_u16;
         let mut space_end = 4096_u16;
+        let mut special_area = self.header.special_area_offset as u16;
         for mut tuple_pointer_index in 0..self.tuple_pointers.len() {
             let tuple = self.get_tuple(tuple_pointer_index);
             if tuple[0] == 1 {
@@ -343,6 +363,7 @@ impl HeapPage {
         }
         new_page.write_bytes(space_start.to_ne_bytes().as_slice(), 0);
         new_page.write_bytes(space_end.to_ne_bytes().as_slice(), 2);
+        new_page.write_bytes(special_area.to_ne_bytes().as_slice(), 4);
         self.frame
             .borrow_mut()
             .page
@@ -358,6 +379,26 @@ impl HeapPage {
             current_slot: 0,
             page: &self,
         }
+    }
+
+    pub fn get_special_area(&self) -> Vec<u8> {
+        self.frame.borrow_mut().update_replace_stats();
+        let special_area_vector = self.frame.borrow().page.payload[self.header.special_area_offset..].to_vec();
+        if special_area_vector.len() == 1{
+            Vec::new()
+        }
+        else {
+            special_area_vector
+        }
+    }
+    
+    pub fn write_special_area(&mut self, special_area_bytes: Vec<u8>) {
+        self.frame.borrow_mut().write_at(special_area_bytes.as_slice(), self.header.special_area_offset as u64);
+    }
+    
+    pub fn rewrite_tuple_pointers_to_frame(&mut self){
+        let tuple_pointers_bytes = self.tuple_pointers.iter().flat_map(|pointer| pointer.clone().to_bytes()).collect::<Vec<u8>>();
+        self.frame.borrow_mut().write_at(tuple_pointers_bytes.as_slice(), 6)
     }
 }
 

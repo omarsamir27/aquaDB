@@ -105,7 +105,7 @@ impl StorageManager {
         let blks = self.extend_file_many(filename, count);
         for blk in &blks {
             let frame = self.pin(blk.clone());
-            HeapPage::init_heap(frame.as_ref().unwrap());
+            HeapPage::init_heap(frame.as_ref().unwrap(), 0);
             self.force_flush(frame.unwrap());
         }
         blks

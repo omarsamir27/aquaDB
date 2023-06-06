@@ -21,7 +21,8 @@ impl Tuple {
     ///Creates a Tuple instance from a (Fieldname , Field Data Bytes) Vector and a layout supplied from
     /// the table schema
     pub fn new(data: Vec<(String, Option<Vec<u8>>)>, layout: Rc<Layout>) -> Self {
-        let bitmap = NullBitMap::new(layout.clone());
+        let layout_copy = layout.as_ref().clone();
+        let bitmap = NullBitMap::new(layout_copy);
         Self {
             deleted: 0,
             bitmap,
