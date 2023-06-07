@@ -56,7 +56,7 @@ impl BufferManager {
             .unwrap()
             .flush(blk_mgr);
     }
-    
+
     pub fn flush_all(&mut self, blk_mgr: &mut BlockManager) {
         for frame in &self.frame_pool {
             frame.borrow_mut().flush(blk_mgr);
@@ -118,7 +118,12 @@ impl BufferManager {
     /// Unpins a frame in the buffer. This doesn't remove the frame from memory, It just becomes unpinned
     pub fn unpin(&mut self, frame: FrameRef) {
         let mut frame = frame.borrow_mut();
-        frame.num_pins -= 1;
+        if frame.num_pins as i32 - 1 < 0 {
+            frame.num_pins = 0;
+        }
+        else {
+            frame.num_pins -= 1;
+        }
         if frame.is_free() {
             self.available_slots += 1;
         }

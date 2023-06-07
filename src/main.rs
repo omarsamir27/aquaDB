@@ -60,7 +60,7 @@ fn main() {
     let mut storage_manager = Rc::new(RefCell::new(storage_manager));
     let mut btree = BPTree::init(root_block.clone(), Type::Numeric(Integer), storage_manager.clone());
 
-    for slot in 0..50000_u16 {
+    for slot in 0..1000_u16 {
         let rid = Rid::new(root_block.clone().block_num,slot);
         btree.insert(((slot) as i32).to_ne_bytes().to_vec(), rid);
     }
@@ -77,7 +77,11 @@ fn main() {
 
     btree.print_root();
 
-    for key in 0..101_i32 {
+    let rids = btree.get_less_than(((500_i32).to_ne_bytes().to_vec()));
+
+    dbg!(rids);
+
+    /*for key in 0..101_i32 {
         let res = btree.search((key).to_ne_bytes().to_vec());
         dbg!(res);
     }
@@ -108,6 +112,6 @@ fn main() {
     for key in 38000..40000_i32 {
         let res = btree.search((key).to_ne_bytes().to_vec());
         dbg!(res);
-    }
+    }*/
 
 }
