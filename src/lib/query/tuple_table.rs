@@ -13,6 +13,9 @@ use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::path::Path;
 use thiserror::Error;
+use crate::FieldId;
+use crate::schema::schema::Field;
+use super::MergedRow;
 
 #[derive(Debug, Error)]
 pub enum TableErrors {
@@ -45,7 +48,55 @@ impl<'a> Display for RowPrint<'a> {
 
 const TMP_DIR: &str = "tests/db/db_tmp";
 
-pub struct Table {
+impl Iterator for TupleTableIter {
+    type Item = MergedRow;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.table.data.is_empty(){
+            self.table.load_segment(0);
+        }
+        if self.next_row == self.table.num_rows as usize{
+            self.table.load_segment(self.next_segment);
+            self.next_segment +=1;
+            self.next_row = 0;
+        }
+        if self.next_segment == self.table.segments.len(){
+            return None
+        }
+        let row = self.table.data[self.next_row].clone();
+        self.next_row +=1;
+        Some(self.row_to_merged_row(row))
+
+    }
+}
+
+#[derive(Debug)]
+pub struct TupleTableIter {
+    table: TupleTable,
+    next_row: usize,
+    next_segment:usize,
+    index_map : HashMap<usize,String>
+}
+impl TupleTableIter{
+    fn new(table:TupleTable) -> Self{
+        let index_map = table.index_type_map.iter().map(|(k,(idx,_))| (*idx,k.clone())).collect();
+        Self{table,next_row: 0 ,next_segment:1,index_map}
+    }
+    fn row_to_merged_row(&self,row:Row) -> MergedRow{
+        row
+            .into_iter()
+            .enumerate()
+            .map(|(idx,col)|
+                (
+                    FieldId::new(&self.table.name,self.index_map.get(&idx).unwrap()),
+                    col.to_bytes()
+                )
+            ).collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct TupleTable {
     name: String,
     num_rows: u32,
     num_cols: u32,
@@ -56,7 +107,17 @@ pub struct Table {
     max_data_size: usize,
     current_memory_use: usize,
 }
-impl Table {
+
+impl IntoIterator for TupleTable{
+    type Item = MergedRow;
+    type IntoIter = TupleTableIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        TupleTableIter::new(self)
+    }
+}
+
+impl TupleTable {
     pub fn new(name: &str, headers: HashMap<String, Type>, max_memory: usize) -> Self {
         let num_cols = headers.len();
         let mut table_headers = TableHeaders::new();
@@ -143,6 +204,10 @@ impl Table {
         self.num_rows = self.data.len() as u32;
         self.current_segment = Some(segment);
     }
+    // fn remove_one_row(&mut self){
+    //     self.num_rows -=1;
+    //     self.data.emove(0)
+    // }
     pub fn print_all(&mut self) {
         for row in self.data.iter() {
             println!("{}", RowPrint(row));

@@ -244,9 +244,7 @@ impl TableManager {
         if let Some(Index::Hash(idx)) = self.indexes.get(index_field) {
             return Some(HashIter::new(
                 self.direct_accessor(),
-                idx,
-                key,
-                self.storage_mgr.borrow_mut(),
+                idx.clone(),
             ));
         }
         None

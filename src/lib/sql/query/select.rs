@@ -1,3 +1,6 @@
+use std::str::FromStr;
+use crate::sql::query::select::ProjectionTarget::AllFields;
+
 #[derive(Debug)]
 pub struct SqlSelect {
     pub distinct: bool,
@@ -33,6 +36,27 @@ pub enum ProjectionTarget {
     AllFields,
     FullyQualified(String, String),
     Shorthand(String),
+}
+
+impl FromStr for ProjectionTarget {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq("*"){
+            Ok(Self::AllFields)
+        }
+        else {
+            let mut target = s.split('.');
+            if let Some(first) = target.next(){
+                return if let Some(second) = target.next() {
+                    Ok(Self::FullyQualified(first.to_string(), second.to_string()))
+                } else {
+                    Ok(Self::Shorthand(first.to_string()))
+                }
+            }
+            Err(())
+        }
+    }
 }
 
 #[derive(Debug)]

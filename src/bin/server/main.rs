@@ -2,13 +2,21 @@
 mod init;
 
 use aqua::database::server::DatabaseServer;
-use aqua::sql::parser::parse_query;
+use aqua::sql::parser::{parse_query, Rule, SqlParser};
 use std::env;
 use std::process::exit;
-use ptree::print_tree;
+use evalexpr::build_operator_tree;
+use pest::Parser;
+use pest_ascii_tree::print_ascii_tree;
+use aqua::common::boolean::{set_node_true, simplify};
+// use ptree::print_tree;
 use aqua::query::algebra::LogicalNode;
+use aqua::query::concrete_types::ConcreteType;
+use aqua::schema::types::NumericType::Integer;
+use aqua::schema::types::Type::Numeric;
 use aqua::sql::query::query::SqlQuery;
 use aqua::sql::Sql;
+use aqua::storage::storagemgr::StorageManager;
 
 // fn btree_write_test() {
 //     let mut tree = BTreeMultimap::new();
@@ -29,7 +37,22 @@ fn main() {
     // let query = parse_query(query);
     // dbg!(query);
 
-    // let query = "select * from omar join samir on id = id join mazen on bye=hi join osama on why=no";
+    // let query = "(x > 3 and (y < 8 or z <1)) or v >2";
+    // let q = SqlParser::parse(Rule::conditional_expression,query);
+    // print_ascii_tree(q);
+    // let var = ConcreteType::Integer(816);
+    // let var2 = ConcreteType::Integer(404);
+    // dbg!(var.cmp(&var2));
+
+    let x = " x>3 && true || true && y>2";
+    let mut tree = build_operator_tree(x).unwrap();
+    dbg!(&tree);
+    let mut v = aqua::common::boolean::get_all_binary_clauses(&tree);
+    //
+    let z = v.pop().unwrap();
+    set_node_true(&mut tree,&z);
+    simplify(&mut tree);
+    dbg!(&tree);
     // let query = parse_query(query).unwrap();
     // // dbg!(query);
     // let res = match query {
@@ -40,14 +63,14 @@ fn main() {
     //     _ => unreachable!()
     // };
     // print_tree(&res.unwrap());
-    let opts = env::args().collect::<Vec<_>>();
-    if let Some(init) = opts.get(1) {
-        if init == "init" {
-            init::init_aqua();
-        }
-    } else {
-        init::init_homedir();
-    }
-    let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
-    server.run()
+    // let opts = env::args().collect::<Vec<_>>();
+    // if let Some(init) = opts.get(1) {
+    //     if init == "init" {
+    //         init::init_aqua();
+    //     }
+    // } else {
+    //     init::init_homedir();
+    // }
+    // let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
+    // server.run()
 }

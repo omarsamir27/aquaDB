@@ -68,6 +68,7 @@ impl IdxRecord {
     }
 }
 
+#[derive(Clone)]
 pub struct BucketDirectory {
     index_dir_file: PathBuf,
     global_depth: u8,
@@ -149,6 +150,7 @@ impl BucketDirectory {
 /// The global depth of the index which resembles the greatest local depth of a bucket inside it.
 /// The index is given its block ids by the table manager, a reference to the storage manager to extend a file with some blocks.
 /// Also given a reference to the table manager to notify it by the newly added bucket blocks.
+#[derive(Clone)]
 pub struct HashIndex {
     bucket_dir: BucketDirectory,
     num_buckets: u16,

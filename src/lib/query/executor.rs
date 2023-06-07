@@ -1,6 +1,6 @@
 use super::seq_scan::SeqScan;
 use crate::common::numerical::ByteMagic;
-use crate::query::tuple_table::Table;
+use crate::query::tuple_table::TupleTable;
 use crate::schema::schema::Schema;
 use crate::schema::types::{NumericType, Type};
 use crate::table::tablemgr::TableManager;
@@ -15,7 +15,7 @@ type Record = Vec<(String, Option<Vec<u8>>)>;
 pub struct Executor<'db> {
     max_table_memory: usize,
     db_tables: &'db mut HashMap<String, TableManager>,
-    proc_tables: Vec<Table>,
+    proc_tables: Vec<TupleTable>,
 }
 
 impl<'db> Executor<'db> {
@@ -113,7 +113,7 @@ impl<'db> Executor<'db> {
             .into_iter()
             .filter(|(k, _)| fields.contains(k))
             .collect();
-        let mut processing_table = Table::new(table.as_str(), headers, self.max_table_memory);
+        let mut processing_table = TupleTable::new(table.as_str(), headers, self.max_table_memory);
         let headers = tblmgr.get_layout().type_map();
         while let Some(tuple) = table_iter.next() {
             // EXECUTES PROJECTIONS EARLY INSTEAD OF DOING IT IN THE TEMP TABLE

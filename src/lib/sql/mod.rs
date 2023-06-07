@@ -5,6 +5,7 @@ pub mod create_table;
 pub mod eval;
 pub mod parser;
 pub mod query;
+mod conditional;
 
 #[derive(Debug)]
 pub enum Sql {

@@ -1,3 +1,6 @@
+use evalexpr::Value;
+use crate::schema::types::Type;
+
 #[cfg(target_pointer_width = "32")]
 const USIZE_LENGTH: usize = 4;
 
@@ -98,6 +101,7 @@ impl ByteMagic for &[u8] {
     fn to_i64(self) -> i64 {
         i64::from_ne_bytes(self.try_into().unwrap())
     }
+
 }
 
 #[cfg(test)]

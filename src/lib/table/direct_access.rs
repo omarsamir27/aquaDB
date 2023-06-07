@@ -27,7 +27,13 @@ impl DirectAccessor {
     pub fn get_tuple(&self, rid: Rid) -> HashMap<String, Option<Vec<u8>>> {
         let (blk, slot) = rid.rid_blk_num(&self.table_blocks[0].filename);
         let frame = self.storage.borrow_mut().pin(blk.clone()).unwrap();
-        let heap = HeapPage::new(frame, &blk, self.layout.clone());
-        heap.get_tuple_fields(rid.slot_num() as usize)
+        let heap = HeapPage::new(frame.clone(), &blk, self.layout.clone());
+        let ret = heap.get_tuple_fields(rid.slot_num() as usize);
+        drop(heap);
+        self.storage.borrow_mut().unpin(frame);
+        ret
+    }
+    pub fn get_storage(&self) -> Rc<RefCell<StorageManager>> {
+        self.storage.clone()
     }
 }

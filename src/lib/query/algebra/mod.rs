@@ -1,7 +1,7 @@
 mod pretty;
 use crate::meta::catalogmgr::CatalogManager;
 use crate::schema::schema::Schema;
-use crate::sql;
+use crate::{FieldId, sql};
 use crate::sql::query::select::{FromClause, JoinClause, JoinType, ProjectionTarget, SqlSelect};
 use std::borrow::Cow;
 use std::cell::Ref;
@@ -9,17 +9,15 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::mem;
+use std::str::FromStr;
+use evalexpr::{build_operator_tree, HashMapContext};
+use crate::common::boolean;
 
-#[derive(Debug, Clone)]
-struct FieldId {
-    table: String,
-    field: String,
-}
-impl Display for FieldId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}.{})", self.table, self.field)
-    }
-}
+// impl ToString for FieldId {
+//     fn to_string(&self) -> String {
+//         format!("{}.{}",self.table,self.field)
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub enum LogicalNode {
@@ -42,7 +40,7 @@ impl LogicalNode {
             LogicalNode::Join(j) => j.chain(queue),
             LogicalNode::Sort(s) => s.chain(queue),
             LogicalNode::DeDup(d) => d.chain(queue),
-            _ => return,
+            _ => (),
         }
     }
     fn is_leaf(&self) -> bool {
@@ -75,16 +73,19 @@ impl Project {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Select {
-    condition: String,
+    condition: evalexpr::Node,
+    context_vars : Vec<FieldId>,
     child: Box<LogicalNode>,
 }
 
 impl Select {
-    fn with_condition(condition: String) -> Self {
+    fn with_condition(condition: evalexpr::Node,context_vars:Vec<FieldId>) -> Self {
+
         Self {
             condition,
+            context_vars,
             child: Box::default(),
         }
     }
@@ -111,13 +112,13 @@ impl Cross {
 
 #[derive(Debug, Clone)]
 pub struct Join {
-    condition: Option<String>,
+    condition: Option<evalexpr::Node>,
     join_type: JoinType,
     left: Box<LogicalNode>,
     right: Box<LogicalNode>,
 }
 impl Join {
-    fn with_condition(join_type: JoinType, condition: Option<String>) -> Self {
+    fn with_condition(join_type: JoinType, condition: Option<evalexpr::Node>) -> Self {
         Self {
             condition,
             join_type,
@@ -131,6 +132,9 @@ impl Join {
         mem::replace(self.left.as_mut(), node_l);
         mem::replace(self.right.as_mut(), node_r);
     }
+    // fn correct_condition(&mut self,joined:&Option<HashMap<String, HashSet<String>>>){
+    //     LogicalNode::qualify_attributes(self.condition.as_mut().unwrap(),&None, joined);
+    // }
 }
 
 #[derive(Debug, Clone)]
@@ -210,25 +214,22 @@ impl LogicalNode {
         let project = Project::with_fields(Self::target_list(sql.targets, &single, &joined)?);
         queue.push(LogicalNode::Project(project));
         if let Some(pred) = sql.where_clause {
-            let select = Select::with_condition(pred);
+            let mut pred_tree = build_operator_tree(pred.as_str()).map_err(|_| ())?;
+            let ctx_vars = Self::qualify_attributes(&mut pred_tree,&single,&joined)?;
+            let select = Select::with_condition(pred_tree,ctx_vars);
             queue.push(LogicalNode::Select(select));
         }
         match sql.from {
             FromClause::Table(t) => queue.push(LogicalNode::Relation(t)),
             FromClause::JoinClause(j) => {
-                let mut j = Self::preprocess_joins(j);
+                let mut j = Self::preprocess_joins(j,&joined);
                 queue.append(&mut j);
-                // let (t1,t2) = j.get_tables();
-                // let join = Join::with_condition(j.join_condition().to_string());
-                // queue.push(LogicalNode::Join(join));
-                // queue.push(LogicalNode::Relation(t2));
-                // queue.push(LogicalNode::Relation(t1));
             }
         }
         // dbg!(&queue);
         Ok(Self::link_nodes(&mut queue))
     }
-    fn preprocess_joins(mut joins: JoinClause) -> Vec<LogicalNode> {
+    fn preprocess_joins(mut joins: JoinClause, joined: &Option<HashMap<String, HashSet<String>>>) -> Vec<LogicalNode> {
         let mut result = vec![];
         let first =
             sql::query::select::Join::new(joins.first.clone(), joins.joins[0].join_type, None);
@@ -239,7 +240,11 @@ impl LogicalNode {
         }
         let last_join = joins.joins.pop().unwrap();
         'pushing_order: for j in joins.joins {
-            let node = Join::with_condition(j.join_type, j.join_condition);
+            let mut condition = j.join_condition.map(|jc| build_operator_tree(jc.as_str()).unwrap());
+            if let Some(condition) = condition.as_mut(){
+                Self::qualify_attributes(condition,&None,joined);
+            }
+            let node = Join::with_condition(j.join_type, condition);
             result.push(LogicalNode::Join(node));
             result.push(LogicalNode::Relation(j.table));
         }
@@ -313,7 +318,7 @@ impl LogicalNode {
         if let Some(schemas_map) = joined_schemas {
             if targets[0] == ProjectionTarget::AllFields {
                 let fields = schemas_map
-                    .into_iter()
+                    .iter()
                     .map(|(table, schema)| {
                         schema
                             .iter()
@@ -357,45 +362,7 @@ impl LogicalNode {
         } else {
             Err(())
         }
-        // let mut fields = Vec::with_capacity(targets.len());
-        // for col in targets {
-        //     match col {
-        //         ProjectionTarget::FullyQualified(table, field) => {
-        //             if table == name_l && fields_info_l.contains_key(field.as_str()) {
-        //                 fields.push(FieldId { table, field });
-        //             } else if table == name_r && fields_info_r.contains_key(field.as_str()) {
-        //                 fields.push(FieldId { table, field })
-        //             } else {
-        //                 return Err(());
-        //             }
-        //         }
-        //         ProjectionTarget::Shorthand(field) => {
-        //             if fields_info_l.contains_key(field.as_str())
-        //                 && fields_info_r.contains_key(field.as_str())
-        //             {
-        //                 return Err(());
-        //             } else if fields_info_l.contains_key(field.as_str())
-        //                 && !fields_info_r.contains_key(field.as_str())
-        //             {
-        //                 fields.push(FieldId {
-        //                     table: name_l.clone(),
-        //                     field,
-        //                 });
-        //             } else if !fields_info_l.contains_key(field.as_str())
-        //                 && fields_info_r.contains_key(field.as_str())
-        //             {
-        //                 fields.push(FieldId {
-        //                     table: name_r.clone(),
-        //                     field,
-        //                 });
-        //             } else {
-        //                 return Err(());
-        //             }
-        //         }
-        //         _ => return Err(()),
-        //     }
-        // }
-        // return Ok(fields);
+
     }
     fn get_schemas(
         catalog: &Ref<CatalogManager>,
@@ -429,5 +396,83 @@ impl LogicalNode {
             }
         }
         Ok(schemas_map)
+    }
+
+    fn qualify_attributes(tree: &mut evalexpr::Node, single:&Option<Schema>, joined:&Option<HashMap<String, HashSet<String>>>) -> Result<Vec<FieldId>,()>{
+        let mut variables = tree.iter_variable_identifiers().collect::<HashSet<_>>();
+        let vars_len = variables.len();
+        let targets  = variables
+            .into_iter()
+            .map_while(|v| v.parse::<ProjectionTarget>().ok().map(|t| (v.to_string(),t))).collect::<Vec<_>>();
+        if targets.len() != vars_len{
+            return Err(())
+        }
+        let targets = Self::field_target_list(targets,single,joined)?;
+        boolean::replace_vars_map(tree, &targets);
+        Ok(targets.into_values().collect())
+    }
+
+    fn field_target_list(
+        targets: Vec<(String, ProjectionTarget)>,
+        single_schema: &Option<Schema>,
+        joined_schemas: &Option<HashMap<String, HashSet<String>>>,
+    ) -> Result<HashMap<String, FieldId>, ()> {
+        if let Some(schema) = single_schema {
+            let name = schema.name().to_string();
+            let fields_info = schema.fields_info();
+            let mut fields = HashMap::new();
+            for (original,col) in targets {
+                match col {
+                    ProjectionTarget::FullyQualified(table, field) => {
+                        if *table == name && fields_info.contains_key(field.as_str()) {
+                            fields.insert(original,FieldId{table,field});
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    ProjectionTarget::Shorthand(field) => {
+                        if fields_info.contains_key(field.as_str()) {
+                            fields.insert(original,FieldId {
+                                table: name.clone(),
+                                field,
+                            });
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    _ => return Err(()), // because an "*" list was eliminated up
+                }
+            }
+            return Ok(fields);
+        }
+        if let Some(schemas_map) = joined_schemas {
+            let mut fields = HashMap::new();
+            for (original,col) in targets {
+                if let ProjectionTarget::FullyQualified(table, field) = col {
+                    if schemas_map.get(&table).ok_or(())?.contains(field.as_str()) {
+                        fields.insert(original,FieldId { table, field });
+                    }
+                } else if let ProjectionTarget::Shorthand(field) = col {
+                    let mut matching_schemas = schemas_map
+                        .iter()
+                        .filter(|(k, v)| v.contains(field.as_str()))
+                        .map(|(k, v)| k)
+                        .collect::<Vec<_>>();
+                    if matching_schemas.len() == 1 {
+                        let table = matching_schemas.pop().unwrap();
+                        fields.insert(original,FieldId {
+                            table: table.clone(),
+                            field,
+                        });
+                    } else {
+                        return Err(());
+                    }
+                }
+            }
+            Ok(fields)
+        } else {
+            Err(())
+        }
+
     }
 }

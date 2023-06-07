@@ -29,11 +29,16 @@
     }
     OR = {^"or"}
     AND = {^"and"}
-    /// blue
-    plain_condition =  { (term | (table_name ~ ".")? ~ identifier) ~ (comparison_operator | misc_operators) ~ (term | (table_name ~ ".")? ~ identifier) }
 
+    condition_term = {(table_name ~ "." ~ identifier) | term }
+
+    /// blue
+    plain_condition =  { condition_term ~ (comparison_operator | misc_operators) ~ condition_term }
+//     (condition ~ ( (AND|OR) ~ condition)*)
+    scope = { "(" ~ conditional_expression ~ ")"  }
     /// black
-    condition = { "(" ~ plain_condition ~ ")" | plain_condition }
+    condition = { plain_condition | scope  }
+    conditional_expression = _{ condition ~ ((AND|OR) ~ condition)* }
     /// red
 //     conditional_expression = {
 //     "(" ~(condition ~ (OR | AND) ~ conditional_expression)~ ")"
@@ -41,18 +46,20 @@
 //     | "(" ~ conditional_expression ~  ")" ~ ((OR|AND) ~ conditional_expression)?
 //     |  condition
 //     }
+
+
 /// green
-conditional_expression = {
-    condition ~ cond |
-    "(" ~ conditional_expression ~ ")" ~ cond?
+// conditional_expression = {
+//     condition ~ cond |
+//     "(" ~ conditional_expression ~ ")" ~ cond?
+//
+//     }
+// /// blue
+// cond = {
+//     ((OR|AND) ~  conditional_expression  ~ cond?)?
+//     }
 
-    }
-/// blue
-cond = {
-    ((OR|AND) ~  conditional_expression  ~ cond?)?
-    }
-
-    WHERE = {^"where"}
+    WHERE = _{^"where"}
     where_clause = { WHERE ~ conditional_expression }
 // }
 /// blue

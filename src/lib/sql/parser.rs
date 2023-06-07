@@ -5,7 +5,7 @@ use crate::sql::create_table::Constraint::{NotNull, PrimaryKey, Unique};
 use crate::sql::create_table::{
     Constraint, CreateTable, CreateTableEntry, Index, IndexType, TableField,
 };
-use crate::sql::parser::Rule::foreign_key;
+use crate::sql::parser::Rule::{conditional_expression, foreign_key};
 use crate::sql::query::delete::SqlDelete;
 use crate::sql::query::insert::SqlInsert;
 use crate::sql::query::query::{SqlQuery as QUERY, SqlValue};
@@ -13,6 +13,8 @@ use crate::sql::query::select::{FromClause, Grouping, Join, JoinClause, JoinType
 use crate::sql::query::update::SqlUpdate;
 use crate::sql::Sql;
 use pest::error::ErrorVariant;
+use pest::iterators::Pairs;
+use pest::pratt_parser::PrattParser;
 use pest_consume::{match_nodes, Error, Parser as PestParser};
 
 type Result<T> = std::result::Result<T, Error<Rule>>;
@@ -101,13 +103,13 @@ impl SqlParser {
         //         txt.replace_range(start..end, "||")
         //     }
         // }
-        Ok(txt)
-        // Ok(
-        //     match_nodes!(
-        //         input.into_children();
-        //         [conditional_expression(ce)] => ce
-        //     )
-        // )
+        // Ok(txt)
+        Ok(
+            match_nodes!(
+                input.into_children();
+                [conditional_expression(ce)] => ce
+            )
+        )
         // println!("{}",input.as_str());
         // let  clause = input.as_str().to_string();
         // let mut re = RegexBuilder::new("or").case_insensitive(true).build().unwrap();
@@ -117,9 +119,20 @@ impl SqlParser {
         // Ok(x)
     }
     fn conditional_expression(input: Node) -> Result<String> {
-        // let  clause = format!("(?i){}",input.as_str().to_string());
-        // let mut re = Regex::new(clause.as_str()).unwrap();
-        // Ok(re.replace_all("or", "||").to_string())
+       //  let PRATT_PARSER: PrattParser<Rule> = {
+       //      use pest::pratt_parser::{Assoc::*, Op};
+       //      use Rule::*;
+       //
+       //      // Precedence is defined lowest to highest
+       //      PrattParser::new()
+       //          // Addition and subtract have equal precedence
+       //          .op(Op::infix(OR, Left))
+       //          .op(Op::infix(AND, Left))
+       //  };
+       // fn parse_me(pairs:Pairs<Rule>,pratt: &PrattParser<Rule>)
+
+       
+        
         Ok(input.as_str().to_string())
     }
     fn join_type(input: Node) -> Result<JoinType> {
