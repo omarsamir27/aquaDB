@@ -25,10 +25,10 @@ pub enum TableErrors {
     InvalidColumn,
 }
 
-type TableHeaders = HashMap<String, (usize, Type)>;
+type TableHeaders = HashMap<FieldId, (usize, Type)>;
 type Column = ConcreteType;
 type Row = Vec<Column>;
-type RowMap = HashMap<String, Option<Vec<u8>>>;
+type RowMap = HashMap<FieldId, Option<Vec<u8>>>;
 type InsertResult = Result<(), TableErrors>;
 
 struct RowPrint<'a>(&'a Row);
@@ -75,7 +75,7 @@ pub struct TupleTableIter {
     table: TupleTable,
     next_row: usize,
     next_segment:usize,
-    index_map : HashMap<usize,String>
+    index_map : HashMap<usize,FieldId>
 }
 impl TupleTableIter{
     fn new(table:TupleTable) -> Self{
@@ -88,7 +88,7 @@ impl TupleTableIter{
             .enumerate()
             .map(|(idx,col)|
                 (
-                    FieldId::new(&self.table.name,self.index_map.get(&idx).unwrap()),
+                    self.index_map.get(&idx).unwrap().clone(),
                     col.to_bytes()
                 )
             ).collect()
@@ -118,7 +118,7 @@ impl IntoIterator for TupleTable{
 }
 
 impl TupleTable {
-    pub fn new(name: &str, headers: HashMap<String, Type>, max_memory: usize) -> Self {
+    pub fn new(name: &str, headers: HashMap<FieldId, Type>, max_memory: usize) -> Self {
         let num_cols = headers.len();
         let mut table_headers = TableHeaders::new();
         for (idx, (col_name, col_type)) in headers.into_iter().enumerate() {
@@ -175,7 +175,7 @@ impl TupleTable {
         }
         let mut row = vec![Column::default(); self.num_cols as usize];
         for (field_name, data) in row_map.into_iter() {
-            match self.index_type_map.get(field_name.as_str()) {
+            match self.index_type_map.get(&field_name) {
                 None => {
                     return Err(InvalidColumn);
                 }
@@ -233,7 +233,7 @@ impl TupleTable {
         self.print_all()
     }
 
-    pub fn sort(&mut self, sort_key: &str) {
+    pub fn sort(&mut self, sort_key: &FieldId) {
         let key_index = self.index_type_map.get(sort_key).unwrap().0;
         if self.segments.is_empty() {
             self.data

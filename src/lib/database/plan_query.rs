@@ -9,6 +9,7 @@ use crate::table::tablemgr::TableManager;
 use std::cell::Ref;
 use std::collections::{HashMap, HashSet};
 use std::process::exit;
+use crate::schema::types::Type;
 // use crate::query::algebra::LogicalNode;
 use crate::sql::parser::Rule::sql_value;
 
@@ -22,27 +23,27 @@ impl DatabaseInstance {
                 .map_err(|_| "Broken Query".to_string())?;
         todo!()
     }
+
+    fn planner_info(&self)-> PlannerInfo{
+        let info = self.tables().iter().map(|(name,table)| (name.clone(),table.planning_info())).collect();
+        PlannerInfo{table_data:info}
+    }
 }
 
-// let tbl = query.from.get_table().unwrap();
-// let schema = self
-//     .catalog()
-//     .borrow()
-//     .get_schema(self.name(), &tbl)
-//     .unwrap();
-// let project_on = query.targets;
-// let mut targets = HashSet::new();
-// if project_on[0] == ProjectionTarget::AllFields {
-//     targets.extend(schema.fields_info().keys().map(|s| s.to_string()));
-// } else {
-//     for field in project_on {
-//         match field {
-//             ProjectionTarget::Shorthand(f) => {
-//                 targets.insert(f);
-//             }
-//             _ => unreachable!(),
-//         }
-//     }
-// }
-// let target_iter = self.tables().get(schema.name()).unwrap().heapscan_iter();
-// Ok(Box::new(ProjectNode::new(targets, Box::new(target_iter))))
+
+struct PlannerInfo{
+    table_data : HashMap<String,TableInfo>
+}
+
+
+pub struct TableInfo{
+    fields_desc : HashMap<String,Type>,
+    btree_idx : HashSet<String>,
+    hash_idx : HashSet<String>
+}
+
+impl TableInfo {
+    pub fn new(fields_desc: HashMap<String, Type>, btree_idx: HashSet<String>, hash_idx: HashSet<String>) -> Self {
+        Self { fields_desc, btree_idx, hash_idx }
+    }
+}

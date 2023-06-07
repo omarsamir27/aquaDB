@@ -1,4 +1,7 @@
 mod realize;
+mod utils;
+
+use utils::*;
 
 use crate::common::numerical::ByteMagic;
 use crate::FieldId;
@@ -145,15 +148,15 @@ pub struct MergeJoin {
 impl MergeJoin {
     fn load(&mut self){
         for next in self.left.by_ref(){
-            let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
+            // let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
             self.left_table.as_mut().unwrap().add_row_map(next);
         }
         for next in self.right.by_ref(){
-            let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
+            // let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
             self.right_table.as_mut().unwrap().add_row_map(next);
         }
-        self.left_table.as_mut().unwrap().sort(self.eq_fields.0.field.as_str());
-        self.right_table.as_mut().unwrap().sort(self.eq_fields.1.field.as_str());
+        self.left_table.as_mut().unwrap().sort(&self.eq_fields.0);
+        self.right_table.as_mut().unwrap().sort(&self.eq_fields.1);
         self.left_iter = Some(self.left_table.take().unwrap().into_iter());
         self.right_iter = Some(self.right_table.take().unwrap().into_iter());
         self.loaded = true;
@@ -252,8 +255,6 @@ impl Iterator for IndexedJoin{
 pub struct DeDup{
     child : Box<PhysicalNode>,
     current_row : Option<MergedRow>,
-    loaded:bool,
-    sort_on : String
 }
 impl DeDup{
 
@@ -283,14 +284,14 @@ pub struct Sort{
     child : Box<PhysicalNode>,
     table : Option<TupleTable>,
     table_iter : Option<TupleTableIter>,
-    field : String,
+    field : FieldId,
     loaded : bool
 }
 
 impl Sort{
     fn load(&mut self){
         for next in self.child.by_ref(){
-            let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
+            // let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
             self.table.as_mut().unwrap().add_row_map(next);
         }
         self.table.as_mut().unwrap().sort(&self.field);
@@ -309,40 +310,3 @@ impl Iterator for Sort{
 
 
 
-fn fill_ctx_map(ctx:&mut HashMapContext, row: &MergedRow) {
-    let idx: IndexMap = HashMap::new();
-    for table_var in ctx.iter_variable_names().collect::<Vec<_>>() {
-        let field_id = table_var.parse::<FieldId>().unwrap();
-        let val = row.get(&field_id).unwrap();
-        let val = data_to_value(val.as_ref(), *idx.get(&field_id).unwrap());
-        ctx.set_value(table_var, val);
-    }
-}
-fn data_to_value(data: Option<&Vec<u8>>, schema_type: Type) -> Value {
-    if let Some(data) = data {
-        match schema_type {
-            Type::Numeric(n) => match n {
-                NumericType::SmallInt => Value::Int(IntType::from(data.to_i16())),
-                NumericType::Integer => Value::Int(IntType::from(data.to_i32())),
-                NumericType::BigInt => Value::Int(IntType::from(data.to_i64())),
-                NumericType::Single => Value::Float(data.to_f32() as FloatType),
-                NumericType::Double => Value::Float(data.to_f32() as FloatType),
-                NumericType::Serial => Value::Int(IntType::from(data.to_i32())),
-            },
-            Type::Character(c) => Value::String(String::from_utf8(data.to_vec()).unwrap()),
-            Type::Boolean => Value::Boolean(data[0] == 1),
-        }
-    } else {
-        Value::Empty
-    }
-}
-
-fn row_to_merged_row(table:&str,row:HashMap<String,Option<Vec<u8>>>)->MergedRow{
-    row.into_iter().map(|(k,v)| (FieldId::new(table,&k),v) ).collect()
-}
-
-fn merge(left:&MergedRow,right:MergedRow) -> MergedRow{
-    let mut left = left.clone();
-    left.extend(right);
-    left
-}

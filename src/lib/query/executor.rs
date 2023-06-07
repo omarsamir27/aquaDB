@@ -28,7 +28,7 @@ impl<'db> Executor<'db> {
     }
     pub fn insert_record(&mut self, record: Record, schema: Schema) -> Result<(), String> {
         let target_table = self.db_tables.get(schema.name()).ok_or(String::default())?;
-        let available_indexes = target_table.indexes();
+        // let available_indexes = target_table.indexes();
         let fields = schema.fields_info();
         let mut need_fullscan = false;
         for (k, v) in &fields {
@@ -51,6 +51,7 @@ impl<'db> Executor<'db> {
                     .as_ref()
                     .unwrap();
                 let mut index = target_table.hashscan_iter(k, search_key).unwrap();
+                // TODO : ADD BTREE INDEXES HERE
                 if index.next().is_some() {
                     return Err("DUPLICATE".to_string());
                 }
@@ -103,52 +104,52 @@ impl<'db> Executor<'db> {
         Ok(())
     }
 
-    pub fn execute_seqscan(&mut self, node: SeqScan) {
-        let (table, fields) = (node.table, node.fields);
-        let tblmgr = self.db_tables.get(&table).unwrap();
-        let mut table_iter = tblmgr.heapscan_iter();
-        let headers: HashMap<String, Type> = tblmgr
-            .get_layout()
-            .type_map()
-            .into_iter()
-            .filter(|(k, _)| fields.contains(k))
-            .collect();
-        let mut processing_table = TupleTable::new(table.as_str(), headers, self.max_table_memory);
-        let headers = tblmgr.get_layout().type_map();
-        while let Some(tuple) = table_iter.next() {
-            // EXECUTES PROJECTIONS EARLY INSTEAD OF DOING IT IN THE TEMP TABLE
-            // CONTROVERSIAL !!
-
-            // for var in tree.iter_identifiers(){
-            //     let val = tuple.get(var).unwrap().as_ref().unwrap().to_vec();
-            //     let ty = headers.get(var).unwrap().clone();
-            //     let val  = construct_fromBytes(val.as_slice(),ty);
-            //
-            //     context.set_value(var.to_string(),)
-            // }
-            //
-            // if !tree.eval_boolean_with_context(&context).unwrap() { continue}
-
-            let mut context = evalexpr::HashMapContext::new();
-            let tree = evalexpr::build_operator_tree(" id > 0 ").unwrap();
-
-            // if Executor::filter(&tuple,&headers,&mut context,&tree){
-            //     let tuple = tuple
-            //         .into_iter()
-            //         .filter(|(k, v)| fields.contains(k) )
-            //         .collect();
-            //     processing_table.add_row_map(tuple);
-            // }
-            let tuple = tuple
-                .into_iter()
-                .filter(|(k, v)| fields.contains(k))
-                .collect();
-            processing_table.add_row_map(tuple);
-        }
-        // processing_table.sort("name");
-        processing_table.print_all();
-        self.proc_tables.push(processing_table);
-    }
+    // pub fn execute_seqscan(&mut self, node: SeqScan) {
+    //     let (table, fields) = (node.table, node.fields);
+    //     let tblmgr = self.db_tables.get(&table).unwrap();
+    //     let mut table_iter = tblmgr.heapscan_iter();
+    //     let headers: HashMap<String, Type> = tblmgr
+    //         .get_layout()
+    //         .type_map()
+    //         .into_iter()
+    //         .filter(|(k, _)| fields.contains(k))
+    //         .collect();
+    //     let mut processing_table = TupleTable::new(table.as_str(), headers, self.max_table_memory);
+    //     let headers = tblmgr.get_layout().type_map();
+    //     while let Some(tuple) = table_iter.next() {
+    //         // EXECUTES PROJECTIONS EARLY INSTEAD OF DOING IT IN THE TEMP TABLE
+    //         // CONTROVERSIAL !!
+    //
+    //         // for var in tree.iter_identifiers(){
+    //         //     let val = tuple.get(var).unwrap().as_ref().unwrap().to_vec();
+    //         //     let ty = headers.get(var).unwrap().clone();
+    //         //     let val  = construct_fromBytes(val.as_slice(),ty);
+    //         //
+    //         //     context.set_value(var.to_string(),)
+    //         // }
+    //         //
+    //         // if !tree.eval_boolean_with_context(&context).unwrap() { continue}
+    //
+    //         let mut context = evalexpr::HashMapContext::new();
+    //         let tree = evalexpr::build_operator_tree(" id > 0 ").unwrap();
+    //
+    //         // if Executor::filter(&tuple,&headers,&mut context,&tree){
+    //         //     let tuple = tuple
+    //         //         .into_iter()
+    //         //         .filter(|(k, v)| fields.contains(k) )
+    //         //         .collect();
+    //         //     processing_table.add_row_map(tuple);
+    //         // }
+    //         let tuple = tuple
+    //             .into_iter()
+    //             .filter(|(k, v)| fields.contains(k))
+    //             .collect();
+    //         processing_table.add_row_map(tuple);
+    //     }
+    //     // processing_table.sort("name");
+    //     processing_table.print_all();
+    //     self.proc_tables.push(processing_table);
+    // }
 
     fn filter(
         tuple: &HashMap<String, Option<Vec<u8>>>,

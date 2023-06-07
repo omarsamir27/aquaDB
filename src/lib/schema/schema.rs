@@ -291,7 +291,7 @@ impl Layout {
 
     /// Return the type, offset of a field in a tuple by its name
     pub fn field_data(&self, field_name: &str) -> (Type, u16) {
-        self.map.get(field_name).unwrap().clone()
+        *self.map.get(field_name).unwrap()
     }
 
     /// Number of fields in a table
@@ -305,6 +305,7 @@ impl Layout {
     pub fn index_map(&self) -> &HashMap<String, u8> {
         &self.index_map
     }
+    pub fn get_type(&self,field:&str) -> Type{ self.map.get(field).as_ref().unwrap().0 }
 
     /// Inverse hashmap of a index_map with
     ///

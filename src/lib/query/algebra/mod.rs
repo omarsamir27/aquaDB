@@ -56,8 +56,8 @@ impl Default for LogicalNode {
 
 #[derive(Default, Debug, Clone)]
 pub struct Project {
-    fields: Vec<FieldId>,
-    child: Box<LogicalNode>,
+    pub fields: Vec<FieldId>,
+    pub child: Box<LogicalNode>,
 }
 
 impl Project {
@@ -75,9 +75,9 @@ impl Project {
 
 #[derive(Debug, Clone)]
 pub struct Select {
-    condition: evalexpr::Node,
-    context_vars : Vec<FieldId>,
-    child: Box<LogicalNode>,
+    pub condition: evalexpr::Node,
+    pub context_vars : Vec<FieldId>,
+    pub child: Box<LogicalNode>,
 }
 
 impl Select {
@@ -160,7 +160,7 @@ impl Sorting {
 
 #[derive(Default, Debug, Clone)]
 pub struct DeDuplicate {
-    child: Box<LogicalNode>,
+    pub child: Box<LogicalNode>,
 }
 
 impl DeDuplicate {

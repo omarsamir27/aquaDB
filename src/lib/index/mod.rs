@@ -101,11 +101,11 @@ impl Index {
 }
 
 pub struct IndexInfo {
-    index_name: String,
-    index_type: IndexType,
+    pub index_name: String,
+    pub index_type: IndexType,
     pub column: String,
     pub index_file_path: PathBuf,
-    directory_file_path: PathBuf,
+    pub directory_file_path: PathBuf,
 }
 
 impl IndexInfo {
