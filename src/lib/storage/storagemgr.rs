@@ -84,6 +84,11 @@ impl StorageManager {
         self.block_manager.read_raw(blockid, byte_count)
     }
 
+
+    pub fn flush_all(&mut self) {
+        self.buffer_manager.flush_all(&mut self.block_manager);
+    }
+    
     /// Flushes a memory frame to the disk block it is currently pinned to , resetting its stats
     pub fn flush_frame(&mut self, frame: FrameRef) {
         let mut frm = frame.try_borrow_mut().unwrap();
@@ -105,7 +110,7 @@ impl StorageManager {
         let blks = self.extend_file_many(filename, count);
         for blk in &blks {
             let frame = self.pin(blk.clone());
-            HeapPage::init_heap(frame.as_ref().unwrap());
+            HeapPage::init_heap(frame.as_ref().unwrap(), 0);
             self.force_flush(frame.unwrap());
         }
         blks

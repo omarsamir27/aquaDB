@@ -8,7 +8,7 @@ pub struct NullBitMap {
 }
 
 impl NullBitMap {
-    pub fn new(layout: Rc<Layout>) -> Self {
+    pub fn new(layout: Layout) -> Self {
         let field_count = layout.fields_count();
         Self {
             bitmap: vec![0_u8; f32::ceil(field_count as f32 / 8.0) as usize],
