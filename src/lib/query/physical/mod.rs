@@ -1,4 +1,4 @@
-mod realize;
+pub mod realize;
 mod utils;
 
 use utils::*;
@@ -16,42 +16,55 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::path::Iter;
 use crate::query::tuple_table::TupleTableIter;
+use crate::table::btree_iter::BtreeIter;
 use crate::table::hash_iter::HashIter;
 use crate::table::heap_iter::TableIter;
 
-type IndexMap = HashMap<FieldId, Type>;
+type TypeMap = HashMap<FieldId, Type>;
 
-impl Debug for AccessPath{
+const MAX_WORKING_MEM : usize = 4e3 as usize;
+
+impl Debug for AccessMethod{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self{
-            AccessPath::HeapIter(_) => write!(f,"HeapIter"),
-            AccessPath::HashIter(_) => write!(f,"HashIter")
-
+            AccessMethod::HeapIter(_,_) => write!(f,"HeapIter"),
+            AccessMethod::HashIter(_,_) => write!(f,"HashIter"),
+            AccessMethod::BtreeIter(_,_) => write!(f,"BtreeIter"),
+            _ => unreachable!()
         }
     }
 }
 
-impl Iterator for AccessPath{
-    type Item = HashMap<String,Option<Vec<u8>>>;
+impl Iterator for AccessMethod{
+    type Item = HashMap<FieldId,Option<Vec<u8>>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self{
-            AccessPath::HeapIter(t) => t.next(),
-            AccessPath::HashIter(h) => h.next()
+        if let (s,Some(next)) = match self{
+            AccessMethod::HeapIter(s, t) => (s,t.next()),
+            AccessMethod::HashIter(s, h) => (s,h.next()),
+            AccessMethod::BtreeIter(s, b) => (s,b.next()),
+            _ => unreachable!()
+        }
+        {
+                Some(row_to_merged_row(s, next))
+        }
+        else {
+            None
         }
     }
 }
 
-pub enum AccessPath{
-    HeapIter(TableIter),
-    HashIter(HashIter),
-    // BTREE ITER
+pub enum AccessMethod{
+    HeapIter(String,TableIter),
+    HashIter(String,HashIter),
+    BtreeIter(String,BtreeIter)
 }
-impl AccessPath{
+impl AccessMethod{
     fn load_key(&mut self,key:&[u8]){
         match self{
-            AccessPath::HashIter(h) => h.load_key(key),
-            AccessPath::HeapIter(_) => unreachable!("Heap Does not Support Loading Keys")
+            AccessMethod::HashIter(s,h) => h.load_key(key),
+            AccessMethod::BtreeIter(s,b) => b.load_key(key),
+            AccessMethod::HeapIter(_, _) => unreachable!("Heap Does not Support Loading Keys")
         }
     }
 }
@@ -64,16 +77,44 @@ pub enum PhysicalNode {
     Select(Select),
     MergeJoin(MergeJoin),
     IndexedLoopJoin(IndexedJoin),
-    AccessPath(Box<AccessPath>),
+    AccessPath(Box<AccessMethod>),
     RemoveDuplicates(DeDup),
     Sort(Sort)
+}
+
+impl PhysicalNode{
+    fn load_key(&mut self,key:&[u8]){
+        match self{
+            PhysicalNode::AccessPath(a) => a.load_key(key),
+            _ => unreachable!()
+        }
+    }
+    pub fn get_type_map(&self) -> TypeMap{
+        match self{
+            PhysicalNode::Project(a) => a.fields_map.clone(),
+            PhysicalNode::Select(a) => a.fields_map.clone(),
+            PhysicalNode::MergeJoin(a) => a.fields_map.clone(),
+            PhysicalNode::IndexedLoopJoin(a) => a.fields_map.clone(),
+            PhysicalNode::AccessPath(_) => unreachable!(),
+            PhysicalNode::RemoveDuplicates(a) => a.fields_map.clone(),
+            PhysicalNode::Sort(a) => a.fields_map.clone(),
+        }
+    }
 }
 
 impl Iterator for PhysicalNode {
     type Item = MergedRow;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        match self{
+            PhysicalNode::Project(a) => a.next(),
+            PhysicalNode::Select(a) => a.next(),
+            PhysicalNode::MergeJoin(a) => a.next(),
+            PhysicalNode::IndexedLoopJoin(a) => a.next(),
+            PhysicalNode::AccessPath(a) => a.next(),
+            PhysicalNode::RemoveDuplicates(a) => a.next(),
+            PhysicalNode::Sort(a) => a.next(),
+        }
     }
 }
 
@@ -85,7 +126,7 @@ impl Iterator for PhysicalNode {
 
 #[derive(Debug)]
 pub struct Project {
-    fields: HashSet<FieldId>,
+    fields_map : TypeMap,
     child: Box<PhysicalNode>,
 }
 
@@ -95,7 +136,7 @@ impl Iterator for Project {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(mut next) = self.child.next() {
-            next.retain(|field, _| self.fields.contains(field));
+            next.retain(|field, _| self.fields_map.contains_key(field));
             Some(next)
         } else {
             None
@@ -105,6 +146,7 @@ impl Iterator for Project {
 
 #[derive(Debug)]
 pub struct Select {
+    fields_map : TypeMap,
     condition: evalexpr::Node,
     context: HashMapContext,
     child: Box<PhysicalNode>,
@@ -119,7 +161,7 @@ impl Iterator for Select {
 
     fn next(&mut self) -> Option<Self::Item> {
         for next in self.child.by_ref() {
-            fill_ctx_map(&mut self.context,&next);
+            fill_ctx_map(&mut self.context,&next,&self.fields_map);
             if self
                 .condition
                 .eval_boolean_with_context(&self.context)
@@ -134,6 +176,7 @@ impl Iterator for Select {
 
 #[derive(Debug)]
 pub struct MergeJoin {
+    fields_map : TypeMap,
     left : Box<PhysicalNode>,
     right : Box<PhysicalNode>,
     left_table : Option<TupleTable>,
@@ -160,6 +203,11 @@ impl MergeJoin {
         self.left_iter = Some(self.left_table.take().unwrap().into_iter());
         self.right_iter = Some(self.right_table.take().unwrap().into_iter());
         self.loaded = true;
+    }
+    pub fn new(fields_map:TypeMap,left: Box<PhysicalNode>, right: Box<PhysicalNode>, eq_fields: (FieldId, FieldId),left_headers:TypeMap,right_headers:TypeMap) -> Self {
+        let left_table = Some(TupleTable::new(&eq_fields.0.table, left_headers, MAX_WORKING_MEM));
+        let right_table = Some(TupleTable::new(&eq_fields.1.table, right_headers, MAX_WORKING_MEM));
+        Self { fields_map ,left, right, left_table, right_table, left_iter: None, right_iter: None, eq_fields, loaded: false, current_left_row: None }
     }
 }
 impl Iterator for MergeJoin{
@@ -214,11 +262,19 @@ impl Iterator for MergeJoin{
 
 #[derive(Debug)]
 pub struct IndexedJoin{
+    fields_map : TypeMap,
     eq_fields: (FieldId,FieldId),
     current_left_row : Option<MergedRow>,
     left : Box<PhysicalNode>,
-    right : AccessPath
+    right : Box<PhysicalNode>
 }
+
+impl IndexedJoin {
+    pub fn new(fields_map:TypeMap,eq_fields: (FieldId, FieldId), left: Box<PhysicalNode>, right: Box<PhysicalNode>) -> Self {
+        Self { fields_map,eq_fields, current_left_row: None, left, right }
+    }
+}
+
 impl Iterator for IndexedJoin{
     type Item = MergedRow;
 
@@ -226,7 +282,6 @@ impl Iterator for IndexedJoin{
         let right_table_name = &self.eq_fields.1.table;
         if let Some(left) = &self.current_left_row{
             if let Some(right) = self.right.next(){
-                let right = row_to_merged_row(right_table_name,right);
                 return Some(merge(left, right))
             }
             else if let Some(left) = &self.left.next(){
@@ -234,7 +289,6 @@ impl Iterator for IndexedJoin{
                 let key = left.get(&self.eq_fields.0).unwrap().as_ref().unwrap();
                 self.right.load_key(key);
                 if let Some(right) = self.right.next(){
-                    let right = row_to_merged_row(right_table_name,right);
                     return Some(merge(left, right))
                 }
             }
@@ -253,6 +307,7 @@ impl Iterator for IndexedJoin{
 
 #[derive(Debug)]
 pub struct DeDup{
+    fields_map : TypeMap,
     child : Box<PhysicalNode>,
     current_row : Option<MergedRow>,
 }
@@ -281,6 +336,7 @@ impl Iterator for DeDup{
 
 #[derive(Debug)]
 pub struct Sort{
+    fields_map : TypeMap,
     child : Box<PhysicalNode>,
     table : Option<TupleTable>,
     table_iter : Option<TupleTableIter>,

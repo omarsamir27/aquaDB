@@ -9,8 +9,9 @@ use std::collections::HashMap;
 use std::fmt::{write, Display, Formatter};
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use crate::FieldId;
 
-pub type RowMap = HashMap<String, Option<Vec<u8>>>;
+pub type RowMap = HashMap<FieldId, Option<Vec<u8>>>;
 const CONFIG: Configuration = bincode::config::standard();
 
 #[derive(Decode, Encode, Clone)]
@@ -18,7 +19,7 @@ pub enum Message {
     Query(String),
     Status(Status),
     Results(Vec<RowMap>),
-    FieldTypes(HashMap<String, Type>),
+    FieldTypes(HashMap<FieldId, Type>),
 }
 impl Message {
     pub fn receive_msg(conn: &mut TcpStream) -> Result<Self, ()> {
@@ -71,6 +72,7 @@ pub enum Status {
     RecordNotInserted(String),
     BadCommand,
     Generic(String),
+    ResultsFinished
 }
 
 impl Display for Status {
@@ -88,6 +90,7 @@ impl Display for Status {
             Status::RecordNotInserted(s) => write!(f, "Record Insertion Failed: {}", s),
             Status::BadCommand => write!(f, "Command not found"),
             Status::Generic(s) => write!(f, "{}", s),
+            Status::ResultsFinished => write!(f, "")
         }
     }
 }

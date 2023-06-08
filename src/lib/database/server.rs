@@ -55,7 +55,10 @@ impl DatabaseServer {
             Err(_) => return,
         };
         let cmd = command.split_ascii_whitespace().collect::<Vec<_>>();
-        if cmd.len() != 3 {
+        if cmd[0].eq_ignore_ascii_case("sync"){
+            self.sync();
+        }
+        else if cmd.len() != 3 {
             // send_string(&mut conn, "What do you want??").unwrap();
             Message::Status(Status::BadCommand).send_msg_to(&mut conn);
         }
@@ -103,6 +106,10 @@ impl DatabaseServer {
             Message::Status(Status::BadCommand).send_msg_to(&mut conn);
         }
     }
+    fn sync(&self){
+        self.storage.borrow_mut().flush_all();
+    }
+
     pub fn new(home_dir: &str, addr: Vec<String>) -> Self {
         let sockets = Self::create_server_sockets(&addr);
         let storage = RcRefCell!(StorageManager::new(&AQUADIR(), BLK_SIZE, BUFFER_COUNT));

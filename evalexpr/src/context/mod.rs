@@ -30,6 +30,8 @@ pub trait ContextWithMutableVariables: Context {
     fn set_value(&mut self, _identifier: String, _value: Value) -> EvalexprResult<()> {
         Err(EvalexprError::ContextNotMutable)
     }
+    /// Updates or sets a value regardless of type
+    fn update_or_set_value(&mut self, identifier: String, value: Value) -> EvalexprResult<()>;
 }
 
 /// A context that allows to assign to function identifiers.
@@ -141,6 +143,16 @@ impl ContextWithMutableVariables for HashMapContext {
             }
         }
 
+        // Implicit else, because `self.variables` and `identifier` are not unborrowed in else
+        self.variables.insert(identifier, value);
+        Ok(())
+    }
+
+    fn update_or_set_value(&mut self, identifier: String, value: Value) -> EvalexprResult<()> {
+        if let Some(existing_value) = self.variables.get_mut(&identifier) {
+                *existing_value = value;
+                return Ok(());
+        }
         // Implicit else, because `self.variables` and `identifier` are not unborrowed in else
         self.variables.insert(identifier, value);
         Ok(())

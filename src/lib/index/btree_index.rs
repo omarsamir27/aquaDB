@@ -18,46 +18,47 @@ use std::env::consts::OS;
 use std::fmt::Display;
 use std::io::Read;
 use std::rc::Rc;
-use pest::pratt_parser::Op;
+
+use super::Rid;
 
 const BLOCK_NUM_SIZE: usize = 8;
 const SLOT_NUM_SIZE: usize = 2;
 const ORDER: usize = 4; // B+Tree order
 const INDEX_RECORD_SIZE: usize = 14;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Rid {
-    block_num: u64,
-    slot_num: u16,
-}
-
-impl Rid {
-    pub fn new(block_num: u64, slot_num: u16) -> Self {
-        Self {
-            block_num,
-            slot_num,
-        }
-    }
-
-    // Convert Rid to bytes
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(BLOCK_NUM_SIZE + SLOT_NUM_SIZE);
-        bytes.extend_from_slice(&self.block_num.to_ne_bytes());
-        bytes.extend_from_slice(&self.slot_num.to_ne_bytes());
-        bytes
-    }
-
-    // Convert bytes to Rid
-    fn from_bytes(bytes: &[u8]) -> Rid {
-        let block_num = bytes.extract_u64(0);
-        let slot_num = bytes.extract_u16(8);
-
-        Rid {
-            block_num,
-            slot_num,
-        }
-    }
-}
+// #[derive(Debug, Clone, Eq, PartialEq)]
+// pub struct Rid {
+//     block_num: u64,
+//     slot_num: u16,
+// }
+//
+// impl Rid {
+//     pub fn new(block_num: u64, slot_num: u16) -> Self {
+//         Self {
+//             block_num,
+//             slot_num,
+//         }
+//     }
+//
+//     // Convert Rid to bytes
+//     fn to_bytes(&self) -> Vec<u8> {
+//         let mut bytes = Vec::with_capacity(BLOCK_NUM_SIZE + SLOT_NUM_SIZE);
+//         bytes.extend_from_slice(&self.block_num.to_ne_bytes());
+//         bytes.extend_from_slice(&self.slot_num.to_ne_bytes());
+//         bytes
+//     }
+//
+//     // Convert bytes to Rid
+//     fn from_bytes(bytes: &[u8]) -> Rid {
+//         let block_num = bytes.extract_u64(0);
+//         let slot_num = bytes.extract_u16(8);
+//
+//         Rid {
+//             block_num,
+//             slot_num,
+//         }
+//     }
+// }
 
 // Index record in the leaf node
 #[derive(Debug, Clone)]
@@ -99,6 +100,7 @@ impl IndexRecord {
 }
 
 // B+Tree structure
+#[derive(Clone)]
 pub struct BPTree {
     root: NodePage,
     root_frame: FrameRef,
@@ -106,6 +108,7 @@ pub struct BPTree {
     storage_manager: Rc<RefCell<StorageManager>>,
     internal_layout: Rc<Layout>,
     leaf_layout: Rc<Layout>,
+    index_file : String
 }
 
 // B+Tree implementation
@@ -114,6 +117,7 @@ impl BPTree {
         root_block: BlockId,
         key_type: Type,
         storage_manager: Rc<RefCell<StorageManager>>,
+        index_file : String
     ) -> Self {
         let root_frame = storage_manager
             .borrow_mut()
@@ -138,12 +142,14 @@ impl BPTree {
                 storage_manager.clone(),
                 internal_layout.clone(),
                 leaf_layout.clone(),
+                index_file.clone()
             ),
             root_frame,
             key_type,
             storage_manager,
             internal_layout,
             leaf_layout,
+            index_file
         }
     }
 
@@ -152,6 +158,7 @@ impl BPTree {
         root_block: BlockId,
         key_type: Type,
         storage_manager: Rc<RefCell<StorageManager>>,
+        index_file: String
     ) -> Self {
         let root_frame = storage_manager
             .borrow_mut()
@@ -176,12 +183,14 @@ impl BPTree {
                 storage_manager.clone(),
                 internal_layout.clone(),
                 leaf_layout.clone(),
+                index_file.clone()
             ),
             root_frame,
             key_type,
             storage_manager,
             internal_layout,
             leaf_layout,
+            index_file
         }
     }
 
@@ -266,10 +275,11 @@ impl BPTree {
                             self.storage_manager.clone(),
                             self.internal_layout.clone(),
                             self.leaf_layout.clone(),
+                            self.index_file.clone()
                         );
 
                         let left_blockid =
-                            self.storage_manager.borrow_mut().extend_file("test_btree");
+                            self.storage_manager.borrow_mut().extend_file(&self.index_file);
                         let mut left_frame = self
                             .storage_manager
                             .borrow_mut()
@@ -283,7 +293,7 @@ impl BPTree {
                         );
                         let split_blockid = BlockId {
                             block_num: split_block_num.unwrap(),
-                            filename: "test_btree".to_string(),
+                            filename: self.index_file.to_string(),
                         };
                         let split_frame = self
                             .storage_manager
@@ -319,15 +329,16 @@ impl BPTree {
                         self.storage_manager.clone(),
                         self.internal_layout.clone(),
                         self.leaf_layout.clone(),
+                        self.index_file.clone()
                     );
 
                     let right_blockid = BlockId {
                         block_num: split_block_num.unwrap(),
-                        filename: "test_btree".to_string(),
+                        filename: self.index_file.clone(),
                     };
                     let right_frame = self.storage_manager.borrow_mut().pin(right_blockid.clone());
 
-                    let left_blockid = self.storage_manager.borrow_mut().extend_file("test_btree");
+                    let left_blockid = self.storage_manager.borrow_mut().extend_file(&self.index_file);
                     let mut left_frame = self
                         .storage_manager
                         .borrow_mut()
@@ -336,7 +347,7 @@ impl BPTree {
                     left_frame.borrow_mut().page.payload = root_payload;
 
                     let mut right_heap = HeapPage::new(right_frame.unwrap(), &right_blockid, self.leaf_layout.clone());
-                    let mut right_leaf = LeafNodePage::new(right_heap.clone(), self.key_type, self.storage_manager.clone(), self.leaf_layout.clone());
+                    let mut right_leaf = LeafNodePage::new(right_heap.clone(), self.key_type, self.storage_manager.clone(), self.leaf_layout.clone(),self.index_file.clone());
                     right_leaf.meta_data.prev_node_blockid = left_blockid.block_num;
                     right_heap.write_special_area(right_leaf.meta_data.to_bytes());
 
@@ -381,6 +392,7 @@ impl NodePage {
         storage_manager: Rc<RefCell<StorageManager>>,
         internal_layout: Rc<Layout>,
         leaf_layout: Rc<Layout>,
+        index_file : String
     ) -> Self {
         let block_id = frame.borrow().blockid.as_ref().unwrap().clone();
         let mut heap_page = HeapPage::new(frame.clone(), &block_id, Rc::new(Layout::default()));
@@ -392,6 +404,7 @@ impl NodePage {
                 storage_manager.clone(),
                 internal_layout,
                 leaf_layout,
+                index_file
             ))
         } else {
             heap_page.layout = leaf_layout.clone();
@@ -400,6 +413,7 @@ impl NodePage {
                 key_type,
                 storage_manager.clone(),
                 leaf_layout,
+                index_file
             ))
         }
     }
@@ -410,6 +424,7 @@ impl NodePage {
         storage_manager: Rc<RefCell<StorageManager>>,
         internal_layout: Rc<Layout>,
         leaf_layout: Rc<Layout>,
+        index_file : String
     ) -> Self {
         let block_id = frame.borrow().blockid.as_ref().unwrap().clone();
         let mut heap_page =
@@ -419,6 +434,7 @@ impl NodePage {
             key_type,
             storage_manager.clone(),
             leaf_layout,
+            index_file
         ))
     }
 
@@ -524,6 +540,7 @@ pub struct InternalNodePage {
     storage_manager: Rc<RefCell<StorageManager>>,
     internal_layout: Rc<Layout>,
     leaf_layout: Rc<Layout>,
+    index_file : String
 }
 
 /*impl Drop for InternalNodePage {
@@ -540,6 +557,7 @@ impl InternalNodePage {
         storage_manager: Rc<RefCell<StorageManager>>,
         internal_layout: Rc<Layout>,
         leaf_layout: Rc<Layout>,
+        index_file : String
     ) -> InternalNodePage {
         Self {
             heap_page,
@@ -547,6 +565,7 @@ impl InternalNodePage {
             storage_manager,
             internal_layout,
             leaf_layout,
+            index_file
         }
     }
 
@@ -561,7 +580,7 @@ impl InternalNodePage {
             .unwrap()
             .as_slice()
             .extract_u64(0);
-        let target_blockid = BlockId::new("test_btree", target_block_num);
+        let target_blockid = BlockId::new(&self.index_file, target_block_num);
 
         let frame = self
             .storage_manager
@@ -580,6 +599,7 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
+            self.index_file.clone()
         );
 
         match node_page {
@@ -652,7 +672,7 @@ impl InternalNodePage {
                             self.heap_page.tuple_pointers.split_off(mid as usize);
                         self.heap_page.vacuum();
 
-                        let new_block = self.storage_manager.borrow_mut().extend_file("test_btree");
+                        let new_block = self.storage_manager.borrow_mut().extend_file(&self.index_file);
                         let right_frame = self
                             .storage_manager
                             .borrow_mut()
@@ -709,7 +729,7 @@ impl InternalNodePage {
                             self.heap_page.tuple_pointers.split_off(mid as usize);
                         self.heap_page.vacuum();
 
-                        let new_block = self.storage_manager.borrow_mut().extend_file("test_btree");
+                        let new_block = self.storage_manager.borrow_mut().extend_file(&self.index_file);
                         let right_frame = self
                             .storage_manager
                             .borrow_mut()
@@ -759,7 +779,7 @@ impl InternalNodePage {
             .unwrap()
             .as_slice()
             .extract_u64(0);
-        let target_blockid = BlockId::new("test_btree", target_block_num);
+        let target_blockid = BlockId::new(&self.index_file, target_block_num);
 
         let target_frame = self
             .storage_manager
@@ -779,6 +799,7 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
+            self.index_file.clone()
         );
 
         match &node_page {
@@ -805,7 +826,7 @@ impl InternalNodePage {
             .unwrap()
             .as_slice()
             .extract_u64(0);
-        let target_blockid = BlockId::new("test_btree", target_block_num);
+        let target_blockid = BlockId::new(&self.index_file, target_block_num);
 
         let target_frame = self
             .storage_manager
@@ -825,6 +846,7 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
+            self.index_file.clone()
         );
 
         match &node_page {
@@ -851,7 +873,7 @@ impl InternalNodePage {
             .unwrap()
             .as_slice()
             .extract_u64(0);
-        let target_blockid = BlockId::new("test_btree", target_block_num);
+        let target_blockid = BlockId::new(&self.index_file, target_block_num);
 
         let target_frame = self
             .storage_manager
@@ -871,6 +893,7 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
+            self.index_file.clone()
         );
 
         match &node_page {
@@ -974,6 +997,7 @@ pub struct LeafNodePage {
     key_type: Type,
     storage_manager: Rc<RefCell<StorageManager>>,
     leaf_layout: Rc<Layout>,
+    index_file : String
 }
 
 /*impl Drop for LeafNodePage {
@@ -988,6 +1012,7 @@ impl LeafNodePage {
         key_type: Type,
         storage_manager: Rc<RefCell<StorageManager>>,
         leaf_layout: Rc<Layout>,
+        index_file : String
     ) -> LeafNodePage {
         let meta_data = LeafMetaData::from(heap_page.get_special_area());
         Self {
@@ -996,6 +1021,7 @@ impl LeafNodePage {
             key_type,
             storage_manager,
             leaf_layout,
+            index_file
         }
     }
 
@@ -1069,7 +1095,7 @@ impl LeafNodePage {
             }
             let right_tuple_pointers = self.heap_page.tuple_pointers.split_off(mid as usize);
             self.heap_page.vacuum();
-            let new_block = self.storage_manager.borrow_mut().extend_file("test_btree");
+            let new_block = self.storage_manager.borrow_mut().extend_file(&self.index_file);
             let right_frame = self
                 .storage_manager
                 .borrow_mut()
@@ -1174,7 +1200,7 @@ impl LeafNodePage {
         } else {
             Some(BlockId{
                 block_num: self.meta_data.next_node_blockid,
-                filename: "test_btree".to_string(),
+                filename: self.index_file.clone(),
             })
         };
 
@@ -1186,7 +1212,7 @@ impl LeafNodePage {
                 (next_heap,
                  self.key_type,
                  self.storage_manager.clone(),
-                 self.leaf_layout.clone());
+                 self.leaf_layout.clone(),self.index_file.clone());
             let new_results = next_leaf.get_index_records_from_position(0);
 
             if next_leaf.meta_data.next_node_blockid == 0 {
@@ -1195,7 +1221,7 @@ impl LeafNodePage {
             else {
                 next_block = Some(BlockId {
                     block_num: next_leaf.meta_data.next_node_blockid,
-                    filename: "test_btree".to_string(),
+                    filename: self.index_file.clone(),
                 })
             }
             self.storage_manager.borrow_mut().unpin(next_frame);
@@ -1235,7 +1261,7 @@ impl LeafNodePage {
         } else {
             Some(BlockId{
                 block_num: self.meta_data.prev_node_blockid,
-                filename: "test_btree".to_string(),
+                filename: self.index_file.clone(),
             })
         };
 
@@ -1247,7 +1273,7 @@ impl LeafNodePage {
                 (prev_heap,
                  self.key_type,
                  self.storage_manager.clone(),
-                 self.leaf_layout.clone());
+                 self.leaf_layout.clone(),self.index_file.clone());
             let new_results = prev_leaf.get_index_records_from_position_backwards(prev_leaf.heap_page.tuple_pointers.len() as u16 - 1);
 
             if prev_leaf.meta_data.prev_node_blockid == 0 {
@@ -1256,7 +1282,7 @@ impl LeafNodePage {
             else {
                 prev_block = Some(BlockId {
                     block_num: prev_leaf.meta_data.prev_node_blockid,
-                    filename: "test_btree".to_string(),
+                    filename: self.index_file.clone(),
                 })
             }
             self.storage_manager.borrow_mut().unpin(prev_frame);

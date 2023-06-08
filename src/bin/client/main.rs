@@ -7,6 +7,7 @@ use std::mem;
 use std::net::TcpStream;
 use tabled::settings::Style;
 use tabled::Table;
+use aqua::FieldId;
 
 fn main() {
     let mut socket = TcpStream::connect("127.0.0.1:2710").unwrap();
@@ -54,46 +55,48 @@ fn handle_status(status: Status, socket: &mut TcpStream) {
     }
 }
 
-fn handle_results(types: HashMap<String, Type>, socket: &mut TcpStream) {
+fn handle_results(types: HashMap<FieldId, Type>, socket: &mut TcpStream) {
     let keys_order = types.keys().collect::<Vec<_>>();
     let mut builder = tabled::builder::Builder::default();
-    builder.set_header(types.keys());
+    builder.set_header(types.keys().map(|k|k.to_string()));
     let mut table = builder.build();
     table.with(Style::modern().remove_bottom());
     println!("{table}");
-    while let Ok(tuples) = Message::receive_msg(socket) {
-        let tuples = tuples.get_results().expect("Bad Message");
-        if tuples.is_empty() {
-            break;
+    while let Ok(msg) = Message::receive_msg(socket) {
+        if let Message::Results(tuples) = msg{
+            let tuples = tuples.into_iter().map(|r| decode_tuple(&types, r));
+            let mut builder = tabled::builder::Builder::default();
+            for row in tuples {
+                builder.push_record(tuple_print_format(&keys_order, row));
+            }
+            let mut table = builder.build();
+            table.with(Style::modern().remove_bottom().remove_top());
+            println!("{table}");
         }
-        let tuples = tuples.into_iter().map(|r| decode_tuple(&types, r));
-        let mut builder = tabled::builder::Builder::default();
-        for row in tuples {
-            builder.push_record(tuple_print_format(&keys_order, row));
+        else if matches!(msg,Message::Status(Status::ResultsFinished)){
+            let mut builder = tabled::builder::Builder::default();
+            builder.set_header(types.keys().map(|f| f.to_string()));
+            builder.remove_header();
+            println!("{}", builder.build().with(Style::modern().remove_top()));
+            break
         }
-        let mut table = builder.build();
-        table.with(Style::modern().remove_bottom().remove_top());
-        println!("{table}");
     }
-    let mut builder = tabled::builder::Builder::default();
-    builder.set_header(types.keys());
-    builder.remove_header();
-    println!("{}", builder.build().with(Style::modern().remove_top()))
+
 }
 
-fn decode_tuple(types: &HashMap<String, Type>, tuple: RowMap) -> HashMap<String, ConcreteType> {
+fn decode_tuple(types: &HashMap<FieldId, Type>, tuple: RowMap) -> HashMap<FieldId, ConcreteType> {
     tuple
         .into_iter()
         .map(|(k, v)| {
             let col = ConcreteType::from_bytes(*types.get(&k).unwrap(), &v.unwrap_or_default());
             (k, col)
         })
-        .collect::<HashMap<String, ConcreteType>>()
+        .collect::<HashMap<FieldId, ConcreteType>>()
 }
 
 fn tuple_print_format(
-    keys: &Vec<&String>,
-    mut tuple: HashMap<String, ConcreteType>,
+    keys: &Vec<&FieldId>,
+    mut tuple: HashMap<FieldId, ConcreteType>,
 ) -> Vec<ConcreteType> {
     let mut row = vec![];
     for k in keys {

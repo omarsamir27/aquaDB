@@ -62,8 +62,9 @@ impl Schema {
         self.add_field(name, field_type, true, false, None, char_limit);
     }
     pub fn add_index(&mut self, index_name: &str, fieldname: &str, index_type: IndexType) {
+        let key_type = self.fields.iter().find(|f|f.name == fieldname).unwrap().field_type;
         self.indexes
-            .push(FieldIndex::new(index_name, fieldname, index_type))
+            .push(FieldIndex::new(index_name, fieldname, index_type,key_type))
     }
 
     pub fn serialize(
@@ -165,9 +166,12 @@ impl Schema {
                 schema.primary_key.push(name);
             }
         }
+        let type_map = schema.field_types().into_iter().map(|(k,v)| (k.to_owned(),v)).collect::<HashMap<_, _>>();
         schema
             .indexes
-            .extend(indexes.into_iter().map(|idx| FieldIndex::deserialize(idx)));
+            .extend(indexes.into_iter().map(|idx| {
+                let key_type = *type_map.get(&*String::from_utf8_lossy(idx.get("fieldname").unwrap().as_ref().unwrap())).unwrap();
+                FieldIndex::deserialize(idx,key_type) }));
         schema
     }
     fn serialize_indexes(&self) -> Vec<Vec<(String, Option<Vec<u8>>)>> {
@@ -331,14 +335,16 @@ pub struct FieldIndex {
     name: String,
     fieldname: String,
     index_type: IndexType,
+    key_type : Type
 }
 
 impl FieldIndex {
-    pub fn new(name: &str, fieldname: &str, index_type: IndexType) -> Self {
+    pub fn new(name: &str, fieldname: &str, index_type: IndexType,key_type:Type) -> Self {
         Self {
             name: name.to_string(),
             fieldname: fieldname.to_string(),
             index_type,
+            key_type
         }
     }
 
@@ -367,7 +373,7 @@ impl FieldIndex {
             ),
         ]
     }
-    pub fn deserialize(mut row: HashMap<String, Option<Vec<u8>>>) -> Self {
+    pub fn deserialize(mut row: HashMap<String, Option<Vec<u8>>>,key_type:Type) -> Self {
         let name = String::from_utf8(row.remove("index_name").unwrap().unwrap()).unwrap();
         let fieldname = String::from_utf8(row.remove("fieldname").unwrap().unwrap()).unwrap();
         let index_type = IndexType::from_str(
@@ -378,6 +384,7 @@ impl FieldIndex {
             name,
             fieldname,
             index_type,
+            key_type
         }
     }
     pub fn to_index_info(&self, db_name: &str) -> IndexInfo {
@@ -388,6 +395,7 @@ impl FieldIndex {
             self.fieldname.clone(),
             PathBuf::from(format!("{}_idx_file", &self.name)),
             PathBuf::from(format!("{}_idx_directory", &self.name)),
+            self.key_type
         )
     }
 }

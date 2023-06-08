@@ -33,6 +33,13 @@ use aqua::storage::storagemgr::StorageManager;
 // }
 
 fn main() {
+    // let query = "select * from uni where id>2";
+    // let select = <SqlParser as pest_consume::Parser>::parse(Rule::Sql, query).unwrap();
+    // // dbg!(&select);
+    // let x = select.single().unwrap();
+    // dbg!(SqlParser::Sql(x));
+    // return;
+
     // let query = "create table omar( samir int primary key,koko smallint references oo(bad) , create index hash mazen on (id))";
     // let query = parse_query(query);
     // dbg!(query);
@@ -44,15 +51,15 @@ fn main() {
     // let var2 = ConcreteType::Integer(404);
     // dbg!(var.cmp(&var2));
 
-    let x = " x>3 && true || true && y>2";
-    let mut tree = build_operator_tree(x).unwrap();
-    dbg!(&tree);
-    let mut v = aqua::common::boolean::get_all_binary_clauses(&tree);
+    // let x = " x>3 ";
+    // let mut tree = build_operator_tree(x).unwrap();
+    // dbg!(&tree.to_string());
+    // let mut v = aqua::common::boolean::get_all_binary_clauses(&tree);
     //
-    let z = v.pop().unwrap();
-    set_node_true(&mut tree,&z);
-    simplify(&mut tree);
-    dbg!(&tree);
+    // let z = v.pop().unwrap();
+    // set_node_true(&mut tree,&z);
+    // simplify(&mut tree);
+    // dbg!(&tree);
     // let query = parse_query(query).unwrap();
     // // dbg!(query);
     // let res = match query {
@@ -63,14 +70,14 @@ fn main() {
     //     _ => unreachable!()
     // };
     // print_tree(&res.unwrap());
-    // let opts = env::args().collect::<Vec<_>>();
-    // if let Some(init) = opts.get(1) {
-    //     if init == "init" {
-    //         init::init_aqua();
-    //     }
-    // } else {
-    //     init::init_homedir();
-    // }
-    // let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
-    // server.run()
+    let opts = env::args().collect::<Vec<_>>();
+    if let Some(init) = opts.get(1) {
+        if init == "init" {
+            init::init_aqua();
+        }
+    } else {
+        init::init_homedir();
+    }
+    let server = DatabaseServer::new("hi", vec!["127.0.0.1:2710".to_string()]);
+    server.run()
 }

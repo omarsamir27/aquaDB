@@ -317,7 +317,7 @@ impl SqlParser {
             [SqlInsert(i)] => QUERY::INSERT(i),
         ))
     }
-    fn Sql(input: Node) -> Result<Sql> {
+    pub fn Sql(input: Node) -> Result<Sql> {
         Ok(match_nodes!(
             input.into_children();
             [SqlQuery(q),EOI(_)] => Sql::new_query(q),

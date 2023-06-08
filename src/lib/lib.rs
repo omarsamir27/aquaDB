@@ -6,7 +6,9 @@
 // extern crate core;
 
 use std::fmt::{Display, Formatter};
+use std::path::PathBuf;
 use std::str::FromStr;
+use bincode::{Decode, Encode};
 
 pub mod common;
 pub mod database;
@@ -24,7 +26,12 @@ pub fn AQUADIR() -> String {
     std::env::var(AQUA_HOME_VAR).unwrap()
 }
 
-#[derive(Debug, Clone,Hash,Eq,PartialEq)]
+pub fn AQUA_TMP_DIR() -> PathBuf{
+    let home = PathBuf::from(AQUADIR());
+    home.join("base").join("tmp")
+}
+
+#[derive(Encode,Decode,Debug, Clone,Hash,Eq,PartialEq)]
 pub struct FieldId {
     pub table: String,
     pub field: String,
@@ -38,7 +45,7 @@ impl FieldId{
 
 impl Display for FieldId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}.{})", self.table, self.field)
+        write!(f, "{}.{}", self.table, self.field)
     }
 }
 
@@ -46,8 +53,8 @@ impl FromStr for FieldId{
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let point = s.find('.').ok_or(())?;
-        let (table,var) = s.split_at(point);
+        // let point = s.find('.').ok_or(())?;
+        let (table,var) = s.split_once('.').ok_or(())?;
         Ok(Self { table: table.to_string(), field: var.to_string() })
     }
 }

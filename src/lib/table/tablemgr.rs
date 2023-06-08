@@ -15,8 +15,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 use crate::database::plan_query::TableInfo;
-use crate::index::btree_index::{BPTree, Rid};
+use crate::index::btree_index::{BPTree};
 use crate::sql::create_table::IndexType;
+use crate::table::btree_iter::BtreeIter;
+use crate::index::Rid;
 
 /// TableManager is an entity owned by a database that is responsible for executing operations
 /// against the heap pages that represents a database table on disk
@@ -74,7 +76,7 @@ impl TableManager {
                     let key_type = layout.get_type(&idx.column);
                     btree_idx.insert(
                         idx.column,
-                        BPTree::new(root, key_type , storage_mgr.clone())
+                        BPTree::new(root, key_type , storage_mgr.clone(),idx.index_file_path.to_str().unwrap().to_string())
                     );
                 }
             }
@@ -192,13 +194,13 @@ impl TableManager {
             (blkid, idx)
         };
         drop(storage_mgr);
-        for (k, data) in tuple_bytes {
+        for (k, data) in &tuple_bytes {
             if let Some(data) = data {
                 self.hash_indexes
                     .iter_mut()
-                    .filter(|(field, _)| **field == k)
+                    .filter(|(field, _)| *field == k)
                     .for_each(|(_, v)| {
-                        v.insert_record(&data, blk.block_num, slot as u16, self.storage_mgr.borrow_mut());
+                        v.insert_record(data, blk.block_num, slot as u16, self.storage_mgr.borrow_mut());
                         // v.flush_all(&mut self.storage_mgr.borrow_mut());
                     })
             }
@@ -210,7 +212,7 @@ impl TableManager {
                     .iter_mut()
                     .filter(|(field, _)| **field == k)
                     .for_each(|(_, v)| {
-                        v.insert(data, Rid::new(blk.block_num, slot as u16));
+                        v.insert(data.clone(), Rid::new(blk.block_num, slot as u16));
                         // v.flush_all(&mut self.storage_mgr.borrow_mut());
                     })
             }
@@ -276,11 +278,21 @@ impl TableManager {
         )
     }
 
-    pub fn hashscan_iter(&self, index_field: &str, key: &[u8]) -> Option<HashIter> {
+    pub fn hashscan_iter(&self, index_field: &str) -> Option<HashIter> {
         if let Some(idx) = self.hash_indexes.get(index_field) {
             return Some(HashIter::new(
                 self.direct_accessor(),
                 idx.clone(),
+            ));
+        }
+        None
+    }
+
+    pub fn btree_iter(&self,index_field:&str) -> Option<BtreeIter>{
+        if let Some(idx) = self.btree_indexes.get(index_field) {
+            return Some(BtreeIter::new(
+                self.direct_accessor(),
+                idx.clone()
             ));
         }
         None

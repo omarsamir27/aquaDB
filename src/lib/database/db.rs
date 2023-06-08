@@ -16,6 +16,7 @@ use std::io::Read;
 use std::net::TcpStream;
 use std::rc::Rc;
 use std::time::Duration;
+use crate::query::physical::PhysicalNode;
 
 type Storage = Rc<RefCell<StorageManager>>;
 type Catalog = Rc<RefCell<CatalogManager>>;
@@ -24,12 +25,12 @@ type DbTables = HashMap<String, TableManager>;
 
 const MAX_WORKING_MEMORY: usize = 16000;
 type Row = HashMap<String, Option<Vec<u8>>>;
-type TreeNode = Box<dyn Iterator<Item = Row>>;
+// type TreeNode = Box<dyn Iterator<Item = Row>>;
 
 pub enum QueryPlan {
     CreateTable(Schema),
     Insert(Record, Schema),
-    Select(TreeNode),
+    Select(PhysicalNode),
 }
 
 pub struct DatabaseInstance {
@@ -75,6 +76,9 @@ impl DatabaseInstance {
                 },
                 Err(_) => return,
             };
+            if query.eq_ignore_ascii_case("exit"){
+                return;
+            }
             match parse_query(&query) {
                 Ok(parsed) => self.execute_cmd(parsed),
                 // Err(e) => send_string(&mut self.conn, &format!("{:?}", e)).unwrap(),
@@ -89,7 +93,7 @@ impl DatabaseInstance {
             if let QueryPlan::CreateTable(schema) = plan {
                 self.add_schema(schema);
             } else {
-                let mut executor = Executor::new(MAX_WORKING_MEMORY, &mut self.tables);
+                let mut executor = Executor::new(&mut self.tables);
                 if let QueryPlan::Insert(record, schema) = plan {
                     match record {
                         Ok(r) => match executor.insert_record(r, schema) {
@@ -106,21 +110,18 @@ impl DatabaseInstance {
                                 .unwrap_or_default()
                         }
                     }
-                    // match executor.insert_record(record, schema) {
-                    //     // Ok(_) => send_string(&mut self.conn, "Good"),
-                    //     // Err(s) => send_string(&mut self.conn, &s),
-                    //
-                    // };
+
                 } else if let QueryPlan::Select(s) = plan {
-                    let v = s.collect::<Vec<_>>();
-                    dbg!(v);
+                    let types = s.get_type_map();
+                    Message::FieldTypes(types).send_msg_to(&mut self.conn).unwrap_or_default();
+                    let results = s.collect::<Vec<_>>();
+                    let msg = Message::Results(results);
+                    msg.send_msg_to(&mut self.conn);
+                    Message::Status(Status::ResultsFinished).send_msg_to(&mut self.conn).unwrap_or_default()
+                    // dbg!(v);
                 }
             }
-            // match plan {
-            //     QueryPlan::CreateTable(schema) => self.add_schema(schema),
-            //     QueryPlan::Insert(record) => todo!(),
-            //     _ => todo!(),
-            // }
+
         } else {
             // send_string(&mut self.conn, "DAMNN").unwrap()
             Message::Status(Status::BadCommand)

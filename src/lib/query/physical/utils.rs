@@ -1,17 +1,16 @@
 use evalexpr::{ContextWithMutableVariables, FloatType, HashMapContext, IntType, IterateVariablesContext, Value};
 use crate::FieldId;
-use super::{IndexMap,MergedRow};
+use super::{TypeMap, MergedRow};
 use std::collections::HashMap;
 use crate::common::numerical::ByteMagic;
 use crate::schema::types::{NumericType, Type};
 
-pub fn fill_ctx_map(ctx:&mut HashMapContext, row: &MergedRow) {
-    let idx: IndexMap = HashMap::new();
+pub fn fill_ctx_map(ctx:&mut HashMapContext, row: &MergedRow,type_map:&TypeMap) {
     for table_var in ctx.iter_variable_names().collect::<Vec<_>>() {
         let field_id = table_var.parse::<FieldId>().unwrap();
         let val = row.get(&field_id).unwrap();
-        let val = data_to_value(val.as_ref(), *idx.get(&field_id).unwrap());
-        ctx.set_value(table_var, val);
+        let val = data_to_value(val.as_ref(), *type_map.get(&field_id).unwrap());
+        ctx.update_or_set_value(table_var, val);
     }
 }
 pub fn data_to_value(data: Option<&Vec<u8>>, schema_type: Type) -> Value {

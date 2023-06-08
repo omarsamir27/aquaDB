@@ -4,9 +4,13 @@ use crate::sql::create_table::IndexType;
 use crate::storage::blockid::BlockId;
 use crate::storage::storagemgr::StorageManager;
 use crate::AQUADIR;
-use std::cell::RefMut;
+use std::cell::{RefCell, RefMut};
 use std::path::{Path, PathBuf};
 use std::process::id;
+use std::rc::Rc;
+use crate::common::numerical::ByteMagic;
+use crate::index::btree_index::BPTree;
+use crate::schema::types::Type;
 
 pub mod hash_index;
 pub mod btree_index;
@@ -51,7 +55,7 @@ pub enum Index {
 }
 
 impl Index {
-    pub fn init_index(index_info: IndexInfo) {
+    pub fn init_index(index_info: IndexInfo,storage:Rc<RefCell<StorageManager>>) {
         match index_info.index_type {
             IndexType::Hash => HashIndex::init(
                 index_info.index_file_path.as_path(),
@@ -59,7 +63,9 @@ impl Index {
                 GLOBAL_DEPTH,
             ),
             IndexType::Btree => {
-                todo!()
+                BPTree::init(
+                    BlockId::new(index_info.index_file_path.as_path().as_os_str().to_str().unwrap(),0)
+                    ,index_info.key_type,storage,index_info.index_file_path.to_str().unwrap().to_string());
             }
         }
     }
@@ -106,6 +112,7 @@ pub struct IndexInfo {
     pub column: String,
     pub index_file_path: PathBuf,
     pub directory_file_path: PathBuf,
+    pub key_type : Type
 }
 
 impl IndexInfo {
@@ -116,6 +123,7 @@ impl IndexInfo {
         column: String,
         index_file_path: PathBuf,
         directory_file_path: PathBuf,
+        key_type : Type
     ) -> Self {
         let index_file_path =
             Path::new(&AQUADIR()).join(Path::new("base").join(db_name).join(index_file_path));
@@ -127,6 +135,7 @@ impl IndexInfo {
             column,
             index_file_path,
             directory_file_path,
+            key_type
         }
     }
 }
@@ -140,6 +149,34 @@ impl IndexInfo {
 // }
 
 /// Record ID entity encapsulating the block number and the slot number of a certain tuple.
+// #[derive(Debug, Clone, Eq, PartialEq)]
+// pub struct Rid {
+//     block_num: u64,
+//     slot_num: u16,
+// }
+//
+// impl Rid {
+//     pub fn new(block_num: u64, slot_num: u16) -> Self {
+//         Self {
+//             block_num,
+//             slot_num,
+//         }
+//     }
+//     pub fn block_num(&self) -> u64 {
+//         self.block_num
+//     }
+//     pub fn slot_num(&self) -> u16 {
+//         self.slot_num
+//     }
+//     pub fn rid_blk_num(&self, heap_file: &str) -> (BlockId, usize) {
+//         (
+//             BlockId::new(heap_file, self.block_num),
+//             self.slot_num as usize,
+//         )
+//     }
+// }
+
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rid {
     block_num: u64,
@@ -149,6 +186,25 @@ pub struct Rid {
 impl Rid {
     pub fn new(block_num: u64, slot_num: u16) -> Self {
         Self {
+            block_num,
+            slot_num,
+        }
+    }
+
+    // Convert Rid to bytes
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.block_num.to_ne_bytes());
+        bytes.extend_from_slice(&self.slot_num.to_ne_bytes());
+        bytes
+    }
+
+    // Convert bytes to Rid
+    fn from_bytes(bytes: &[u8]) -> Rid {
+        let block_num = bytes.extract_u64(0);
+        let slot_num = bytes.extract_u16(8);
+
+        Rid {
             block_num,
             slot_num,
         }

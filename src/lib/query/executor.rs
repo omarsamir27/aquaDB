@@ -13,17 +13,13 @@ type TupleField = Option<Vec<u8>>;
 type Record = Vec<(String, Option<Vec<u8>>)>;
 
 pub struct Executor<'db> {
-    max_table_memory: usize,
     db_tables: &'db mut HashMap<String, TableManager>,
-    proc_tables: Vec<TupleTable>,
 }
 
 impl<'db> Executor<'db> {
-    pub fn new(max_table_memory: usize, db_tables: &'db mut HashMap<String, TableManager>) -> Self {
+    pub fn new(db_tables: &'db mut HashMap<String, TableManager>) -> Self {
         Self {
-            max_table_memory,
             db_tables,
-            proc_tables: vec![],
         }
     }
     pub fn insert_record(&mut self, record: Record, schema: Schema) -> Result<(), String> {
@@ -50,7 +46,8 @@ impl<'db> Executor<'db> {
                     .1
                     .as_ref()
                     .unwrap();
-                let mut index = target_table.hashscan_iter(k, search_key).unwrap();
+                let mut index = target_table.hashscan_iter(k).unwrap();
+                index.load_key(search_key);
                 // TODO : ADD BTREE INDEXES HERE
                 if index.next().is_some() {
                     return Err("DUPLICATE".to_string());
@@ -69,8 +66,9 @@ impl<'db> Executor<'db> {
                             .as_ref()
                             .unwrap();
                         if let Some(mut ref_col_idx) =
-                            referred_tbl.hashscan_iter(ref_col, search_key)
+                            referred_tbl.hashscan_iter(ref_col)
                         {
+                            ref_col_idx.load_key(search_key);
                             if ref_col_idx.next().is_none() {
                                 return Err("No Value for Refer".to_string());
                             }
@@ -199,31 +197,31 @@ impl<'db> Executor<'db> {
         expr.eval_boolean_with_context(context).unwrap()
     }
 
-    pub fn simulate_join(&self, table1: String, table2: String, join_field: String) {
-        let mut res_vec = vec![];
-        let target_table1 = self.db_tables.get(table1.as_str()).unwrap();
-        let target_table2 = self.db_tables.get(table2.as_str()).unwrap();
-        let mut outer_iter = target_table1.heapscan_iter();
-        for record in outer_iter {
-            let rec_copy = record.clone();
-            let value = record.get(join_field.as_str()).unwrap().as_ref().unwrap();
-            let mut inner_iter = target_table2
-                .hashscan_iter(join_field.as_str(), value)
-                .unwrap();
-            for inner_record in inner_iter {
-                let mut final_copy = rec_copy.clone();
-                final_copy.extend(inner_record.into_iter());
-                res_vec.push(final_copy);
-            }
-        }
-        let result: Vec<u8> = res_vec
-            .into_iter()
-            .flat_map(|k| {
-                k.values()
-                    .flat_map(|v| v.as_ref().unwrap().clone())
-                    .collect::<Vec<u8>>()
-            })
-            .collect();
-        let joined_file = fs::write("/home/ahmed/join", result);
-    }
+    // pub fn simulate_join(&self, table1: String, table2: String, join_field: String) {
+    //     let mut res_vec = vec![];
+    //     let target_table1 = self.db_tables.get(table1.as_str()).unwrap();
+    //     let target_table2 = self.db_tables.get(table2.as_str()).unwrap();
+    //     let mut outer_iter = target_table1.heapscan_iter();
+    //     for record in outer_iter {
+    //         let rec_copy = record.clone();
+    //         let value = record.get(join_field.as_str()).unwrap().as_ref().unwrap();
+    //         let mut inner_iter = target_table2
+    //             .hashscan_iter(join_field.as_str(), value)
+    //             .unwrap();
+    //         for inner_record in inner_iter {
+    //             let mut final_copy = rec_copy.clone();
+    //             final_copy.extend(inner_record.into_iter());
+    //             res_vec.push(final_copy);
+    //         }
+    //     }
+    //     let result: Vec<u8> = res_vec
+    //         .into_iter()
+    //         .flat_map(|k| {
+    //             k.values()
+    //                 .flat_map(|v| v.as_ref().unwrap().clone())
+    //                 .collect::<Vec<u8>>()
+    //         })
+    //         .collect();
+    //     let joined_file = fs::write("/home/ahmed/join", result);
+    // }
 }

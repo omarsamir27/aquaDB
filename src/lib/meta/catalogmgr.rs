@@ -86,11 +86,13 @@ impl InstanceCatalog {
         }) {
             return Err(format!("Table '{}' already exists ", schema.name()));
         }
-        schema
+        let indexes = schema
             .indexes()
             .iter()
-            .map(|idx| idx.to_index_info(self.db_name.as_str()))
-            .for_each(Index::init_index);
+            .map(|idx| idx.to_index_info(self.db_name.as_str()));
+        for idx in indexes{
+            Index::init_index(idx,storage.clone());
+        }
         let mut schema_catalog = &mut self.schemas;
         let (serde_schema, mut serde_indexes) = schema.serialize();
         for field in serde_schema {

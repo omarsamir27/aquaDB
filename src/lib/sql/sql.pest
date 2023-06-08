@@ -16,29 +16,29 @@
     FALSE = {^"false"}
     constant =  ${ numeric_constant | string_literal | TRUE | FALSE }
     /// pink
-    term = ${ NULL |identifier | constant }
+    term = _{ NULL |identifier | constant }
     table_name = {identifier}
-    comparison_operator = {
+    comparison_operator = _{
         "<>" | ">" | "<" | "<=" | ">=" | "="
     }
     LIKE = {^"like"}
     IS = {^"is"}
     NOT = {^"not"}
-    misc_operators = {
+    misc_operators = _{
         LIKE | (IS ~ NOT) | IS
     }
     OR = {^"or"}
     AND = {^"and"}
 
-    condition_term = {(table_name ~ "." ~ identifier) | term }
+    condition_term = _{(table_name ~ "." ~ identifier) | term }
 
     /// blue
-    plain_condition =  { condition_term ~ (comparison_operator | misc_operators) ~ condition_term }
+    plain_condition =  _{ condition_term ~ (comparison_operator | misc_operators) ~ condition_term }
 //     (condition ~ ( (AND|OR) ~ condition)*)
-    scope = { "(" ~ conditional_expression ~ ")"  }
+    scope = _{ "(" ~ conditional_expression ~ ")"  }
     /// black
-    condition = { plain_condition | scope  }
-    conditional_expression = _{ condition ~ ((AND|OR) ~ condition)* }
+    condition = _{ plain_condition | scope  }
+    conditional_expression = { condition ~ ((AND|OR) ~ condition)* }
     /// red
 //     conditional_expression = {
 //     "(" ~(condition ~ (OR | AND) ~ conditional_expression)~ ")"

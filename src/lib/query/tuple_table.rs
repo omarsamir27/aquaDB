@@ -13,7 +13,7 @@ use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::path::Path;
 use thiserror::Error;
-use crate::FieldId;
+use crate::{AQUA_TMP_DIR, AQUADIR, FieldId};
 use crate::schema::schema::Field;
 use super::MergedRow;
 
@@ -46,7 +46,7 @@ impl<'a> Display for RowPrint<'a> {
     }
 }
 
-const TMP_DIR: &str = "tests/db/db_tmp";
+// const TMP_DIR: &str = "tests/db/db_tmp";
 
 impl Iterator for TupleTableIter {
     type Item = MergedRow;
@@ -139,7 +139,7 @@ impl TupleTable {
 
     fn purge_mem_disk(&mut self) {
         let mut rng = thread_rng();
-        let tmp_dir = Path::new(TMP_DIR);
+        let tmp_dir = AQUA_TMP_DIR();
         let path = format!("tmp{}{}", self.name, rng.gen::<u64>());
         let path = tmp_dir.join(path.as_str());
         let mut segment = File::options()
@@ -299,7 +299,7 @@ impl SortingRun {
         current_data.sort_unstable_by(|r1, r2| r1[key_index].cmp(&r2[key_index]));
         let len = current_data.len();
         let mut dst = bincode::encode_to_vec(&current_data[..len / 2], config).unwrap();
-        let tmp_dir = Path::new(TMP_DIR);
+        let tmp_dir = AQUA_TMP_DIR();
         let path = format!("tmp{}{}", table_name, rng.gen::<u64>());
         let path = tmp_dir.join(path.as_str());
         println!("{:?}", path.clone());
@@ -388,7 +388,7 @@ impl SortingRun {
         if self.current_data.len() >= max_rows {
             let mem_buff =
                 bincode::encode_to_vec(&self.current_data, bincode::config::standard()).unwrap();
-            let tmp_dir = Path::new(TMP_DIR);
+            let tmp_dir = AQUA_TMP_DIR();
             let path = format!("tmp{random}");
             let path = tmp_dir.join(path.as_str());
             let mut segment = File::options()
