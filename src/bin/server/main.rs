@@ -33,7 +33,8 @@ use aqua::storage::storagemgr::StorageManager;
 // }
 
 fn main() {
-    // let query = "select * from uni where id>2";
+    // let query = "select * from uni where name == \"omar\" ";
+    // let query = "insert into students(id,name) values(1,\"omar\")";
     // let select = <SqlParser as pest_consume::Parser>::parse(Rule::Sql, query).unwrap();
     // // dbg!(&select);
     // let x = select.single().unwrap();
@@ -51,9 +52,10 @@ fn main() {
     // let var2 = ConcreteType::Integer(404);
     // dbg!(var.cmp(&var2));
 
-    // let x = " x>3 ";
+    // let x = " 3.0 == 3.0";
     // let mut tree = build_operator_tree(x).unwrap();
-    // dbg!(&tree.to_string());
+    // dbg!(&tree.eval_boolean());
+    // return;
     // let mut v = aqua::common::boolean::get_all_binary_clauses(&tree);
     //
     // let z = v.pop().unwrap();

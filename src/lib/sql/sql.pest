@@ -7,7 +7,7 @@
     /// purple
     numeric_constant = @{ ("+"|"-")? ~ ( (plain_number ~ "." ~ plain_number?) | ("." ~ plain_number ) | plain_number ) }
     /// red
-    text = { (ASCII_ALPHANUMERIC)+ }
+    text = { (ASCII_ALPHANUMERIC | " " | "*" | "?")+ }
     /// blue
     QUOTE = _{ "\"" }
     /// green
@@ -19,7 +19,7 @@
     term = _{ NULL |identifier | constant }
     table_name = {identifier}
     comparison_operator = _{
-        "<>" | ">" | "<" | "<=" | ">=" | "="
+        "!=" | ">" | "<" | "<=" | ">=" | "=="
     }
     LIKE = {^"like"}
     IS = {^"is"}

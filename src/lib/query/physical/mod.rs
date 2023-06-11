@@ -14,11 +14,18 @@ use evalexpr::{
 };
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
+use std::fs::write;
 use std::path::Iter;
+use genawaiter::{Generator, yield_};
+use genawaiter::sync::gen;
+use genawaiter::sync::Gen;
+use crate::query::concrete_types::ConcreteType;
 use crate::query::tuple_table::TupleTableIter;
+use crate::schema::schema::Field;
 use crate::table::btree_iter::BtreeIter;
 use crate::table::hash_iter::HashIter;
 use crate::table::heap_iter::TableIter;
+// use genawaiter::
 
 type TypeMap = HashMap<FieldId, Type>;
 
@@ -185,16 +192,19 @@ pub struct MergeJoin {
     right_iter : Option<TupleTableIter>,
     eq_fields : (FieldId,FieldId),
     loaded : bool,
-    current_left_row : Option<MergedRow>
+    current_left_row : Option<MergedRow>,
+    current_right_row : Option<MergedRow>,
 }
 
+
+
 impl MergeJoin {
-    fn load(&mut self){
-        for next in self.left.by_ref(){
+    fn load(&mut self) {
+        for next in self.left.by_ref() {
             // let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
             self.left_table.as_mut().unwrap().add_row_map(next);
         }
-        for next in self.right.by_ref(){
+        for next in self.right.by_ref() {
             // let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
             self.right_table.as_mut().unwrap().add_row_map(next);
         }
@@ -202,63 +212,91 @@ impl MergeJoin {
         self.right_table.as_mut().unwrap().sort(&self.eq_fields.1);
         self.left_iter = Some(self.left_table.take().unwrap().into_iter());
         self.right_iter = Some(self.right_table.take().unwrap().into_iter());
+        self.current_left_row = self.left_iter.as_mut().unwrap().next();
+        self.current_right_row = self.right_iter.as_mut().unwrap().next();
         self.loaded = true;
     }
-    pub fn new(fields_map:TypeMap,left: Box<PhysicalNode>, right: Box<PhysicalNode>, eq_fields: (FieldId, FieldId),left_headers:TypeMap,right_headers:TypeMap) -> Self {
+    pub fn new(fields_map: TypeMap, left: Box<PhysicalNode>, right: Box<PhysicalNode>, eq_fields: (FieldId, FieldId), left_headers: TypeMap, right_headers: TypeMap) -> Self {
         let left_table = Some(TupleTable::new(&eq_fields.0.table, left_headers, MAX_WORKING_MEM));
         let right_table = Some(TupleTable::new(&eq_fields.1.table, right_headers, MAX_WORKING_MEM));
-        Self { fields_map ,left, right, left_table, right_table, left_iter: None, right_iter: None, eq_fields, loaded: false, current_left_row: None }
+        Self { fields_map, left, right, left_table, right_table, left_iter: None, right_iter: None, eq_fields, loaded: false, current_left_row: None, current_right_row: None }
     }
-}
+    fn merged_row_to_val(&self, row: &MergedRow, field: &FieldId) -> ConcreteType {
+        let bytes = row.get(field).unwrap().as_ref().map_or([].as_slice(), |d| d);
+        let datatype = *self.fields_map.get(field).unwrap();
+        ConcreteType::from_bytes(datatype, bytes)
+    }
+ }
+
+
 impl Iterator for MergeJoin{
     type Item = MergedRow;
 
+    #[allow(clippy::collapsible_else_if)]
     fn next(&mut self) -> Option<Self::Item> {
         if !self.loaded{
             self.load();
         }
-        let mut left_iter = self.left_iter.as_mut().unwrap();
-        if self.current_left_row.is_none(){
-            let left = left_iter.next();
-            if left.is_none(){
-                None
-            }
-            else {
-                self.current_left_row = left;
-                self.next()
-            }
-        }
-        else {
-            if let Some(right) = self.right_iter.as_mut().unwrap().next(){
-                let left = self.current_left_row.as_ref().unwrap();
-                if left.get(&self.eq_fields.0) == right.get(&self.eq_fields.1){
-                    return Some(merge(left,right))
+        let mut left = self.merged_row_to_val(self.current_left_row.as_ref().unwrap(), &self.eq_fields.0);
+        let mut right = self.merged_row_to_val(self.current_right_row.as_ref().unwrap(), &self.eq_fields.1);
+        while !self.out1 && left != right {
+            if left < right {
+                if let Some(next_left) = self.left_iter.as_mut().unwrap().next() {
+                    self.current_left_row.replace(next_left);
+                    left = self.merged_row_to_val(self.current_left_row.as_ref().unwrap(), &self.eq_fields.0);
+                } else {
+                    return None
                 }
-                else if let Some(new_left) = left_iter.next(){
-                    self.current_left_row.replace(new_left.clone());
-                    if new_left.get(&self.eq_fields.0) == right.get(&self.eq_fields.1){
-                        return Some(merge(&new_left,right))
-                    }
-                }
-                else {
+            } else {
+                if let Some(next_right) = self.right_iter.as_mut().unwrap().next() {
+                    self.current_right_row.replace(next_right);
+                    right = self.merged_row_to_val(self.current_right_row.as_ref().unwrap(), &self.eq_fields.1);
+                } else {
                     return None
                 }
             }
-            None
         }
-        // if let Some(left) = self.left_iter.as_mut().unwrap().next(){
-        //     while let Some(right) = self.right_iter.as_mut().unwrap().next(){
-        //         if left.get(&self.eq_fields.0) == right.get(&self.eq_fields.1){
-        //             return Some(merge(&left, right));
-        //         }else {
-        //             break
-        //         }
-        //     }
-        //     return None
-        // }
-        // None
-    }
-}
+            let out1 = true;
+            let marked_left = self.current_left_row.as_ref().unwrap().clone();
+            let mut no_more_left = false;
+        loop{
+                while left == right {
+                    if self.just_returned == false{
+                        let result = merge(self.current_left_row.as_ref().unwrap(), self.current_right_row.as_ref().unwrap());
+                        self.just_returned = true;
+                        return Some(result);
+                    }
+                    self.just_returned == false;
+                    if let Some(next_left) = self.left_iter.as_mut().unwrap().next() {
+                        self.current_left_row.replace(next_left);
+                        left = self.merged_row_to_val(self.current_left_row.as_ref().unwrap(), &self.eq_fields.0);
+                    } else {
+                        no_more_left = true;
+                        break
+                    }
+                };
+                if let Some(next_right) = self.right_iter.as_mut().unwrap().next() {
+                    self.current_right_row.replace(next_right);
+                    right = self.merged_row_to_val(self.current_right_row.as_ref().unwrap(), &self.eq_fields.1);
+                } else {
+                    return
+                }
+                let marked_left_val = self.merged_row_to_val(&marked_left, &self.eq_fields.0);
+                if marked_left_val == right {
+                    self.left_iter.as_mut().unwrap().step_back();
+                    self.current_left_row.replace(marked_left);
+                } else {
+                    if no_more_left {
+                        return None
+                    } else { break }
+                }
+            }
+
+            return None
+
+
+
+}}
 
 #[derive(Debug)]
 pub struct IndexedJoin{
@@ -282,14 +320,14 @@ impl Iterator for IndexedJoin{
         let right_table_name = &self.eq_fields.1.table;
         if let Some(left) = &self.current_left_row{
             if let Some(right) = self.right.next(){
-                return Some(merge(left, right))
+                return Some(merge(left, &right))
             }
             else if let Some(left) = &self.left.next(){
                 self.current_left_row.replace(left.clone());
                 let key = left.get(&self.eq_fields.0).unwrap().as_ref().unwrap();
                 self.right.load_key(key);
                 if let Some(right) = self.right.next(){
-                    return Some(merge(left, right))
+                    return Some(merge(left, &right))
                 }
             }
         }
@@ -345,6 +383,18 @@ pub struct Sort{
 }
 
 impl Sort{
+    fn new(headers:TypeMap,child:Box<PhysicalNode>,field:FieldId) -> Self{
+        let table = Some(TupleTable::new(&field.to_string(), headers.clone(), MAX_WORKING_MEM));
+        Self{
+            fields_map: headers,
+            child ,
+            table,
+            table_iter: None,
+            field,
+            loaded: false,
+        }
+    }
+
     fn load(&mut self){
         for next in self.child.by_ref(){
             // let next = next.into_iter().map(|(k,v)| (k.field,v)).collect();
@@ -352,6 +402,7 @@ impl Sort{
         }
         self.table.as_mut().unwrap().sort(&self.field);
         self.table_iter.replace(self.table.take().unwrap().into_iter());
+        self.loaded = true;
     }
 }
 

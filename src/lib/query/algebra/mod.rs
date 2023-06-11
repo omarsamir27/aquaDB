@@ -257,6 +257,13 @@ impl LogicalNode {
                 )));
             }
         }
+       else if let Some(order) = sql.order_by {
+            let order_on = Self::target_list(order.criteria, &single, &joined)?;
+            queue.push(LogicalNode::Sort(Sorting::with_sort_cols(
+                order_on,
+                order.descending,
+            )));
+        }
         let project = Project::with_fields(Self::target_list(sql.targets, &single, &joined)?);
         queue.push(LogicalNode::Project(project));
         if let Some(pred) = sql.where_clause {

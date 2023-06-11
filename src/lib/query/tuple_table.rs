@@ -56,18 +56,22 @@ impl Iterator for TupleTableIter {
             self.table.load_segment(0);
         }
         if self.next_row == self.table.num_rows as usize{
+            if self.next_segment >= self.table.segments.len(){
+                return None
+            }
             self.table.load_segment(self.next_segment);
             self.next_segment +=1;
             self.next_row = 0;
         }
-        if self.next_segment == self.table.segments.len(){
-            return None
-        }
+        // if self.next_segment == self.table.segments.len(){
+        //     return None
+        // }
         let row = self.table.data[self.next_row].clone();
         self.next_row +=1;
         Some(self.row_to_merged_row(row))
 
     }
+
 }
 
 #[derive(Debug)]
@@ -81,6 +85,14 @@ impl TupleTableIter{
     fn new(table:TupleTable) -> Self{
         let index_map = table.index_type_map.iter().map(|(k,(idx,_))| (*idx,k.clone())).collect();
         Self{table,next_row: 0 ,next_segment:1,index_map}
+    }
+    pub fn step_back(&mut self){
+        if self.next_row != 0{
+            self.next_row -=1;
+        }else {
+            self.table.load_segment(self.next_segment -2);
+            self.next_segment -=1;
+        }
     }
     fn row_to_merged_row(&self,row:Row) -> MergedRow{
         row

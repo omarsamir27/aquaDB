@@ -64,16 +64,9 @@ impl FromLogicalNode<Logical::DeDuplicate> for Physical::DeDup{
 
 impl FromLogicalNode<Logical::Sorting> for Physical::Sort{
     fn from_logic(value: Sorting, planner_info: &mut PlannerInfo,db_tables:&HashMap<String,TableManager>) -> Self {
-        let Logical::Sorting{ sort_on, descending, child, fields_map } = value;
+        let Logical::Sorting{ mut sort_on, descending, child, fields_map } = value;
         let child = PhysicalNode::from_logic(*child,planner_info,db_tables);
-        Physical::Sort{
-            fields_map,
-            child: Box::new(child),
-            table: None,
-            table_iter: None,
-            field: sort_on[0].clone(),
-            loaded: false,
-        }
+       Physical::Sort::new(fields_map,Box::new(child),sort_on.remove(0))
     }
     }
 
@@ -92,8 +85,8 @@ impl FromLogicalNode<Logical::Join> for PhysicalNode{
         { condition, join_type, left, right, fields_map }
             = value;
         let mut identifiers = condition.iter_read_variable_identifiers().map(|f| FieldId::from_str(f).unwrap()).collect::<Vec<_>>();
-        let right_field = identifiers.pop().unwrap();
         let left_field = identifiers.pop().unwrap();
+        let right_field = identifiers.pop().unwrap();
         let left_child = Box::new(PhysicalNode::from_logic(*left,planner_info,db_tables));
         let tbl_mgr = db_tables.get(&right_field.table).unwrap();
         if planner_info.table_info.get(&right_field.table).unwrap().has_index_for(&right_field.field){

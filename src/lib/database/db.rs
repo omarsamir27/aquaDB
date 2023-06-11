@@ -3,6 +3,7 @@ use crate::meta::catalogmgr::CatalogManager;
 // use crate::query::plan::{create_plan, QueryPlan};
 use crate::interface::message::{Message, Status};
 use crate::query::executor::Executor;
+use crate::query::physical::PhysicalNode;
 use crate::schema::schema::Schema;
 use crate::sql::parser::{parse_query, SqlParser};
 use crate::sql::query::query::SqlQuery;
@@ -16,7 +17,6 @@ use std::io::Read;
 use std::net::TcpStream;
 use std::rc::Rc;
 use std::time::Duration;
-use crate::query::physical::PhysicalNode;
 
 type Storage = Rc<RefCell<StorageManager>>;
 type Catalog = Rc<RefCell<CatalogManager>>;
@@ -76,7 +76,7 @@ impl DatabaseInstance {
                 },
                 Err(_) => return,
             };
-            if query.eq_ignore_ascii_case("exit"){
+            if query.eq_ignore_ascii_case("exit") {
                 return;
             }
             match parse_query(&query) {
@@ -89,44 +89,48 @@ impl DatabaseInstance {
         }
     }
     fn execute_cmd(&mut self, query: Sql) {
-        if let Ok(plan) = self.create_plan(query) {
-            if let QueryPlan::CreateTable(schema) = plan {
-                self.add_schema(schema);
-            } else {
-                let mut executor = Executor::new(&mut self.tables);
-                if let QueryPlan::Insert(record, schema) = plan {
-                    match record {
-                        Ok(r) => match executor.insert_record(r, schema) {
-                            Ok(_) => Message::Status(Status::RecordInserted)
-                                .send_msg_to(&mut self.conn)
-                                .unwrap_or_default(),
-                            Err(e) => Message::Status(Status::RecordNotInserted(e))
-                                .send_msg_to(&mut self.conn)
-                                .unwrap_or_default(),
-                        },
-                        Err(e) => {
-                            Message::Status(Status::RecordNotInserted("TODO ERROR".to_string()))
-                                .send_msg_to(&mut self.conn)
-                                .unwrap_or_default()
+        match self.create_plan(query) {
+            Ok(plan) => {
+                if let QueryPlan::CreateTable(schema) = plan {
+                    self.add_schema(schema);
+                } else {
+                    let mut executor = Executor::new(&mut self.tables);
+                    if let QueryPlan::Insert(record, schema) = plan {
+                        match record {
+                            Ok(r) => match executor.insert_record(r, schema) {
+                                Ok(_) => Message::Status(Status::RecordInserted)
+                                    .send_msg_to(&mut self.conn)
+                                    .unwrap_or_default(),
+                                Err(e) => Message::Status(Status::RecordNotInserted(e))
+                                    .send_msg_to(&mut self.conn)
+                                    .unwrap_or_default(),
+                            },
+                            Err(e) => {
+                                Message::Status(Status::RecordNotInserted("TODO ERROR".to_string()))
+                                    .send_msg_to(&mut self.conn)
+                                    .unwrap_or_default()
+                            }
                         }
+                    } else if let QueryPlan::Select(s) = plan {
+                        let types = s.get_type_map();
+                        Message::FieldTypes(types)
+                            .send_msg_to(&mut self.conn)
+                            .unwrap_or_default();
+                        let results = s.collect::<Vec<_>>();
+                        let msg = Message::Results(results);
+                        msg.send_msg_to(&mut self.conn);
+                        Message::Status(Status::ResultsFinished)
+                            .send_msg_to(&mut self.conn)
+                            .unwrap_or_default()
                     }
-
-                } else if let QueryPlan::Select(s) = plan {
-                    let types = s.get_type_map();
-                    Message::FieldTypes(types).send_msg_to(&mut self.conn).unwrap_or_default();
-                    let results = s.collect::<Vec<_>>();
-                    let msg = Message::Results(results);
-                    msg.send_msg_to(&mut self.conn);
-                    Message::Status(Status::ResultsFinished).send_msg_to(&mut self.conn).unwrap_or_default()
-                    // dbg!(v);
                 }
             }
 
-        } else {
-            // send_string(&mut self.conn, "DAMNN").unwrap()
-            Message::Status(Status::BadCommand)
-                .send_msg_to(&mut self.conn)
-                .unwrap_or_default();
+            Err(s) => {
+                Message::Status(Status::Generic(s))
+                    .send_msg_to(&mut self.conn)
+                    .unwrap_or_default();
+            }
         }
     }
     fn add_schema(&mut self, schema: Schema) {
@@ -146,14 +150,16 @@ impl DatabaseInstance {
                 .unwrap_or_default(), // Err(s) => send_string(&mut self.conn, s.as_str()).unwrap(),
         }
     }
-    fn create_plan(&self, query_tree: Sql) -> Result<QueryPlan, ()> {
+    fn create_plan(&self, query_tree: Sql) -> Result<QueryPlan, String> {
         match query_tree {
             Sql::CreateTable(ct) => Ok(QueryPlan::CreateTable(ct.to_schema())),
             Sql::Query(query) => match query {
-                SqlQuery::SELECT(s) => Ok(QueryPlan::Select(self.plan_query(s).unwrap())),
+                SqlQuery::SELECT(s) => Ok(QueryPlan::Select(self.plan_query(s)?)),
                 SqlQuery::INSERT(i) => {
                     let catalog = self.catalog.borrow();
-                    let schema = catalog.get_schema(&self.name, i.target_table()).ok_or(())?;
+                    let schema = catalog
+                        .get_schema(&self.name, i.target_table())
+                        .ok_or("Insert Error")?;
                     let record = i.raw_bytes(&schema);
                     Ok(QueryPlan::Insert(record, schema))
                 }

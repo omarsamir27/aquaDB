@@ -24,7 +24,8 @@ impl DatabaseInstance {
             query::algebra::LogicalNode::translate_sql(query, &planner_info, self.name())
                 .map_err(|_| "Broken Query".to_string())?;
         let mut planner_info = self.planner_info();
-        Ok(PhysicalNode::from_logic(logical_plan, &mut planner_info, self.tables()))
+        let plan = PhysicalNode::from_logic(logical_plan, &mut planner_info, self.tables());
+        Ok(plan)
     }
 
     fn planner_info(&self)-> PlannerInfo{

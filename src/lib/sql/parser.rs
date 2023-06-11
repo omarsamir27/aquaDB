@@ -129,11 +129,32 @@ impl SqlParser {
        //          .op(Op::infix(OR, Left))
        //          .op(Op::infix(AND, Left))
        //  };
-       // fn parse_me(pairs:Pairs<Rule>,pratt: &PrattParser<Rule>)
+       // // fn parse_me(pairs:Pairs<Rule>,pratt: &PrattParser<Rule>)
+        let mut txt = input.as_str().to_string().replace("AND","&&").replace("and","&&").replace("OR","||").replace("or","||");
+       //  let mut input = input
+       //      .into_children()
+       //      .into_pairs()
+       //      .flatten()
+       //      .collect::<Vec<_>>();
+       //  for n in input {
+       //      dbg!(&n);
+       //      let rule = n.as_rule();
+       //      if rule == Rule::OR {
+       //          let span = n.as_span();
+       //          let (start, end) = (span.start(), span.end());
+       //          txt.replace_range(start..end, "||")
+       //      }
+       //      else if rule == Rule::AND{
+       //          let span = n.as_span();
+       //          let (start, end) = (span.start(), span.end());
+       //          dbg!(start);
+       //          dbg!(end);
+       //          txt.replace_range(start..end, "&&")
+       //      }
+       //  }
 
-       
         
-        Ok(input.as_str().to_string())
+        Ok(txt)
     }
     fn join_type(input: Node) -> Result<JoinType> {
         if input.as_str().eq_ignore_ascii_case("left") {
@@ -287,7 +308,8 @@ impl SqlParser {
         Ok(SqlValue::Numeric(input.as_str().to_string()))
     }
     fn string_literal(input: Node) -> Result<SqlValue> {
-        Ok(SqlValue::Text(input.as_str().to_string()))
+        let input = input.as_str().trim_start_matches('\"').trim_end_matches('\"');
+        Ok(SqlValue::Text(input.to_string()))
     }
     fn insert_vals(input: Node) -> Result<Vec<SqlValue>> {
         Ok(match_nodes!(
