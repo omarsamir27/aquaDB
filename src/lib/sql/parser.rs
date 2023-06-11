@@ -258,6 +258,11 @@ impl SqlParser {
             ] => SqlSelect::new(distinct,p,t,Some(w),None,None),
             [
                 project_on(p),
+                table_expression(t),
+                ORDER_BY(o)
+            ] => SqlSelect::new(distinct,p,t,None,None,Some(o)),
+            [
+                project_on(p),
                 table_expression(t)
             ] => SqlSelect::new(distinct,p,t,None,None,None)
         ))

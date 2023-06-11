@@ -15,8 +15,6 @@ use evalexpr::{
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::fs::write;
-use std::mem::transmute;
-use std::path::Iter;
 use crate::query::concrete_types::ConcreteType;
 use crate::query::tuple_table::TupleTableIter;
 use crate::schema::schema::Field;
@@ -243,88 +241,90 @@ impl Iterator for MergeJoin{
         let mut right = self.merged_row_to_val(self.current_right_row.as_ref().unwrap(), &self.eq_fields.1);
 
         // loop until 2 rows match
-        while !self.out1 && left != right {
-            // if right value of field is greater, shift left till it becomes equal or greater than right.
-            if left < right {
-                if let Some(next_left) = self.left_iter.as_mut().unwrap().next() {
-                    self.current_left_row.replace(next_left);
-                    left = self.merged_row_to_val(self.current_left_row.as_ref().unwrap(), &self.eq_fields.0);
+        loop {
+            while !self.out1 && left != right {
+                // if right value of field is greater, shift left till it becomes equal or greater than right.
+                if left < right {
+                    if let Some(next_left) = self.left_iter.as_mut().unwrap().next() {
+                        self.current_left_row.replace(next_left);
+                        left = self.merged_row_to_val(self.current_left_row.as_ref().unwrap(), &self.eq_fields.0);
+                    }
+                    // no more lefts so return no matched records to upper node
+                    else {
+                        return None
+                    }
                 }
-                // no more lefts so return no matched records to upper node
+                // if left value of field is greater, shift right till it becomes equal or greater than left.
                 else {
-                    return None
+                    if let Some(next_right) = self.right_iter.as_mut().unwrap().next() {
+                        self.current_right_row.replace(next_right);
+                        right = self.merged_row_to_val(self.current_right_row.as_ref().unwrap(), &self.eq_fields.1);
+                    }
+                    // no more rights so return no matched records to upper node
+                    else {
+                        return None
+                    }
                 }
             }
-            // if left value of field is greater, shift right till it becomes equal or greater than left.
-            else {
+
+            // loop 1 broke due to matching records
+            // hold the current left record in a temp variable
+            // set the flag not to enter the upper loop again when calling next again
+            self.out1 = true;
+            let marked_left = self.current_left_row.as_ref().unwrap().clone();
+            // internal flag to seek left
+            let mut no_more_left = false;
+
+            // a loop getting all right records matching the held left record
+            loop {
+                // internal loop entered at least once (i.e; the upper loop broke in this condition already)
+                while left == right {
+                    // check if we returned this merge before
+                    if self.just_returned == false {
+                        let result = merge(self.current_left_row.as_ref().unwrap(), self.current_right_row.as_ref().unwrap());
+                        // set the just returned flag to force the next iteration to skip merging the records again
+                        self.just_returned = true;
+                        return Some(result);
+                    }
+                    // reset the flag after skipping merge for the next time
+                    self.just_returned = false;
+                    // seek left.next
+                    if let Some(next_left) = self.left_iter.as_mut().unwrap().next() {
+                        self.current_left_row.replace(next_left);
+                        left = self.merged_row_to_val(self.current_left_row.as_ref().unwrap(), &self.eq_fields.0);
+                    } else {
+                        no_more_left = true;
+                        break
+                    }
+                };
+
+                // get the next right record to compare it to the held value of left (i.e; not the just seeked one)
                 if let Some(next_right) = self.right_iter.as_mut().unwrap().next() {
                     self.current_right_row.replace(next_right);
                     right = self.merged_row_to_val(self.current_right_row.as_ref().unwrap(), &self.eq_fields.1);
                 }
-                // no more rights so return no matched records to upper node
+                // no more right records so return None
                 else {
                     return None
                 }
-            }
-        }
 
-        // loop 1 broke due to matching records
-        // hold the current left record in a temp variable
-        // set the flag not to enter the upper loop again when calling next again
-        self.out1 = true;
-        let marked_left = self.current_left_row.as_ref().unwrap().clone();
-        // internal flag to seek left
-        let mut no_more_left = false;
-
-        // a loop getting all right records matching the held left record
-        loop{
-            // internal loop entered at least once (i.e; the upper loop broke in this condition already)
-            while left == right {
-                // check if we returned this merge before
-                if self.just_returned == false{
-                    let result = merge(self.current_left_row.as_ref().unwrap(), self.current_right_row.as_ref().unwrap());
-                    // set the just returned flag to force the next iteration to skip merging the records again
-                    self.just_returned = true;
-                    return Some(result);
-                }
-                // reset the flag after skipping merge for the next time
-                self.just_returned = false;
-                // seek left.next
-                if let Some(next_left) = self.left_iter.as_mut().unwrap().next() {
-                    self.current_left_row.replace(next_left);
-                    left = self.merged_row_to_val(self.current_left_row.as_ref().unwrap(), &self.eq_fields.0);
+                // reconstruct the value of the held left to compare it to current right after fetching next right
+                let marked_left_val = self.merged_row_to_val(&marked_left.clone(), &self.eq_fields.0);
+                // the already held left matches the next right
+                // step back the call to next left and keep the held left as the iter position
+                if marked_left_val == right {
+                    self.left_iter.as_mut().unwrap().step_back();
+                    self.current_left_row.replace(marked_left.clone());
                 } else {
-                    no_more_left = true;
-                    break
-                }
-            };
-
-            // get the next right record to compare it to the held value of left (i.e; not the just seeked one)
-            if let Some(next_right) = self.right_iter.as_mut().unwrap().next() {
-                self.current_right_row.replace(next_right);
-                right = self.merged_row_to_val(self.current_right_row.as_ref().unwrap(), &self.eq_fields.1);
-            }
-            // no more right records so return None
-            else {
-                return None
-            }
-
-            // reconstruct the value of the held left to compare it to current right after fetching next right
-            let marked_left_val = self.merged_row_to_val(&marked_left.clone(), &self.eq_fields.0);
-            // the already held left matches the next right
-            // step back the call to next left and keep the held left as the iter position
-            if marked_left_val == right {
-                self.left_iter.as_mut().unwrap().step_back();
-                self.current_left_row.replace(marked_left.clone());
-            } else {
-                if no_more_left {
-                    return None
-                } else {
-                    break
+                    if no_more_left {
+                        return None
+                    } else {
+                        self.out1 = false;
+                        break
+                    }
                 }
             }
         }
-
         None
 
 }}
