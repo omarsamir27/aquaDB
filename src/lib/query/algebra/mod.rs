@@ -49,7 +49,7 @@ impl LogicalNode {
         matches!(self, Self::Empty | Self::Relation(_))
     }
 
-    fn get_fields_map(&self) -> HashMap<FieldId,Type>{
+    pub fn get_fields_map(&self) -> HashMap<FieldId,Type>{
         match self{
             LogicalNode::Project(a) => a.fields_map.clone(),
             LogicalNode::Select(a) => a.fields_map.clone(),

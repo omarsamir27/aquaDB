@@ -315,6 +315,7 @@ impl Iterator for MergeJoin{
                 if marked_left_val == right {
                     self.left_iter.as_mut().unwrap().step_back();
                     self.current_left_row.replace(marked_left.clone());
+                    left = self.merged_row_to_val(self.current_left_row.as_ref().unwrap(), &self.eq_fields.0);
                 } else {
                     if no_more_left {
                         return None

@@ -130,7 +130,7 @@ impl SqlParser {
        //          .op(Op::infix(AND, Left))
        //  };
        // // fn parse_me(pairs:Pairs<Rule>,pratt: &PrattParser<Rule>)
-        let mut txt = input.as_str().to_string().replace("AND","&&").replace("and","&&").replace("OR","||").replace("or","||");
+        let mut txt = input.as_str().to_string().replace(" AND "," && ").replace(" and "," && ").replace(" OR "," || ").replace(" or "," || ");
        //  let mut input = input
        //      .into_children()
        //      .into_pairs()

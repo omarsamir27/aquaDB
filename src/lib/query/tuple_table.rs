@@ -53,6 +53,9 @@ impl Iterator for TupleTableIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.table.data.is_empty(){
+            if self.table.segments.is_empty(){
+                return None
+            }
             self.table.load_segment(0);
         }
         if self.next_row == self.table.num_rows as usize{
