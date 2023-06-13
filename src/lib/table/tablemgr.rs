@@ -292,11 +292,12 @@ impl TableManager {
         None
     }
 
-    pub fn btree_iter(&self,index_field:&str) -> Option<BtreeIter>{
+    pub fn btree_iter(&self,index_field:&str,op:evalexpr::Operator) -> Option<BtreeIter>{
         if let Some(idx) = self.btree_indexes.get(index_field) {
             return Some(BtreeIter::new(
                 self.direct_accessor(),
-                idx.clone()
+                idx.clone(),
+                op
             ));
         }
         None

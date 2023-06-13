@@ -3,9 +3,11 @@ use crate::query::algebra as Logical;
 use crate::query::physical as Physical;
 use Logical::*;
 use Physical::*;
+use crate::common::boolean;
 use crate::database::plan_query::PlannerInfo;
 use crate::query::physical::PhysicalNode::AccessPath;
 use crate::table::tablemgr::TableManager;
+use crate::common::boolean::*;
 
 pub trait FromLogicalNode<T>{
     fn from_logic(value:T,planner_info:&mut PlannerInfo,db_tables:&HashMap<String,TableManager>) -> Self;
@@ -39,18 +41,70 @@ impl FromLogicalNode<Logical::Project> for Physical::Project{
 
 impl FromLogicalNode<Logical::Select> for Physical::Select{
     fn from_logic(value: Logical::Select, planner_info: &mut PlannerInfo,db_tables:&HashMap<String,TableManager>) -> Self {
+        use evalexpr::Operator::*;
         let Logical::Select{ condition,context_vars,child,fields_map } = value;
-        let child = PhysicalNode::from_logic(*child,planner_info,db_tables);
+        let child_is_base_rel = child.is_base_relation();
         let mut ctx_map = HashMapContext::new();
-        for f in context_vars{
-            ctx_map.set_value(f.to_string(),Value::Empty);
+        let shortcut = if context_vars.len() == 1 && child_is_base_rel {
+            let children = condition.children();
+            if children.len() == 1{
+                let key_type = fields_map.get(&context_vars[0]).unwrap();
+                let FieldId{table,field} = context_vars[0].clone();
+                let tbl_mgr = db_tables.get(&table).unwrap();
+                let (op,val) = get_single_binary_clause(&children[0]);
+                let val = boolean::value_as_bytes(&val,*key_type);
+                match op{
+                    Eq => {
+                        if let Some(hash) = tbl_mgr.hashscan_iter(&field){
+                            Some((PhysicalNode::AccessPath(Box::new(AccessMethod::HashIter(table, hash))),val))
+                        }else if let Some(mut btree) = tbl_mgr.btree_iter(&field,Eq) {
+                            Some((PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(table, btree))),val))
+                        }
+                        else {
+                            None
+                        }
+
+                },
+                    Lt | Gt => {
+                        if let Some(mut btree) = tbl_mgr.btree_iter(&field,op){
+                            Some((PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(table, btree))),val))
+                        }else { None }
+                    }
+                    _ => None
+                }
+            }
+            else {
+                None
+            }
         }
-        Physical::Select{
-            fields_map,
-            condition,
-            context: ctx_map,
-            child : Box::new(child)
+        else {
+            None
+        };
+        if let Some((child,key)) = shortcut{
+            Physical::Select{
+                fields_map,
+                condition,
+                context: ctx_map,
+                child : Box::new(child),
+                bridged : (false, Some(key))
+
+            }
+        }else {
+            let child = PhysicalNode::from_logic(*child,planner_info,db_tables);
+            for f in context_vars{
+                ctx_map.set_value(f.to_string(),Value::Empty);
+            }
+            Physical::Select{
+                fields_map,
+                condition,
+                context: ctx_map,
+                child : Box::new(child),
+                bridged : (false,None)
+
+            }
         }
+
+
     }
 }
 
@@ -95,7 +149,7 @@ impl FromLogicalNode<Logical::Join> for PhysicalNode{
                 AccessMethod::HashIter(right_field.table.clone(),iter)
             }
             else {
-                let btree = tbl_mgr.btree_iter(&right_field.field).unwrap();
+                let btree = tbl_mgr.btree_iter(&right_field.field,evalexpr::Operator::Eq).unwrap();
                 AccessMethod::BtreeIter(right_field.table.clone(),btree)
             };
             let access = Box::new(AccessPath(Box::new(access)));

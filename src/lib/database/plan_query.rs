@@ -1,7 +1,6 @@
 use crate::database::db::DatabaseInstance;
 use crate::meta::catalogmgr::CatalogManager;
 use crate::{FieldId, query};
-// use crate::query::physical::project::ProjectNode;
 use crate::schema::schema::Schema;
 use crate::sql::parser::Node;
 use crate::sql::query::select::{ProjectionTarget, SqlSelect};
@@ -11,7 +10,6 @@ use std::collections::{HashMap, HashSet};
 use std::process::exit;
 use crate::query::physical::{PhysicalNode,realize::FromLogicalNode};
 use crate::schema::types::Type;
-// use crate::query::algebra::LogicalNode;
 use crate::sql::parser::Rule::sql_value;
 
 type Row = HashMap<String, Option<Vec<u8>>>;
@@ -23,8 +21,18 @@ impl DatabaseInstance {
         let logical_plan =
             query::algebra::LogicalNode::translate_sql(query, &planner_info, self.name())
                 .map_err(|_| "Broken Query".to_string())?;
+        if cfg!(debug_assertions){
+            println!("Logical Plan:");
+            dbg!(&logical_plan);
+            println!("--------------------------")
+        }
         let mut planner_info = self.planner_info();
         let plan = PhysicalNode::from_logic(logical_plan, &mut planner_info, self.tables());
+        if cfg!(debug_assertions){
+            println!("Physical Plan:");
+            dbg!(&plan);
+            println!("--------------------------")
+        }
         Ok(plan)
     }
 

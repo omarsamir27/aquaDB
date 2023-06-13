@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use evalexpr::{Node as ExprTree, Node, Operator};
+use evalexpr::{FloatType, Node as ExprTree, Node, Operator, Value};
 use evalexpr::Value::Boolean;
 use crate::FieldId;
+use crate::schema::types::{NumericType, Type};
 
 #[inline(always)]
 pub fn extract_used_variables(tree: &ExprTree) -> Vec<String> {
@@ -64,6 +65,21 @@ pub fn get_all_binary_clauses(root:&ExprTree) -> Vec<Node> {
         add_to_vec(n,&mut bin_clauses);
     }
     bin_clauses
+}
+
+pub fn get_single_binary_clause(root:&ExprTree) -> (Operator,Value){
+    let op = root.operator().clone();
+    let val = root.children().iter().filter(|n| {
+        matches!(n.operator(),Operator::Const {..})
+    }).map(|n| {
+        if let Operator::Const {value} = n.operator(){
+            value.clone()
+        }else {
+            unreachable!()
+        }
+        }
+    ).next().unwrap();
+    (op,val)
 }
 
 pub fn set_node_true(root:&mut ExprTree,node:&ExprTree){
@@ -129,4 +145,31 @@ fn is_true(node:&ExprTree) -> bool{
 
 fn is_false(node:&ExprTree) -> bool{
     is_const_val(node,Operator::Const {value: Boolean(false)})
+}
+
+pub fn value_as_bytes(val:&evalexpr::Value,key_type:Type) -> Vec<u8>{
+    match val{
+        Value::String(a) => a.as_bytes().to_vec(),
+        Value::Float(f) => {
+            match key_type{
+                Type::Numeric(n) => match n{
+                    NumericType::Single => (*f as f32).to_ne_bytes().to_vec(),
+                    NumericType::Double => ((*f).to_ne_bytes()).to_vec(),
+                    _ => unreachable!()
+                },
+               _ => unreachable!()
+            }
+        }
+        Value::Int(i) => match key_type {
+            Type::Numeric(n) => match n{
+                NumericType::SmallInt => (*i as i16).to_ne_bytes().to_vec(),
+                NumericType::Integer => (*i as i32).to_ne_bytes().to_vec(),
+                NumericType::BigInt => (*i as i64).to_ne_bytes().to_vec(),
+                NumericType::Serial => (*i as i32).to_ne_bytes().to_vec(),
+                _ => unreachable!()
+            }
+            _ => unreachable!()
+        },
+        _ => unreachable!()
+    }
 }

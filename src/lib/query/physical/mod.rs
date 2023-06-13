@@ -153,16 +153,11 @@ pub struct Select {
     condition: evalexpr::Node,
     context: HashMapContext,
     child: Box<PhysicalNode>,
+    pub bridged: (bool, Option<Vec<u8>>), // (LOADED,KEY)
 }
 
 impl Select {
-
-}
-
-impl Iterator for Select {
-    type Item = MergedRow;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next_normal(&mut self) -> Option<MergedRow>{
         for next in self.child.by_ref() {
             fill_ctx_map(&mut self.context,&next,&self.fields_map);
             if self
@@ -174,6 +169,28 @@ impl Iterator for Select {
             }
         }
         None
+    }
+    fn next_bridged(&mut self) -> Option<MergedRow>{
+        self.child.next()
+    }
+}
+
+impl Iterator for Select {
+    type Item = MergedRow;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.bridged.1.is_none(){
+            self.next_normal()
+        }
+        else if self.bridged.0{
+            self.next_bridged()
+        }
+        else {
+            self.child.load_key(self.bridged.1.as_ref().unwrap());
+            self.bridged.0 = true;
+            self.next_bridged()
+        }
+
     }
 }
 

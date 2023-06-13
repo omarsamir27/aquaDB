@@ -34,6 +34,9 @@ pub enum LogicalNode {
 }
 
 impl LogicalNode {
+    pub fn is_base_relation(&self) -> bool{
+        matches!(self,Self::Relation(_))
+    }
     fn chain(&mut self, queue: &mut Vec<Self>) {
         match self {
             LogicalNode::Project(p) => p.chain(queue),
