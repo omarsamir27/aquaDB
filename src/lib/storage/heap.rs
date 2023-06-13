@@ -23,7 +23,12 @@ pub struct PageHeader {
     pub special_area_offset: usize,
 }
 
+
 impl PageHeader {
+    
+    fn disk_space() -> usize{
+        6
+    }
     /// Read the first 4 bytes of a Heap Page 2 by 2 to assign them to the start and end attributes
     fn new(payload: &[u8]) -> Self {
         Self {
@@ -83,6 +88,11 @@ pub struct HeapPage {
 }
 
 impl HeapPage {
+    /// used with TRUE heap pages only,not for indexes
+    pub fn default_free_space(blk_size:usize) -> usize{
+        blk_size - PageHeader::disk_space()
+    }
+    
     /// Creates a new Heap Page given a reference of a frame in the memory, a block id and the layout
     /// of the tuples inside the block.
     ///

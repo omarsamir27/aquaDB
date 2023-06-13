@@ -94,6 +94,7 @@ impl DatabaseServer {
                     conn.try_clone().unwrap(),
                 );
                 db_instance.handle_connection();
+                db_instance.flush_everything();
             } else {
                 // send_string(&mut conn, "WOTT");
                 Message::Status(Status::DatabaseNotFound(cmd[2].to_string()))

@@ -41,26 +41,21 @@ impl TableManager {
     pub fn new(
         blocks: Vec<BlockId>,
         storage_mgr: Rc<RefCell<StorageManager>>,
-        free_map: Option<FreeMap>,
+        free_map: FreeMap,
         layout: Rc<Layout>,
         indexes: Vec<IndexInfo>,
     ) -> Self {
-        let free_map = if free_map.is_none() {
-            let mut strg_mgr = storage_mgr.borrow_mut();
-            let mut map = FreeMap::new();
-            for block in &blocks {
-                let blk_header = strg_mgr.read_raw(block, 4);
-                let space_start = blk_header.as_slice().extract_u16(0);
-                let space_end = blk_header.as_slice().extract_u16(2);
-                let space = (space_end - space_start);
-                if space != 0 {
-                    map.add_blockspace(space, block);
-                };
-            }
-            map
-        } else {
-            free_map.unwrap()
-        };
+            // let mut strg_mgr = storage_mgr.borrow_mut();
+            // for block in &blocks {
+            //     let blk_header = strg_mgr.read_raw(block, 4);
+            //     let space_start = blk_header.as_slice().extract_u16(0);
+            //     let space_end = blk_header.as_slice().extract_u16(2);
+            //     let space = (space_end - space_start);
+            //     if space != 0 {
+            //         map.add_blockspace(space, block);
+            //     };
+            // }
+
         let mut  hash_idx = HashMap::new();
         let mut  btree_idx = HashMap::new();
         for idx in indexes{
@@ -107,16 +102,20 @@ impl TableManager {
         filepath: PathBuf,
         layout: Rc<Layout>,
         indexes: Vec<IndexInfo>,
+        freemap_file : PathBuf
     ) -> Self {
+        let mut freemap = FreeMap::new(freemap_file);
         let mut blks = storage_mgr.borrow().file_blks(filepath.clone());
         if blks.is_empty() {
             blks.append(
                 &mut storage_mgr
                     .borrow_mut()
                     .empty_heap_pages(filepath.to_str().unwrap(), 1),
-            )
+            );
+            freemap.add_blockspace(HeapPage::default_free_space(storage_mgr.borrow().blk_size()) as u16,&blks[0]);
+            freemap.flush_map();
         }
-        Self::new(blks, storage_mgr, None, layout, indexes)
+        Self::new(blks, storage_mgr, freemap, layout, indexes)
     }
 
     /// Marks a tuple for deletion using it's BlockId and Page slot number
@@ -234,6 +233,7 @@ impl TableManager {
             storage_mgr.flush_frame(frame.clone());
             storage_mgr.unpin(frame);
         }
+        self.free_map.flush_map();
         // for idx in self.indexes().values() {
         //     idx.flush_all(&mut storage_mgr)
         // }

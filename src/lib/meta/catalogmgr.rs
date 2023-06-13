@@ -10,6 +10,10 @@ use std::collections::{HashMap, HashSet};
 use std::fs::create_dir;
 use std::path::{Path, PathBuf};
 use std::{cell::RefCell, rc::Rc};
+use crate::common::btree_multimap::BTreeMultimap;
+use crate::storage::blockid::BlockId;
+use crate::storage::free_space::FreeMap;
+use crate::storage::heap::HeapPage;
 
 struct InstanceCatalog {
     db_name: String,
@@ -26,21 +30,22 @@ impl InstanceCatalog {
         let tables = self
             .tables_filepaths
             .heapscan_iter()
-            .map(|r| {
+            .map(|mut r| {
                 (
-                    String::from_utf8(r.get("tablename").unwrap().as_ref().unwrap().clone())
+                    String::from_utf8(r.remove("tablename").unwrap().unwrap())
                         .unwrap(),
-                    String::from_utf8(r.get("filepath").unwrap().as_ref().unwrap().clone())
+                    (String::from_utf8(r.remove("filepath").unwrap().unwrap())
                         .unwrap(),
+                    String::from_utf8(r.remove("freemap").unwrap().unwrap()).unwrap())
                 )
             })
-            .collect::<HashMap<String, String>>();
+            .collect::<HashMap<String, (String,String)>>();
         let db_path = Path::new(AQUADIR().as_str())
             .join("base")
             .join(&self.db_name);
         tables
             .into_iter()
-            .map(|(name, heap_path)| {
+            .map(|(name, (heap_path,freemap_file))| {
                 let schema = self.get_schema(&name);
                 let indexes = schema
                     .indexes()
@@ -52,6 +57,7 @@ impl InstanceCatalog {
                     db_path.join(heap_path),
                     Rc::new(schema.to_layout()),
                     indexes,
+                    db_path.join(freemap_file)
                 );
                 (name, table)
             })
@@ -109,6 +115,10 @@ impl InstanceCatalog {
                 "filepath".to_string(),
                 Some(format!("{}_heap0", &schema.name()).into_bytes()),
             ),
+            (
+                "freemap".to_string(),
+                Some(format!("{}_freemap",&schema.name()).into_bytes())
+                )
         ]);
 
         let mut indexes_catalog = &mut self.indexes;
@@ -127,8 +137,14 @@ impl InstanceCatalog {
             .iter()
             .map(|idx| idx.to_index_info(self.db_name.as_str()))
             .collect();
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(&self.db_name)
+            .join(format!("{}_freemap",&schema.name()));
+        FreeMap::init(freemap_file.clone(),0,&BlockId::new("",0));
+
         let table =
-            TableManager::from_file(storage, table_path, Rc::new(schema.to_layout()), indexes);
+            TableManager::from_file(storage, table_path, Rc::new(schema.to_layout()), indexes,freemap_file);
         Ok(table)
     }
 }
@@ -209,11 +225,15 @@ impl CatalogManager {
         let database_tbl_file = Path::new(AQUADIR().as_str())
             .join("global")
             .join("aqua_database");
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("global")
+            .join("aqua_freemap");
         TableManager::from_file(
             storage.clone(),
             database_tbl_file,
             Self::dbs_table_layout(),
             vec![],
+            freemap_file
         )
     }
     fn load_db_tables_files_table(
@@ -225,11 +245,16 @@ impl CatalogManager {
             .join("base")
             .join(db_name)
             .join(schema_name.as_str());
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(db_name)
+            .join(format!("{}_freemap",schema_name));
         TableManager::from_file(
             storage.clone(),
             db_schema_file,
             Self::db_tables_file_layout(schema_name.as_str()),
             vec![],
+            freemap_file
         )
     }
     fn load_db_schema_table(storage: &Rc<RefCell<StorageManager>>, db_name: &str) -> TableManager {
@@ -238,11 +263,16 @@ impl CatalogManager {
             .join("base")
             .join(db_name)
             .join(schema_name.as_str());
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(db_name)
+            .join(format!("{}_freemap",schema_name));
         TableManager::from_file(
             storage.clone(),
             db_schema_file,
             Self::db_schema_layout(schema_name.as_str()),
             vec![],
+            freemap_file
         )
     }
     fn load_db_indexes_table(storage: &Rc<RefCell<StorageManager>>, db_name: &str) -> TableManager {
@@ -251,11 +281,16 @@ impl CatalogManager {
             .join("base")
             .join(db_name)
             .join(schema_name.as_str());
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(db_name)
+            .join(format!("{}_freemap",schema_name));
         TableManager::from_file(
             storage.clone(),
             db_schema_file,
             Self::db_indexes_layout(schema_name.as_str()),
             vec![],
+            freemap_file
         )
     }
     fn init_dbs_table(storage: Rc<RefCell<StorageManager>>) -> TableManager {
@@ -266,7 +301,12 @@ impl CatalogManager {
         let blks = storage
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, storage, None, layout, vec![])
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("global")
+            .join("aqua_freemap");
+        let mut freemap = FreeMap::init(freemap_file,HeapPage::default_free_space(storage.borrow().blk_size()) as u16,&blks[0]);
+        TableManager::new(blks, storage, freemap, layout, vec![])
+        // TableManager::new(blks, storage, None, layout, vec![])
     }
     pub fn create_database(&mut self, db_name: &str) -> Result<(), String> {
         if self.databases_catalogs.contains_key(db_name) {
@@ -299,12 +339,19 @@ impl CatalogManager {
         let path = Path::new(AQUADIR().as_str())
             .join("base")
             .join(db_name)
-            .join(schema_name);
+            .join(schema_name.clone());
         let blks = self
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout, vec![])
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(db_name)
+            .join(format!("{}_freemap",schema_name));
+        let mut freemap = FreeMap::init(freemap_file,HeapPage::default_free_space(self.storage_mgr.borrow().blk_size()) as u16,&blks[0]);
+        // freemap.add_blockspace(HeapPage::default_free_space(self.storage_mgr.borrow().blk_size()) as u16,&blks[0]);
+        TableManager::new(blks, self.storage_mgr.clone(), freemap, layout, vec![])
+        // TableManager::new(blks, self.storage_mgr.clone(), None, layout, vec![])
     }
     fn create_db_schema_table(&mut self, db_name: &str) -> TableManager {
         let layout = Self::db_schema_layout(db_name);
@@ -312,12 +359,18 @@ impl CatalogManager {
         let path = Path::new(AQUADIR().as_str())
             .join("base")
             .join(db_name)
-            .join(schema_name);
+            .join(schema_name.clone());
         let blks = self
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout, vec![])
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(db_name)
+            .join(format!("{}_freemap",schema_name));
+        let mut freemap = FreeMap::init(freemap_file,HeapPage::default_free_space(self.storage_mgr.borrow().blk_size()) as u16,&blks[0]);
+        // freemap.add_blockspace(HeapPage::default_free_space(self.storage_mgr.borrow().blk_size()) as u16,&blks[0]);
+        TableManager::new(blks, self.storage_mgr.clone(), freemap, layout, vec![])
     }
     fn create_db_tables_files(&mut self, db_name: &str) -> TableManager {
         let layout = Self::db_tables_file_layout(db_name);
@@ -325,12 +378,19 @@ impl CatalogManager {
         let path = Path::new(AQUADIR().as_str())
             .join("base")
             .join(db_name)
-            .join(schema_name);
+            .join(schema_name.clone());
         let blks = self
             .storage_mgr
             .borrow_mut()
             .empty_heap_pages(path.to_str().unwrap(), 1);
-        TableManager::new(blks, self.storage_mgr.clone(), None, layout, vec![])
+        let freemap_file = Path::new(AQUADIR().as_str())
+            .join("base")
+            .join(db_name)
+            .join(format!("{}_freemap",schema_name));
+
+        let mut freemap = FreeMap::init(freemap_file,HeapPage::default_free_space(self.storage_mgr.borrow().blk_size()) as u16,&blks[0]);
+        // freemap.add_blockspace(HeapPage::default_free_space(self.storage_mgr.borrow().blk_size()) as u16,&blks[0]);
+        TableManager::new(blks, self.storage_mgr.clone(), freemap, layout, vec![])
     }
     fn dbs_table_layout() -> Rc<Layout> {
         let mut schema = Schema::new();
@@ -466,6 +526,7 @@ impl CatalogManager {
             None,
             None,
         );
+        schema.add_field("freemap",Type::Character(VarChar),false,true,None,None);
         Rc::new(schema.to_layout())
     }
 }

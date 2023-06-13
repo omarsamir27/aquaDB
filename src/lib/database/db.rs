@@ -54,7 +54,7 @@ impl DatabaseInstance {
             tables,
         }
     }
-    fn flush_everything(&self) {
+    pub fn flush_everything(&self) {
         for tbl in self.tables.values() {
             tbl.flush_all();
         }
