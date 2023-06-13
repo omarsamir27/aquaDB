@@ -349,7 +349,32 @@ impl Iterator for IndexedJoin{
     type Item = MergedRow;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let right_table_name = &self.eq_fields.1.table;
+
+        if let Some(left) = &self.current_left_row {
+            if let Some(right) = self.right.next() {
+                return Some(merge(left, &right))
+            }
+            else if let Some(left) = &self.left.next() {
+                self.current_left_row.replace(left.clone());
+                let key = left.get(&self.eq_fields.0).unwrap().as_ref().unwrap();
+                self.right.load_key(key);
+                self.next()
+            }
+            else {
+                None
+            }
+        }
+
+        else if let Some(left) = self.left.next() {
+            self.current_left_row.replace(left.clone());
+            let key = left.get(&self.eq_fields.0).unwrap().as_ref().unwrap();
+            self.right.load_key(key);
+            self.next()
+        }
+        else {
+            None
+        }
+        /* let right_table_name = &self.eq_fields.1.table;
         if let Some(left) = &self.current_left_row{
             if let Some(right) = self.right.next(){
                 return Some(merge(left, &right))
@@ -370,7 +395,7 @@ impl Iterator for IndexedJoin{
                     return self.next()
                 }
         }
-        None
+        None*/
     }
 
 }

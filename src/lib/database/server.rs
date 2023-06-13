@@ -108,7 +108,7 @@ impl DatabaseServer {
         }
     }
     fn sync(&self){
-        self.storage.borrow_mut().force_flush_all();
+        self.storage.borrow_mut().flush_all();
     }
 
     pub fn new(home_dir: &str, addr: Vec<String>) -> Self {

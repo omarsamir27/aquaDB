@@ -114,11 +114,12 @@ pub struct BPTree {
 // B+Tree implementation
 impl BPTree {
     pub fn init(
-        root_block: BlockId,
         key_type: Type,
         storage_manager: Rc<RefCell<StorageManager>>,
         index_file : String
     ) -> Self {
+
+        let root_block = storage_manager.borrow_mut().extend_file(index_file.as_str());
         let root_frame = storage_manager
             .borrow_mut()
             .pin(root_block.clone())
@@ -134,6 +135,8 @@ impl BPTree {
         leaf_schema.add_field_default_constraints("block_num", Type::Numeric(BigInt), None);
         leaf_schema.add_field_default_constraints("slot_num", Type::Numeric(SmallInt), None);
         let leaf_layout = Rc::new(leaf_schema.to_layout());
+
+        let root_heap = HeapPage::new_from_empty_special(root_frame.clone(), &root_block, leaf_layout.clone(), 16);
 
         BPTree {
             root: NodePage::init(

@@ -63,9 +63,7 @@ impl Index {
                 GLOBAL_DEPTH,
             ),
             IndexType::Btree => {
-                BPTree::init(
-                    BlockId::new(index_info.index_file_path.as_path().as_os_str().to_str().unwrap(),0)
-                    ,index_info.key_type,storage,index_info.index_file_path.to_str().unwrap().to_string());
+                BPTree::init(index_info.key_type,storage,index_info.index_file_path.to_str().unwrap().to_string());
             }
         }
     }

@@ -132,6 +132,7 @@ impl BucketDirectory {
     pub fn bucket_map_to_bytes(&self) -> Vec<u8> {
         let mut data = Vec::new();
         data.extend_from_slice(self.global_depth.to_ne_bytes().as_slice());
+        data.extend_from_slice(self.buckets_num.to_ne_bytes().as_slice());
         for (k, v) in self.bucket_map.clone() {
             data.extend_from_slice(k.to_ne_bytes().as_slice());
             data.extend_from_slice(v.to_ne_bytes().as_slice());
