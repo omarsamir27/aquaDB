@@ -84,7 +84,6 @@ impl FromLogicalNode<Logical::Join> for PhysicalNode{
         let Logical::Join
         { condition, join_type, left, right, fields_map }
             = value;
-        dbg!(condition.iter_read_variable_identifiers().collect::<Vec<_>>());
         let mut identifiers = condition.iter_read_variable_identifiers().map(|f| FieldId::from_str(f).unwrap()).collect::<Vec<_>>();
         let left_field = identifiers.pop().unwrap();
         let right_field = identifiers.pop().unwrap();
