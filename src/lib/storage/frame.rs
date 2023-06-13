@@ -94,10 +94,10 @@ impl Frame {
         }
     }
 
-    // pub fn force_flush(&mut self,blkmgr:&mut BlockManager){
-    //     self.dirty = true;
-    //     self.flush(blkmgr);
-    // }
+    pub fn force_flush(&mut self,blkmgr:&mut BlockManager){
+        self.dirty = true;
+        self.flush(blkmgr);
+    }
 
     /// Writes data(as bytes) to the page contained in the frame.
     pub fn write(&mut self, data: &[u8]) {

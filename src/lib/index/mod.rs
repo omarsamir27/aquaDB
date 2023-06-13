@@ -97,13 +97,13 @@ impl Index {
         }
     }
 
-    pub fn flush_all(&self, mut storage_mgr: &mut RefMut<StorageManager>) {
-        match self {
-            Index::Hash(idx) => {
-                idx.flush_all(storage_mgr);
-            }
-        }
-    }
+    // pub fn flush_all(&self, mut storage_mgr: &mut RefMut<StorageManager>) {
+    //     match self {
+    //         Index::Hash(idx) => {
+    //             idx.flush_all(storage_mgr);
+    //         }
+    //     }
+    // }
 }
 
 pub struct IndexInfo {

@@ -88,6 +88,11 @@ impl StorageManager {
     pub fn flush_all(&mut self) {
         self.buffer_manager.flush_all(&mut self.block_manager);
     }
+
+    pub fn force_flush_all(&mut self){
+        self.buffer_manager.force_flush_all(&mut self.block_manager);
+
+    }
     
     /// Flushes a memory frame to the disk block it is currently pinned to , resetting its stats
     pub fn flush_frame(&mut self, frame: FrameRef) {
