@@ -172,4 +172,17 @@ impl BufferManager {
     pub fn locate_existing_block(&self, blk: &BlockId) -> Option<usize> {
         self.block_map.get(blk).copied()
     }
+
+    pub fn get_available_slots(&self) -> u32 {
+        self.available_slots
+    }
+
+    pub fn print_pinned_blocks(&self) {
+        for frame in &self.frame_pool {
+            let borrowed_frame = frame.borrow();
+            if !borrowed_frame.is_free() {
+                dbg!(&borrowed_frame.blockid);
+            }
+        }
+    }
 }

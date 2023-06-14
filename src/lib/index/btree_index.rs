@@ -26,40 +26,6 @@ const SLOT_NUM_SIZE: usize = 2;
 const ORDER: usize = 4; // B+Tree order
 const INDEX_RECORD_SIZE: usize = 14;
 
-// #[derive(Debug, Clone, Eq, PartialEq)]
-// pub struct Rid {
-//     block_num: u64,
-//     slot_num: u16,
-// }
-//
-// impl Rid {
-//     pub fn new(block_num: u64, slot_num: u16) -> Self {
-//         Self {
-//             block_num,
-//             slot_num,
-//         }
-//     }
-//
-//     // Convert Rid to bytes
-//     fn to_bytes(&self) -> Vec<u8> {
-//         let mut bytes = Vec::with_capacity(BLOCK_NUM_SIZE + SLOT_NUM_SIZE);
-//         bytes.extend_from_slice(&self.block_num.to_ne_bytes());
-//         bytes.extend_from_slice(&self.slot_num.to_ne_bytes());
-//         bytes
-//     }
-//
-//     // Convert bytes to Rid
-//     fn from_bytes(bytes: &[u8]) -> Rid {
-//         let block_num = bytes.extract_u64(0);
-//         let slot_num = bytes.extract_u16(8);
-//
-//         Rid {
-//             block_num,
-//             slot_num,
-//         }
-//     }
-// }
-
 // Index record in the leaf node
 #[derive(Debug, Clone)]
 struct IndexRecord {
@@ -199,6 +165,8 @@ impl BPTree {
 
     // Insert a key-value pair into the B+Tree
     pub fn insert(&mut self, key: Vec<u8>, value: Rid) {
+        dbg!("Before Insertion");
+        dbg!(self.storage_manager.borrow().show_available_slots());
         let mut free_space = 0_i32;
         match self.root.clone() {
             NodePage::Internal(root) => {
@@ -265,10 +233,11 @@ impl BPTree {
                             .borrow_mut()
                             .page
                             .write_bytes(vec![0; root_payload.len()].as_slice(), 0);
-                        let root_frame = self.root_frame.borrow().blockid.as_ref().unwrap().clone();
+                        let idx_file = self.root_frame.borrow().blockid.as_ref().unwrap().filename.clone();
+                        let root_block = BlockId::new(idx_file.as_str(), 0);
                         let new_root_heap = HeapPage::new_from_empty(
                             self.root_frame.clone(),
-                            &root_frame,
+                            &root_block,
                             self.internal_layout.clone(),
                         );
 
@@ -308,6 +277,9 @@ impl BPTree {
                             &split_blockid.clone(),
                             self.internal_layout.clone(),
                         );
+                        self.storage_manager.borrow_mut().unpin(left_frame);
+                        self.storage_manager.borrow_mut().unpin(split_frame);
+
                         new_root.insert_child(dummy_key, left_blockid.block_num);
                         new_root.insert_child(split_key.clone(), split_block_num.unwrap());
                         self.root = NodePage::Internal(new_root);
@@ -319,10 +291,11 @@ impl BPTree {
                         .borrow_mut()
                         .page
                         .write_bytes(vec![0; root_payload.len()].as_slice(), 0);
-                    let root_frame = self.root_frame.borrow().blockid.as_ref().unwrap().clone();
+                    let idx_file = self.root_frame.borrow().blockid.as_ref().unwrap().filename.clone();
+                    let root_block = BlockId::new(idx_file.as_str(), 0);
                     let new_root_heap = HeapPage::new_from_empty(
                         self.root_frame.clone(),
-                        &root_frame,
+                        &root_block,
                         self.internal_layout.clone(),
                     );
 
@@ -360,6 +333,9 @@ impl BPTree {
                 }
             }
         }
+        dbg!("After Insertion");
+        dbg!(self.storage_manager.borrow().show_available_slots());
+
     }
 
     // Search for a key in the B+Tree and return the associated values
@@ -609,6 +585,9 @@ impl InternalNodePage {
             NodePage::Internal(ref mut target_node) => {
                 let free_space = self.heap_page.free_space() as i32 - 4;
                 let (split_key, split_block_num) = target_node.insert(key.clone(), value);
+                if target_node.heap_page.blk.block_num == 0 {
+                    dbg!("Freeing ROOT !!");
+                }
                 self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
                 if let Some(split_key) = split_key {
                     let dummy_key: Vec<u8> = Vec::new();

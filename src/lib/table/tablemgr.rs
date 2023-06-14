@@ -176,19 +176,21 @@ impl TableManager {
         let mut storage_mgr = self.storage_mgr.borrow_mut();
         let (blk, slot) = if let Some((free_size, block)) = target_block {
             let mut frame = storage_mgr.pin(block.clone()).unwrap();
-            let mut target_page = HeapPage::new(frame, &block, self.layout.clone());
+            let mut target_page = HeapPage::new(frame.clone(), &block, self.layout.clone());
             let idx = target_page.insert_tuple(tuple);
             self.free_map
                 .add_blockspace(target_page.free_space(), &block);
+            storage_mgr.unpin(frame);
             (block, idx)
         } else {
             let blkid = storage_mgr.extend_file(self.table_blocks[0].filename.as_str());
             self.table_blocks.push(blkid.clone());
             let mut frame = storage_mgr.pin(blkid.clone()).unwrap();
-            let mut target_page = HeapPage::new_from_empty(frame, &blkid, self.layout.clone());
+            let mut target_page = HeapPage::new_from_empty(frame.clone(), &blkid, self.layout.clone());
             let idx = target_page.insert_tuple(tuple);
             self.free_map
                 .add_blockspace(target_page.free_space(), &blkid);
+            storage_mgr.unpin(frame);
             (blkid, idx)
         };
         drop(storage_mgr);

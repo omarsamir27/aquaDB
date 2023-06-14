@@ -41,8 +41,16 @@ impl BlockManager {
         let mut filepath = self.db_dir.join(blockid.filename.as_str());
         // filepath.push_str(&blockid.filename.as_str());
         let file = self.get_file(filepath.to_str().unwrap());
-        file.read_at(blockid.block_num * blk_size as u64, &mut page.payload)
-            .unwrap();
+        match file.read_at(blockid.block_num * blk_size as u64, &mut page.payload) {
+            Ok(x) => {
+                if x != blk_size {
+                    dbg!(x, blockid);
+                }
+            }
+            Err(e) => {
+                dbg!(e, blockid);
+            }
+        }
     }
 
     /// Writes a certain page's content from memory into a specific block on the disk

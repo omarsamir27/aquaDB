@@ -66,6 +66,11 @@ impl StorageManager {
 
     /// Unpins a frame
     pub fn unpin(&mut self, frame: FrameRef) {
+        let frm = frame.borrow().blockid.as_ref().unwrap().clone();
+        dbg!(&frm);
+        if frm.block_num == 0 && frm.filename.ends_with("s_id_idx_file") {
+            return;
+        }
         self.buffer_manager.unpin(frame);
     }
 
@@ -129,5 +134,10 @@ impl StorageManager {
         let num_blks = size / self.blk_size() as u64;
         let filename = filepath.to_str().unwrap();
         (0..num_blks).map(|n| BlockId::new(filename, n)).collect()
+    }
+
+    pub fn show_available_slots(&self) -> u32 {
+        self.buffer_manager.print_pinned_blocks();
+        self.buffer_manager.get_available_slots()
     }
 }
