@@ -86,7 +86,6 @@ impl TableManager {
         //         (column, Index::load_index(idx, blks))
         //     })
         //     .collect();
-// todo!();
         Self {
             free_map,
             table_blocks: blocks,
@@ -263,6 +262,10 @@ impl TableManager {
 
     pub fn get_layout(&self) -> Rc<Layout> {
         self.layout.clone()
+    }
+    
+    pub fn field_has_index(&self,field:&str) -> bool{
+        self.hash_indexes.contains_key(field) || self.btree_indexes.contains_key(field)
     }
 
     /// Creates a TableIter instance that is an sequential iterator over ALL the tuples in a table

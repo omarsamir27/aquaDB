@@ -20,7 +20,7 @@ use std::time::Duration;
 
 type Storage = Rc<RefCell<StorageManager>>;
 type Catalog = Rc<RefCell<CatalogManager>>;
-type Record = Result<Vec<(String, Option<Vec<u8>>)>, ()>;
+type Record = Result<Vec<(String, Option<Vec<u8>>)>, String>;
 type DbTables = HashMap<String, TableManager>;
 
 const MAX_WORKING_MEMORY: usize = 16000;
@@ -106,7 +106,7 @@ impl DatabaseInstance {
                                     .unwrap_or_default(),
                             },
                             Err(e) => {
-                                Message::Status(Status::RecordNotInserted("TODO ERROR".to_string()))
+                                Message::Status(Status::RecordNotInserted(e))
                                     .send_msg_to(&mut self.conn)
                                     .unwrap_or_default()
                             }

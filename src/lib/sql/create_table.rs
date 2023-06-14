@@ -35,7 +35,7 @@ impl CreateTable {
         schema.set_name(&self.table_name);
         for field in self.fields.iter() {
             field_names.insert(field.name.as_str());
-            let nullable = field.constraints.contains(&NotNull);
+            let nullable = !field.constraints.contains(&NotNull);
             let primary = field.constraints.contains(&PrimaryKey);
             let unique = field.constraints.contains(&Unique);
             let references = field
