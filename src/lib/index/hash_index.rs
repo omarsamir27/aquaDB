@@ -122,6 +122,8 @@ impl BucketDirectory {
     }
 
     pub fn remove_bucket(&mut self, bucket_id: u32) -> Option<u64> {
+        dbg!(bucket_id);
+        dbg!(&self.bucket_map);
         self.bucket_map.remove(&bucket_id)
     }
 

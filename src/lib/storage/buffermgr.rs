@@ -159,8 +159,8 @@ impl BufferManager {
         let victim = self
             .frame_pool
             .iter()
-            .filter(|&frame| frame.borrow().is_free())
             .enumerate()
+            .filter(|&(idx,frame)| frame.borrow().is_free())
             .max_by_key(|&(x, y)| y.borrow().lirs_weight(now));
         match victim {
             None => None,

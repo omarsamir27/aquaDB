@@ -67,7 +67,7 @@ impl StorageManager {
     /// Unpins a frame
     pub fn unpin(&mut self, frame: FrameRef) {
         let frm = frame.borrow().blockid.as_ref().unwrap().clone();
-        dbg!(&frm);
+        // dbg!(&frm);
         if frm.block_num == 0 && frm.filename.ends_with("s_id_idx_file") {
             return;
         }
