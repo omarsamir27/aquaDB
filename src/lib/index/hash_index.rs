@@ -26,6 +26,7 @@ use std::rc::Rc;
 use pest::pratt_parser::Op;
 
 const IDX_RECORD_SIZE: usize = 15;
+const GLOBAL_DEPTH: u8 = 4;
 
 type Column = ConcreteType;
 type Row = Vec<Column>;
@@ -80,7 +81,7 @@ pub struct BucketDirectory {
 
 impl BucketDirectory {
     pub fn new(mut index_dir_file: &Path) -> Self {
-        // dbg!(&index_dir_file);
+
         let mut buffer = fs::read(index_dir_file).unwrap();
         let buffer = buffer.as_slice();
         let size = buffer.len();
@@ -123,8 +124,6 @@ impl BucketDirectory {
     }
 
     pub fn remove_bucket(&mut self, bucket_id: u32) -> Option<u64> {
-        dbg!(bucket_id);
-        dbg!(&self.bucket_map);
         self.bucket_map.remove(&bucket_id)
     }
 
@@ -235,6 +234,29 @@ impl HashIndex {
         }
     }
 
+    pub fn get_candidate_buckets(&self, data_val: &[u8]) -> Vec<u32> {
+        let mut buckets = Vec::new();
+        let hash_val = Self::hash_value(data_val);
+        let bucket_id = ((hash_val) % (2_u32.pow(self.global_depth as u32)));
+        let block_num = self.bucket_dir.bucket_map.get(&bucket_id);
+        if let Some(..) = block_num {
+            buckets.push(bucket_id);
+        }
+        let mut global_depth = self.global_depth;
+        let mut new_bucket_id = bucket_id;
+        loop {
+            global_depth -= 1;
+            new_bucket_id = ((hash_val) % (2_u32.pow(global_depth as u32)));
+            let new_block_num = self.bucket_dir.bucket_map.get(&new_bucket_id);
+            if let Some(..) = new_block_num {
+                buckets.push(new_bucket_id);
+            }
+            if global_depth == GLOBAL_DEPTH {
+                return buckets;
+            }
+        }
+    }
+
     /// A helper function to get the bucket ID from a hash value.
     pub fn hash_val_to_bucket(&self, hash_val: u32) -> u32 {
         let bucket_id = ((hash_val) % (2_u32.pow(self.global_depth as u32)));
@@ -281,6 +303,17 @@ impl HashIndex {
         BucketPage::new(frame, Some(bucket_id))
     }
 
+    fn create_bucket_from_hashcode(
+        &self,
+        bucket_id: u32,
+        mut storage_mgr: &mut RefMut<StorageManager>,
+    ) -> BucketPage {
+        let block_num = self.bucket_dir.bucket_map.get(&bucket_id);
+        let block = BlockId::new(self.blocks[0].filename.as_str(), *block_num.unwrap());
+        let frame = storage_mgr.pin(block).unwrap();
+        BucketPage::new(frame, Some(bucket_id))
+    }
+
     /// Inserting an index record inside a bucket after hashing the data value, trying to insert in the
     /// corresponding bucket, if there is no space, try inserting in the overflow bucket, if there is even no
     /// space in the overflow bucket, now we need to split it and re insert the record after splitting.
@@ -303,19 +336,23 @@ impl HashIndex {
                     .find(|block| block.block_num == bucket_page.overflow.unwrap())
                     .unwrap();
                 let frame = storage_mgr.pin(block.clone()).unwrap();
-                let mut overflow_bucket = BucketPage::new(frame, None);
+                let mut overflow_bucket = BucketPage::new(frame.clone(), None);
                 if overflow_bucket.insert_record(&idx_record).is_err() {
-                    self.split_bucket(&bucket_page, idx_record, data_val, storage_mgr);
+                    self.split_bucket(&bucket_page, idx_record, data_val, &mut storage_mgr);
                 }
+                storage_mgr.unpin(frame);
             } else {
                 let block = storage_mgr.extend_file(self.blocks[0].filename.as_str());
                 let frame = storage_mgr.pin(block.clone()).unwrap();
-                let mut new_bucket_page = BucketPage::new_from_empty(frame, bucket_page.depth, None);
+                let mut new_bucket_page = BucketPage::new_from_empty(frame.clone(), bucket_page.depth, None);
                 new_bucket_page.insert_record(&idx_record);
                 bucket_page.set_overflow(block.block_num);
+                storage_mgr.unpin(frame);
                 self.blocks.push(block);
             }
         }
+        storage_mgr.unpin(bucket_page.frame);
+
     }
 
     /// Reinserting the records after splitting a bucket.
@@ -333,17 +370,20 @@ impl HashIndex {
                     .find(|block| block.block_num == bucket_page.overflow.unwrap())
                     .unwrap();
                 let frame = storage_mgr.pin(block.clone()).unwrap();
-                let mut overflow_bucket = BucketPage::new(frame, None);
+                let mut overflow_bucket = BucketPage::new(frame.clone(), None);
                 overflow_bucket.insert_record(&idx_record);
+                storage_mgr.unpin(frame);
             } else {
                 let block = storage_mgr.extend_file(self.blocks[0].filename.as_str());
                 let frame = storage_mgr.pin(block.clone()).unwrap();
-                let mut new_bucket_page = BucketPage::new_from_empty(frame, bucket_page.depth, None);
+                let mut new_bucket_page = BucketPage::new_from_empty(frame.clone(), bucket_page.depth, None);
                 new_bucket_page.insert_record(&idx_record);
                 bucket_page.set_overflow(block.block_num);
+                storage_mgr.unpin(frame);
                 self.blocks.push(block);
             }
         }
+        storage_mgr.unpin(bucket_page.frame);
     }
 
     /// Reading all index records inside a bucket and its overflow, then creating 2 new buckets and
@@ -353,7 +393,7 @@ impl HashIndex {
         bucket_page: &BucketPage,
         idx_record: IdxRecord,
         data_val: &[u8],
-        mut storage_mgr: RefMut<StorageManager>,
+        mut storage_mgr: &mut RefMut<StorageManager>,
     ) {
         if bucket_page.depth == self.global_depth {
             self.global_depth += 1;
@@ -379,8 +419,9 @@ impl HashIndex {
                 .find(|block| block.block_num == bucket_page.overflow.unwrap())
                 .unwrap();
             let frame = storage_mgr.pin(block.clone()).unwrap();
-            let mut overflow_bucket = BucketPage::new(frame, None);
+            let mut overflow_bucket = BucketPage::new(frame.clone(), None);
             bucket_records.append(overflow_bucket.read_all_bucket_records().as_mut());
+            storage_mgr.unpin(frame);
         }
         let mut block_one = BlockId::new(filename, block_num);
         let bucket_one_id = bucket_page.bucket_num.unwrap();
@@ -388,14 +429,14 @@ impl HashIndex {
             .insert_bucket(bucket_one_id, block_one.block_num);
         let frame_one = storage_mgr.pin(block_one.clone()).unwrap();
         frame_one.borrow_mut().page.write_bytes(vec![0; 4096].as_slice(), 0);
-        let bucket_split_one = BucketPage::new_from_empty(frame_one, bucket_page.depth + 1, Some(bucket_one_id));
+        let bucket_split_one = BucketPage::new_from_empty(frame_one.clone(), bucket_page.depth + 1, Some(bucket_one_id));
         let mut block_two = storage_mgr.extend_file(filename);
         let bucket_two_id = bucket_one_id
             + 2_u32.pow(bucket_page.depth as u32);
         self.bucket_dir
             .insert_bucket(bucket_two_id, block_two.block_num);
         let frame_two = storage_mgr.pin(block_two.clone()).unwrap();
-        let bucket_split_two = BucketPage::new_from_empty(frame_two, bucket_page.depth + 1, Some(bucket_two_id));
+        let bucket_split_two = BucketPage::new_from_empty(frame_two.clone(), bucket_page.depth + 1, Some(bucket_two_id));
 
         self.blocks.push(block_one);
         self.blocks.push(block_two);
@@ -405,23 +446,33 @@ impl HashIndex {
             self.reinsert_record(record, &mut storage_mgr);
         }
         self.reinsert_record(idx_record, &mut storage_mgr);
+        storage_mgr.unpin(frame_one);
+        storage_mgr.unpin(frame_two);
         self.flush_directory();
+        storage_mgr.show_available_slots();
+        dbg!("_______________________________________");
     }
 
     /// Get all the rids of the matched index records with the search key.
     pub fn get_rids(&self, search_key: &[u8], mut storage_mgr: RefMut<StorageManager>) -> Vec<Rid> {
         let hash_val = Self::hash_value(search_key);
-        let mut bucket_page = self.create_bucket(search_key, &mut storage_mgr);
-        let mut rids = bucket_page.find_all(hash_val);
-        if bucket_page.overflow.is_some() {
-            let block = self
-                .blocks
-                .iter()
-                .find(|block| block.block_num == bucket_page.overflow.unwrap())
-                .unwrap();
-            let frame = storage_mgr.pin(block.clone()).unwrap();
-            let mut overflow_bucket = BucketPage::new(frame, None);
-            rids.append(overflow_bucket.find_all(hash_val).as_mut());
+        let bucket_ids = self.get_candidate_buckets(search_key);
+        let mut rids = Vec::new();
+        for bucket_id in bucket_ids {
+            let mut bucket_page = self.create_bucket_from_hashcode(bucket_id, &mut storage_mgr);
+            rids.extend(bucket_page.find_all(hash_val));
+            if bucket_page.overflow.is_some() {
+                let block = self
+                    .blocks
+                    .iter()
+                    .find(|block| block.block_num == bucket_page.overflow.unwrap())
+                    .unwrap();
+                let frame = storage_mgr.pin(block.clone()).unwrap();
+                let mut overflow_bucket = BucketPage::new(frame.clone(), None);
+                rids.append(overflow_bucket.find_all(hash_val).as_mut());
+                storage_mgr.unpin(frame);
+            }
+            storage_mgr.unpin(bucket_page.frame);
         }
         rids
     }

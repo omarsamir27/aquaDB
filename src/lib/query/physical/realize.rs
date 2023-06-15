@@ -65,7 +65,7 @@ impl FromLogicalNode<Logical::Select> for Physical::Select{
                         }
 
                 },
-                    Lt | Gt => {
+                    Lt | Gt | Leq | Geq => {
                         if let Some(mut btree) = tbl_mgr.btree_iter(&field,op){
                             Some((PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(table, btree))),val))
                         }else { None }

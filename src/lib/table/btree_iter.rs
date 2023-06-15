@@ -22,6 +22,8 @@ impl BtreeIter {
             Eq => self.index.search(key),
             Lt => self.index.get_less_than(key),
             Gt => self.index.get_greater_than(key),
+            Leq => self.index.get_less_than_or_equal(key),
+            Geq => self.index.get_greater_than_or_equal(key),
             _ => unreachable!()
         };
         self.rids.extend(rids.unwrap_or_default());

@@ -165,8 +165,6 @@ impl BPTree {
 
     // Insert a key-value pair into the B+Tree
     pub fn insert(&mut self, key: Vec<u8>, value: Rid) {
-        dbg!("Before Insertion");
-        dbg!(self.storage_manager.borrow().show_available_slots());
         let mut free_space = 0_i32;
         match self.root.clone() {
             NodePage::Internal(root) => {
@@ -333,9 +331,6 @@ impl BPTree {
                 }
             }
         }
-        dbg!("After Insertion");
-        dbg!(self.storage_manager.borrow().show_available_slots());
-
     }
 
     // Search for a key in the B+Tree and return the associated values
@@ -349,6 +344,14 @@ impl BPTree {
 
     pub fn get_less_than(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         self.root.get_less_than(key)
+    }
+
+    pub fn get_greater_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+        self.root.get_greater_than_or_equal(key)
+    }
+
+    pub fn get_less_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+        self.root.get_less_than_or_equal(key)
     }
 
     pub fn print_root(&self) {
@@ -441,6 +444,20 @@ impl NodePage {
     }
 
     fn get_less_than(&self, key:Vec<u8>) -> Option<Vec<Rid>> {
+        match self {
+            NodePage::Internal(node) => node.get_less_than(key),
+            NodePage::Leaf(node) => node.get_less_than(key),
+        }
+    }
+
+    fn get_greater_than_or_equal(&self, key:Vec<u8>) -> Option<Vec<Rid>> {
+        match self {
+            NodePage::Internal(node) => node.get_greater_than_or_equal(key),
+            NodePage::Leaf(node) => node.get_greater_than(key),
+        }
+    }
+
+    fn get_less_than_or_equal(&self, key:Vec<u8>) -> Option<Vec<Rid>> {
         match self {
             NodePage::Internal(node) => node.get_less_than(key),
             NodePage::Leaf(node) => node.get_less_than(key),
@@ -798,6 +815,100 @@ impl InternalNodePage {
         }
     }
 
+    fn get_less_than_or_equal (&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+        let right = (self.heap_page.tuple_pointers.len() - 1) as u16;
+        let child_index = self.binary_search_child_node(1, right, key.clone());
+
+        let target_block_num = self
+            .heap_page
+            .get_field("block_num", child_index as u16)
+            .unwrap()
+            .as_slice()
+            .extract_u64(0);
+        let target_blockid = BlockId::new(&self.index_file, target_block_num);
+
+        let target_frame = self
+            .storage_manager
+            .borrow_mut()
+            .pin(target_blockid.clone())
+            .unwrap();
+
+        let target_heap_page = HeapPage::new(
+            target_frame.clone(),
+            &target_blockid,
+            self.heap_page.layout.clone(),
+        );
+
+        let mut node_page = NodePage::new(
+            target_frame,
+            self.key_type,
+            self.storage_manager.clone(),
+            self.internal_layout.clone(),
+            self.leaf_layout.clone(),
+            self.index_file.clone()
+        );
+
+        match &node_page {
+            NodePage::Internal(target_node) => {
+                let results = target_node.get_less_than_or_equal(key);
+                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                results
+            },
+            NodePage::Leaf(target_node) => {
+                let results = target_node.get_less_than_or_equal(key);
+                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                results
+            }
+        }
+    }
+
+    fn get_greater_than_or_equal (&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+        let right = (self.heap_page.tuple_pointers.len() - 1) as u16;
+        let child_index = self.binary_search_child_node(1, right, key.clone());
+
+        let target_block_num = self
+            .heap_page
+            .get_field("block_num", child_index as u16)
+            .unwrap()
+            .as_slice()
+            .extract_u64(0);
+        let target_blockid = BlockId::new(&self.index_file, target_block_num);
+
+        let target_frame = self
+            .storage_manager
+            .borrow_mut()
+            .pin(target_blockid.clone())
+            .unwrap();
+
+        let target_heap_page = HeapPage::new(
+            target_frame.clone(),
+            &target_blockid,
+            self.heap_page.layout.clone(),
+        );
+
+        let mut node_page = NodePage::new(
+            target_frame,
+            self.key_type,
+            self.storage_manager.clone(),
+            self.internal_layout.clone(),
+            self.leaf_layout.clone(),
+            self.index_file.clone()
+        );
+
+        match &node_page {
+            NodePage::Internal(target_node) => {
+                let results = target_node.get_greater_than_or_equal(key);
+                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                results
+            },
+            NodePage::Leaf(target_node) => {
+                let results = target_node.get_greater_than_or_equal(key);
+                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                results
+            }
+        }
+    }
+
     fn get_greater_than (&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let right = (self.heap_page.tuple_pointers.len() - 1) as u16;
         let child_index = self.binary_search_child_node(1, right, key.clone());
@@ -891,6 +1002,7 @@ impl InternalNodePage {
             }
         }
     }
+
 
     pub fn insert_child(&mut self, key: Vec<u8>, block_num: u64) {
         let child_node = ChildNode {
@@ -1152,7 +1264,7 @@ impl LeafNodePage {
         }
     }
 
-    pub fn get_greater_than(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+    pub fn get_greater_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let mut results = Vec::new();
 
         let mut tuple_index = 0_u16;
@@ -1173,9 +1285,119 @@ impl LeafNodePage {
 
         results = self.get_index_records_from_position(tuple_index);
 
-        if results.is_empty() {
-            return None;
+        let mut next_block = if self.meta_data.next_node_blockid == 0 {
+            None
+        } else {
+            Some(BlockId{
+                block_num: self.meta_data.next_node_blockid,
+                filename: self.index_file.clone(),
+            })
+        };
+
+        while next_block.is_some() {
+            let block_id = next_block.unwrap();
+            let next_frame = self.storage_manager.borrow_mut().pin(block_id.clone()).unwrap();
+            let next_heap = HeapPage::new(next_frame.clone(), &block_id, self.leaf_layout.clone());
+            let next_leaf = LeafNodePage::new
+                (next_heap,
+                 self.key_type,
+                 self.storage_manager.clone(),
+                 self.leaf_layout.clone(),self.index_file.clone());
+            let new_results = next_leaf.get_index_records_from_position(0);
+
+            if next_leaf.meta_data.next_node_blockid == 0 {
+                next_block = None;
+            }
+            else {
+                next_block = Some(BlockId {
+                    block_num: next_leaf.meta_data.next_node_blockid,
+                    filename: self.index_file.clone(),
+                })
+            }
+            self.storage_manager.borrow_mut().unpin(next_frame);
+            results.extend(new_results);
         }
+
+        Some(results)
+    }
+
+    pub fn get_less_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+        let mut results = Vec::new();
+
+        let mut tuple_index = self.heap_page.tuple_pointers.len() as u16 - 1;
+        for tuple_pointer_index in (0..= tuple_index).rev() {
+            let mut index_record = self.heap_page.get_multiple_fields(
+                vec![
+                    "key".to_string(),
+                    "block_num".to_string(),
+                    "slot_num".to_string(),
+                ],
+                tuple_pointer_index,
+            );
+            if index_record.remove("key").unwrap().unwrap() <= key {
+                tuple_index = tuple_pointer_index;
+                break
+            }
+        }
+
+        results = self.get_index_records_from_position_backwards(tuple_index);
+
+        let mut prev_block = if self.meta_data.prev_node_blockid == 0 {
+            None
+        } else {
+            Some(BlockId{
+                block_num: self.meta_data.prev_node_blockid,
+                filename: self.index_file.clone(),
+            })
+        };
+
+        while prev_block.is_some() {
+            let block_id = prev_block.unwrap();
+            let prev_frame = self.storage_manager.borrow_mut().pin(block_id.clone()).unwrap();
+            let prev_heap = HeapPage::new(prev_frame.clone(), &block_id, self.leaf_layout.clone());
+            let prev_leaf = LeafNodePage::new
+                (prev_heap,
+                 self.key_type,
+                 self.storage_manager.clone(),
+                 self.leaf_layout.clone(),self.index_file.clone());
+            let new_results = prev_leaf.get_index_records_from_position_backwards(prev_leaf.heap_page.tuple_pointers.len() as u16 - 1);
+
+            if prev_leaf.meta_data.prev_node_blockid == 0 {
+                prev_block = None;
+            }
+            else {
+                prev_block = Some(BlockId {
+                    block_num: prev_leaf.meta_data.prev_node_blockid,
+                    filename: self.index_file.clone(),
+                })
+            }
+            self.storage_manager.borrow_mut().unpin(prev_frame);
+            results.extend(new_results);
+        }
+
+        Some(results)
+    }
+
+    pub fn get_greater_than(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+        let mut results = Vec::new();
+
+        let mut tuple_index = 0_u16;
+        for tuple_pointer_index in tuple_index..self.heap_page.tuple_pointers.len() as u16 {
+            let mut index_record = self.heap_page.get_multiple_fields(
+                vec![
+                    "key".to_string(),
+                    "block_num".to_string(),
+                    "slot_num".to_string(),
+                ],
+                tuple_pointer_index,
+            );
+            if index_record.remove("key").unwrap().unwrap() > key {
+                tuple_index = tuple_pointer_index;
+                break
+            }
+        }
+
+        results = self.get_index_records_from_position(tuple_index);
 
         let mut next_block = if self.meta_data.next_node_blockid == 0 {
             None
@@ -1226,17 +1448,13 @@ impl LeafNodePage {
                 ],
                 tuple_pointer_index,
             );
-            if index_record.remove("key").unwrap().unwrap() <= key {
+            if index_record.remove("key").unwrap().unwrap() < key {
                 tuple_index = tuple_pointer_index;
                 break
             }
         }
 
         results = self.get_index_records_from_position_backwards(tuple_index);
-
-        if results.is_empty() {
-            return None;
-        }
 
         let mut prev_block = if self.meta_data.prev_node_blockid == 0 {
             None
@@ -1273,6 +1491,7 @@ impl LeafNodePage {
 
         Some(results)
     }
+
 
     pub fn get_index_records_from_position(&self, pos: u16) -> Vec<Rid> {
         let mut records = Vec::new();
