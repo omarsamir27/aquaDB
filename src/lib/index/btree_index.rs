@@ -74,7 +74,7 @@ pub struct BPTree {
     storage_manager: Rc<RefCell<StorageManager>>,
     internal_layout: Rc<Layout>,
     leaf_layout: Rc<Layout>,
-    index_file : String
+    index_file: String,
 }
 
 // B+Tree implementation
@@ -82,10 +82,11 @@ impl BPTree {
     pub fn init(
         key_type: Type,
         storage_manager: Rc<RefCell<StorageManager>>,
-        index_file : String
+        index_file: String,
     ) -> Self {
-
-        let root_block = storage_manager.borrow_mut().extend_file(index_file.as_str());
+        let root_block = storage_manager
+            .borrow_mut()
+            .extend_file(index_file.as_str());
         let root_frame = storage_manager
             .borrow_mut()
             .pin(root_block.clone())
@@ -102,7 +103,12 @@ impl BPTree {
         leaf_schema.add_field_default_constraints("slot_num", Type::Numeric(SmallInt), None);
         let leaf_layout = Rc::new(leaf_schema.to_layout());
 
-        let root_heap = HeapPage::new_from_empty_special(root_frame.clone(), &root_block, leaf_layout.clone(), 16);
+        let root_heap = HeapPage::new_from_empty_special(
+            root_frame.clone(),
+            &root_block,
+            leaf_layout.clone(),
+            16,
+        );
 
         BPTree {
             root: NodePage::init(
@@ -111,14 +117,14 @@ impl BPTree {
                 storage_manager.clone(),
                 internal_layout.clone(),
                 leaf_layout.clone(),
-                index_file.clone()
+                index_file.clone(),
             ),
             root_frame,
             key_type,
             storage_manager,
             internal_layout,
             leaf_layout,
-            index_file
+            index_file,
         }
     }
 
@@ -127,7 +133,7 @@ impl BPTree {
         root_block: BlockId,
         key_type: Type,
         storage_manager: Rc<RefCell<StorageManager>>,
-        index_file: String
+        index_file: String,
     ) -> Self {
         let root_frame = storage_manager
             .borrow_mut()
@@ -152,14 +158,14 @@ impl BPTree {
                 storage_manager.clone(),
                 internal_layout.clone(),
                 leaf_layout.clone(),
-                index_file.clone()
+                index_file.clone(),
             ),
             root_frame,
             key_type,
             storage_manager,
             internal_layout,
             leaf_layout,
-            index_file
+            index_file,
         }
     }
 
@@ -231,7 +237,14 @@ impl BPTree {
                             .borrow_mut()
                             .page
                             .write_bytes(vec![0; root_payload.len()].as_slice(), 0);
-                        let idx_file = self.root_frame.borrow().blockid.as_ref().unwrap().filename.clone();
+                        let idx_file = self
+                            .root_frame
+                            .borrow()
+                            .blockid
+                            .as_ref()
+                            .unwrap()
+                            .filename
+                            .clone();
                         let root_block = BlockId::new(idx_file.as_str(), 0);
                         let new_root_heap = HeapPage::new_from_empty(
                             self.root_frame.clone(),
@@ -245,11 +258,13 @@ impl BPTree {
                             self.storage_manager.clone(),
                             self.internal_layout.clone(),
                             self.leaf_layout.clone(),
-                            self.index_file.clone()
+                            self.index_file.clone(),
                         );
 
-                        let left_blockid =
-                            self.storage_manager.borrow_mut().extend_file(&self.index_file);
+                        let left_blockid = self
+                            .storage_manager
+                            .borrow_mut()
+                            .extend_file(&self.index_file);
                         let mut left_frame = self
                             .storage_manager
                             .borrow_mut()
@@ -289,7 +304,14 @@ impl BPTree {
                         .borrow_mut()
                         .page
                         .write_bytes(vec![0; root_payload.len()].as_slice(), 0);
-                    let idx_file = self.root_frame.borrow().blockid.as_ref().unwrap().filename.clone();
+                    let idx_file = self
+                        .root_frame
+                        .borrow()
+                        .blockid
+                        .as_ref()
+                        .unwrap()
+                        .filename
+                        .clone();
                     let root_block = BlockId::new(idx_file.as_str(), 0);
                     let new_root_heap = HeapPage::new_from_empty(
                         self.root_frame.clone(),
@@ -303,7 +325,7 @@ impl BPTree {
                         self.storage_manager.clone(),
                         self.internal_layout.clone(),
                         self.leaf_layout.clone(),
-                        self.index_file.clone()
+                        self.index_file.clone(),
                     );
 
                     let right_blockid = BlockId {
@@ -312,7 +334,10 @@ impl BPTree {
                     };
                     let right_frame = self.storage_manager.borrow_mut().pin(right_blockid.clone());
 
-                    let left_blockid = self.storage_manager.borrow_mut().extend_file(&self.index_file);
+                    let left_blockid = self
+                        .storage_manager
+                        .borrow_mut()
+                        .extend_file(&self.index_file);
                     let mut left_frame = self
                         .storage_manager
                         .borrow_mut()
@@ -320,8 +345,18 @@ impl BPTree {
                         .unwrap();
                     left_frame.borrow_mut().page.payload = root_payload;
 
-                    let mut right_heap = HeapPage::new(right_frame.unwrap(), &right_blockid, self.leaf_layout.clone());
-                    let mut right_leaf = LeafNodePage::new(right_heap.clone(), self.key_type, self.storage_manager.clone(), self.leaf_layout.clone(),self.index_file.clone());
+                    let mut right_heap = HeapPage::new(
+                        right_frame.unwrap(),
+                        &right_blockid,
+                        self.leaf_layout.clone(),
+                    );
+                    let mut right_leaf = LeafNodePage::new(
+                        right_heap.clone(),
+                        self.key_type,
+                        self.storage_manager.clone(),
+                        self.leaf_layout.clone(),
+                        self.index_file.clone(),
+                    );
                     right_leaf.meta_data.prev_node_blockid = left_blockid.block_num;
                     right_heap.write_special_area(right_leaf.meta_data.to_bytes());
 
@@ -374,7 +409,7 @@ impl NodePage {
         storage_manager: Rc<RefCell<StorageManager>>,
         internal_layout: Rc<Layout>,
         leaf_layout: Rc<Layout>,
-        index_file : String
+        index_file: String,
     ) -> Self {
         let block_id = frame.borrow().blockid.as_ref().unwrap().clone();
         let mut heap_page = HeapPage::new(frame.clone(), &block_id, Rc::new(Layout::default()));
@@ -386,7 +421,7 @@ impl NodePage {
                 storage_manager.clone(),
                 internal_layout,
                 leaf_layout,
-                index_file
+                index_file,
             ))
         } else {
             heap_page.layout = leaf_layout.clone();
@@ -395,7 +430,7 @@ impl NodePage {
                 key_type,
                 storage_manager.clone(),
                 leaf_layout,
-                index_file
+                index_file,
             ))
         }
     }
@@ -406,7 +441,7 @@ impl NodePage {
         storage_manager: Rc<RefCell<StorageManager>>,
         internal_layout: Rc<Layout>,
         leaf_layout: Rc<Layout>,
-        index_file : String
+        index_file: String,
     ) -> Self {
         let block_id = frame.borrow().blockid.as_ref().unwrap().clone();
         let mut heap_page =
@@ -416,7 +451,7 @@ impl NodePage {
             key_type,
             storage_manager.clone(),
             leaf_layout,
-            index_file
+            index_file,
         ))
     }
 
@@ -436,28 +471,28 @@ impl NodePage {
         }
     }
 
-    fn get_greater_than(&self, key:Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_greater_than(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         match self {
             NodePage::Internal(node) => node.get_greater_than(key),
             NodePage::Leaf(node) => node.get_greater_than(key),
         }
     }
 
-    fn get_less_than(&self, key:Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_less_than(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         match self {
             NodePage::Internal(node) => node.get_less_than(key),
             NodePage::Leaf(node) => node.get_less_than(key),
         }
     }
 
-    fn get_greater_than_or_equal(&self, key:Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_greater_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         match self {
             NodePage::Internal(node) => node.get_greater_than_or_equal(key),
             NodePage::Leaf(node) => node.get_greater_than(key),
         }
     }
 
-    fn get_less_than_or_equal(&self, key:Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_less_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         match self {
             NodePage::Internal(node) => node.get_less_than(key),
             NodePage::Leaf(node) => node.get_less_than(key),
@@ -536,7 +571,7 @@ pub struct InternalNodePage {
     storage_manager: Rc<RefCell<StorageManager>>,
     internal_layout: Rc<Layout>,
     leaf_layout: Rc<Layout>,
-    index_file : String
+    index_file: String,
 }
 
 /*impl Drop for InternalNodePage {
@@ -553,7 +588,7 @@ impl InternalNodePage {
         storage_manager: Rc<RefCell<StorageManager>>,
         internal_layout: Rc<Layout>,
         leaf_layout: Rc<Layout>,
-        index_file : String
+        index_file: String,
     ) -> InternalNodePage {
         Self {
             heap_page,
@@ -561,7 +596,7 @@ impl InternalNodePage {
             storage_manager,
             internal_layout,
             leaf_layout,
-            index_file
+            index_file,
         }
     }
 
@@ -595,7 +630,7 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
-            self.index_file.clone()
+            self.index_file.clone(),
         );
 
         match node_page {
@@ -605,7 +640,9 @@ impl InternalNodePage {
                 if target_node.heap_page.blk.block_num == 0 {
                     dbg!("Freeing ROOT !!");
                 }
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 if let Some(split_key) = split_key {
                     let dummy_key: Vec<u8> = Vec::new();
 
@@ -671,7 +708,10 @@ impl InternalNodePage {
                             self.heap_page.tuple_pointers.split_off(mid as usize);
                         self.heap_page.vacuum();
 
-                        let new_block = self.storage_manager.borrow_mut().extend_file(&self.index_file);
+                        let new_block = self
+                            .storage_manager
+                            .borrow_mut()
+                            .extend_file(&self.index_file);
                         let right_frame = self
                             .storage_manager
                             .borrow_mut()
@@ -691,7 +731,9 @@ impl InternalNodePage {
             }
             NodePage::Leaf(ref mut target_node) => {
                 let (split_key, split_block_num) = target_node.insert(key, value);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 if let Some(split_key) = split_key {
                     let new_child_tuple = ChildNode {
                         key: split_key.clone(),
@@ -728,7 +770,10 @@ impl InternalNodePage {
                             self.heap_page.tuple_pointers.split_off(mid as usize);
                         self.heap_page.vacuum();
 
-                        let new_block = self.storage_manager.borrow_mut().extend_file(&self.index_file);
+                        let new_block = self
+                            .storage_manager
+                            .borrow_mut()
+                            .extend_file(&self.index_file);
                         let right_frame = self
                             .storage_manager
                             .borrow_mut()
@@ -798,24 +843,28 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
-            self.index_file.clone()
+            self.index_file.clone(),
         );
 
         match &node_page {
             NodePage::Internal(target_node) => {
                 let results = target_node.search(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
-            },
+            }
             NodePage::Leaf(target_node) => {
                 let results = target_node.search(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
             }
         }
     }
 
-    fn get_less_than_or_equal (&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_less_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let right = (self.heap_page.tuple_pointers.len() - 1) as u16;
         let child_index = self.binary_search_child_node(1, right, key.clone());
 
@@ -845,24 +894,28 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
-            self.index_file.clone()
+            self.index_file.clone(),
         );
 
         match &node_page {
             NodePage::Internal(target_node) => {
                 let results = target_node.get_less_than_or_equal(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
-            },
+            }
             NodePage::Leaf(target_node) => {
                 let results = target_node.get_less_than_or_equal(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
             }
         }
     }
 
-    fn get_greater_than_or_equal (&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_greater_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let right = (self.heap_page.tuple_pointers.len() - 1) as u16;
         let child_index = self.binary_search_child_node(1, right, key.clone());
 
@@ -892,24 +945,28 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
-            self.index_file.clone()
+            self.index_file.clone(),
         );
 
         match &node_page {
             NodePage::Internal(target_node) => {
                 let results = target_node.get_greater_than_or_equal(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
-            },
+            }
             NodePage::Leaf(target_node) => {
                 let results = target_node.get_greater_than_or_equal(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
             }
         }
     }
 
-    fn get_greater_than (&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_greater_than(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let right = (self.heap_page.tuple_pointers.len() - 1) as u16;
         let child_index = self.binary_search_child_node(1, right, key.clone());
 
@@ -939,24 +996,28 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
-            self.index_file.clone()
+            self.index_file.clone(),
         );
 
         match &node_page {
             NodePage::Internal(target_node) => {
                 let results = target_node.get_greater_than(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
-            },
+            }
             NodePage::Leaf(target_node) => {
                 let results = target_node.get_greater_than(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
             }
         }
     }
 
-    fn get_less_than (&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_less_than(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let right = (self.heap_page.tuple_pointers.len() - 1) as u16;
         let child_index = self.binary_search_child_node(1, right, key.clone());
 
@@ -986,23 +1047,26 @@ impl InternalNodePage {
             self.storage_manager.clone(),
             self.internal_layout.clone(),
             self.leaf_layout.clone(),
-            self.index_file.clone()
+            self.index_file.clone(),
         );
 
         match &node_page {
             NodePage::Internal(target_node) => {
                 let results = target_node.get_less_than(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
-            },
+            }
             NodePage::Leaf(target_node) => {
                 let results = target_node.get_less_than(key);
-                self.storage_manager.borrow_mut().unpin(target_node.heap_page.frame.clone());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(target_node.heap_page.frame.clone());
                 results
             }
         }
     }
-
 
     pub fn insert_child(&mut self, key: Vec<u8>, block_num: u64) {
         let child_node = ChildNode {
@@ -1091,7 +1155,7 @@ pub struct LeafNodePage {
     key_type: Type,
     storage_manager: Rc<RefCell<StorageManager>>,
     leaf_layout: Rc<Layout>,
-    index_file : String
+    index_file: String,
 }
 
 /*impl Drop for LeafNodePage {
@@ -1106,7 +1170,7 @@ impl LeafNodePage {
         key_type: Type,
         storage_manager: Rc<RefCell<StorageManager>>,
         leaf_layout: Rc<Layout>,
-        index_file : String
+        index_file: String,
     ) -> LeafNodePage {
         let meta_data = LeafMetaData::from(heap_page.get_special_area());
         Self {
@@ -1115,7 +1179,7 @@ impl LeafNodePage {
             key_type,
             storage_manager,
             leaf_layout,
-            index_file
+            index_file,
         }
     }
 
@@ -1189,7 +1253,10 @@ impl LeafNodePage {
             }
             let right_tuple_pointers = self.heap_page.tuple_pointers.split_off(mid as usize);
             self.heap_page.vacuum();
-            let new_block = self.storage_manager.borrow_mut().extend_file(&self.index_file);
+            let new_block = self
+                .storage_manager
+                .borrow_mut()
+                .extend_file(&self.index_file);
             let right_frame = self
                 .storage_manager
                 .borrow_mut()
@@ -1220,14 +1287,42 @@ impl LeafNodePage {
                 self.heap_page.rewrite_tuple_pointers_to_frame();
             }
 
-            self.meta_data.next_node_blockid = new_block.block_num;
-            self.heap_page.write_special_area(self.meta_data.to_bytes());
+            if self.meta_data.next_node_blockid != 0 {
+                let old_next =
+                    BlockId::new(self.index_file.as_str(), self.meta_data.next_node_blockid);
+                let old_next_frame = self
+                    .storage_manager
+                    .borrow_mut()
+                    .pin(old_next.clone())
+                    .unwrap();
+                let mut old_next_heap =
+                    HeapPage::new(old_next_frame.clone(), &old_next, self.leaf_layout.clone());
+                let mut old_next_node = LeafNodePage::new(
+                    old_next_heap.clone(),
+                    self.key_type,
+                    self.storage_manager.clone(),
+                    self.leaf_layout.clone(),
+                    self.index_file.clone(),
+                );
+                old_next_node.meta_data.prev_node_blockid = new_block.block_num;
+                old_next_heap.write_special_area(old_next_node.meta_data.to_bytes());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(old_next_heap.frame.clone());
+            }
+
             let right_meta_data = LeafMetaData {
-                next_node_blockid: 0,
+                next_node_blockid: self.meta_data.next_node_blockid,
                 prev_node_blockid: self.heap_page.blk.block_num,
             };
+
+            self.meta_data.next_node_blockid = new_block.block_num;
+            self.heap_page.write_special_area(self.meta_data.to_bytes());
+
             right_heap_page.write_special_area(right_meta_data.to_bytes());
-            self.storage_manager.borrow_mut().unpin(right_heap_page.frame.clone());
+            self.storage_manager
+                .borrow_mut()
+                .unpin(right_heap_page.frame.clone());
 
             return (split_key, Some(new_block.block_num));
         }
@@ -1279,7 +1374,7 @@ impl LeafNodePage {
             );
             if index_record.remove("key").unwrap().unwrap() >= key {
                 tuple_index = tuple_pointer_index;
-                break
+                break;
             }
         }
 
@@ -1288,7 +1383,7 @@ impl LeafNodePage {
         let mut next_block = if self.meta_data.next_node_blockid == 0 {
             None
         } else {
-            Some(BlockId{
+            Some(BlockId {
                 block_num: self.meta_data.next_node_blockid,
                 filename: self.index_file.clone(),
             })
@@ -1296,19 +1391,24 @@ impl LeafNodePage {
 
         while next_block.is_some() {
             let block_id = next_block.unwrap();
-            let next_frame = self.storage_manager.borrow_mut().pin(block_id.clone()).unwrap();
+            let next_frame = self
+                .storage_manager
+                .borrow_mut()
+                .pin(block_id.clone())
+                .unwrap();
             let next_heap = HeapPage::new(next_frame.clone(), &block_id, self.leaf_layout.clone());
-            let next_leaf = LeafNodePage::new
-                (next_heap,
-                 self.key_type,
-                 self.storage_manager.clone(),
-                 self.leaf_layout.clone(),self.index_file.clone());
+            let next_leaf = LeafNodePage::new(
+                next_heap,
+                self.key_type,
+                self.storage_manager.clone(),
+                self.leaf_layout.clone(),
+                self.index_file.clone(),
+            );
             let new_results = next_leaf.get_index_records_from_position(0);
 
             if next_leaf.meta_data.next_node_blockid == 0 {
                 next_block = None;
-            }
-            else {
+            } else {
                 next_block = Some(BlockId {
                     block_num: next_leaf.meta_data.next_node_blockid,
                     filename: self.index_file.clone(),
@@ -1325,7 +1425,7 @@ impl LeafNodePage {
         let mut results = Vec::new();
 
         let mut tuple_index = self.heap_page.tuple_pointers.len() as u16 - 1;
-        for tuple_pointer_index in (0..= tuple_index).rev() {
+        for tuple_pointer_index in (0..=tuple_index).rev() {
             let mut index_record = self.heap_page.get_multiple_fields(
                 vec![
                     "key".to_string(),
@@ -1336,7 +1436,7 @@ impl LeafNodePage {
             );
             if index_record.remove("key").unwrap().unwrap() <= key {
                 tuple_index = tuple_pointer_index;
-                break
+                break;
             }
         }
 
@@ -1345,7 +1445,7 @@ impl LeafNodePage {
         let mut prev_block = if self.meta_data.prev_node_blockid == 0 {
             None
         } else {
-            Some(BlockId{
+            Some(BlockId {
                 block_num: self.meta_data.prev_node_blockid,
                 filename: self.index_file.clone(),
             })
@@ -1353,19 +1453,26 @@ impl LeafNodePage {
 
         while prev_block.is_some() {
             let block_id = prev_block.unwrap();
-            let prev_frame = self.storage_manager.borrow_mut().pin(block_id.clone()).unwrap();
+            let prev_frame = self
+                .storage_manager
+                .borrow_mut()
+                .pin(block_id.clone())
+                .unwrap();
             let prev_heap = HeapPage::new(prev_frame.clone(), &block_id, self.leaf_layout.clone());
-            let prev_leaf = LeafNodePage::new
-                (prev_heap,
-                 self.key_type,
-                 self.storage_manager.clone(),
-                 self.leaf_layout.clone(),self.index_file.clone());
-            let new_results = prev_leaf.get_index_records_from_position_backwards(prev_leaf.heap_page.tuple_pointers.len() as u16 - 1);
+            let prev_leaf = LeafNodePage::new(
+                prev_heap,
+                self.key_type,
+                self.storage_manager.clone(),
+                self.leaf_layout.clone(),
+                self.index_file.clone(),
+            );
+            let new_results = prev_leaf.get_index_records_from_position_backwards(
+                prev_leaf.heap_page.tuple_pointers.len() as u16 - 1,
+            );
 
             if prev_leaf.meta_data.prev_node_blockid == 0 {
                 prev_block = None;
-            }
-            else {
+            } else {
                 prev_block = Some(BlockId {
                     block_num: prev_leaf.meta_data.prev_node_blockid,
                     filename: self.index_file.clone(),
@@ -1393,7 +1500,7 @@ impl LeafNodePage {
             );
             if index_record.remove("key").unwrap().unwrap() > key {
                 tuple_index = tuple_pointer_index;
-                break
+                break;
             }
         }
 
@@ -1402,7 +1509,7 @@ impl LeafNodePage {
         let mut next_block = if self.meta_data.next_node_blockid == 0 {
             None
         } else {
-            Some(BlockId{
+            Some(BlockId {
                 block_num: self.meta_data.next_node_blockid,
                 filename: self.index_file.clone(),
             })
@@ -1410,19 +1517,24 @@ impl LeafNodePage {
 
         while next_block.is_some() {
             let block_id = next_block.unwrap();
-            let next_frame = self.storage_manager.borrow_mut().pin(block_id.clone()).unwrap();
+            let next_frame = self
+                .storage_manager
+                .borrow_mut()
+                .pin(block_id.clone())
+                .unwrap();
             let next_heap = HeapPage::new(next_frame.clone(), &block_id, self.leaf_layout.clone());
-            let next_leaf = LeafNodePage::new
-                (next_heap,
-                 self.key_type,
-                 self.storage_manager.clone(),
-                 self.leaf_layout.clone(),self.index_file.clone());
+            let next_leaf = LeafNodePage::new(
+                next_heap,
+                self.key_type,
+                self.storage_manager.clone(),
+                self.leaf_layout.clone(),
+                self.index_file.clone(),
+            );
             let new_results = next_leaf.get_index_records_from_position(0);
 
             if next_leaf.meta_data.next_node_blockid == 0 {
                 next_block = None;
-            }
-            else {
+            } else {
                 next_block = Some(BlockId {
                     block_num: next_leaf.meta_data.next_node_blockid,
                     filename: self.index_file.clone(),
@@ -1439,7 +1551,7 @@ impl LeafNodePage {
         let mut results = Vec::new();
 
         let mut tuple_index = self.heap_page.tuple_pointers.len() as u16 - 1;
-        for tuple_pointer_index in (0..= tuple_index).rev() {
+        for tuple_pointer_index in (0..=tuple_index).rev() {
             let mut index_record = self.heap_page.get_multiple_fields(
                 vec![
                     "key".to_string(),
@@ -1450,48 +1562,87 @@ impl LeafNodePage {
             );
             if index_record.remove("key").unwrap().unwrap() < key {
                 tuple_index = tuple_pointer_index;
-                break
+                break;
             }
         }
 
-        results = self.get_index_records_from_position_backwards(tuple_index);
+        self.print_all_leaf_records();
+        println!("_________________________________________________");
 
-        let mut prev_block = if self.meta_data.prev_node_blockid == 0 {
-            None
-        } else {
-            Some(BlockId{
-                block_num: self.meta_data.prev_node_blockid,
-                filename: self.index_file.clone(),
-            })
-        };
-
-        while prev_block.is_some() {
-            let block_id = prev_block.unwrap();
-            let prev_frame = self.storage_manager.borrow_mut().pin(block_id.clone()).unwrap();
-            let prev_heap = HeapPage::new(prev_frame.clone(), &block_id, self.leaf_layout.clone());
-            let prev_leaf = LeafNodePage::new
-                (prev_heap,
-                 self.key_type,
-                 self.storage_manager.clone(),
-                 self.leaf_layout.clone(),self.index_file.clone());
-            let new_results = prev_leaf.get_index_records_from_position_backwards(prev_leaf.heap_page.tuple_pointers.len() as u16 - 1);
-
-            if prev_leaf.meta_data.prev_node_blockid == 0 {
-                prev_block = None;
+        if tuple_index == self.heap_page.tuple_pointers.len() as u16 - 1 {
+            if self.meta_data.prev_node_blockid != 0 {
+                let prev_block =
+                    BlockId::new(self.index_file.as_str(), self.meta_data.prev_node_blockid);
+                let prev_frame = self
+                    .storage_manager
+                    .borrow_mut()
+                    .pin(prev_block.clone())
+                    .unwrap();
+                let prev_heap = HeapPage::new(prev_frame, &prev_block, self.leaf_layout.clone());
+                let prev_node = LeafNodePage::new(
+                    prev_heap.clone(),
+                    self.key_type,
+                    self.storage_manager.clone(),
+                    self.leaf_layout.clone(),
+                    self.index_file.clone(),
+                );
+                let prev_results = (prev_node.get_less_than(key));
+                self.storage_manager.borrow_mut().unpin(prev_heap.frame);
+                if prev_results.is_some() {
+                    prev_results
+                } else {
+                    None
+                }
+            } else {
+                None
             }
-            else {
-                prev_block = Some(BlockId {
-                    block_num: prev_leaf.meta_data.prev_node_blockid,
+        } else {
+            results = self.get_index_records_from_position_backwards(tuple_index);
+
+            let mut prev_block = if self.meta_data.prev_node_blockid == 0 {
+                None
+            } else {
+                Some(BlockId {
+                    block_num: self.meta_data.prev_node_blockid,
                     filename: self.index_file.clone(),
                 })
+            };
+
+            while prev_block.is_some() {
+                let block_id = prev_block.unwrap();
+                let prev_frame = self
+                    .storage_manager
+                    .borrow_mut()
+                    .pin(block_id.clone())
+                    .unwrap();
+                let prev_heap =
+                    HeapPage::new(prev_frame.clone(), &block_id, self.leaf_layout.clone());
+                let prev_leaf = LeafNodePage::new(
+                    prev_heap,
+                    self.key_type,
+                    self.storage_manager.clone(),
+                    self.leaf_layout.clone(),
+                    self.index_file.clone(),
+                );
+                let new_results = prev_leaf.get_index_records_from_position_backwards(
+                    prev_leaf.heap_page.tuple_pointers.len() as u16 - 1,
+                );
+
+                if prev_leaf.meta_data.prev_node_blockid == 0 {
+                    prev_block = None;
+                } else {
+                    prev_block = Some(BlockId {
+                        block_num: prev_leaf.meta_data.prev_node_blockid,
+                        filename: self.index_file.clone(),
+                    })
+                }
+                self.storage_manager.borrow_mut().unpin(prev_frame);
+                results.extend(new_results);
             }
-            self.storage_manager.borrow_mut().unpin(prev_frame);
-            results.extend(new_results);
+
+            Some(results)
         }
-
-        Some(results)
     }
-
 
     pub fn get_index_records_from_position(&self, pos: u16) -> Vec<Rid> {
         let mut records = Vec::new();
@@ -1515,7 +1666,7 @@ impl LeafNodePage {
 
     pub fn get_index_records_from_position_backwards(&self, pos: u16) -> Vec<Rid> {
         let mut records = Vec::new();
-        for record_index in (0..= pos).rev() {
+        for record_index in (0..=pos).rev() {
             let mut index_record = self.heap_page.get_multiple_fields(
                 vec![
                     "key".to_string(),
@@ -1533,4 +1684,10 @@ impl LeafNodePage {
         records
     }
 
+    fn print_all_leaf_records(&self) {
+        for record_index in 0..self.heap_page.tuple_pointers.len() as u16 {
+            let mut index_record = self.heap_page.get_field("key", record_index).unwrap();
+            dbg!("{}", index_record);
+        }
+    }
 }

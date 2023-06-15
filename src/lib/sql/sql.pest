@@ -19,7 +19,7 @@
     term = _{ NULL |identifier | constant }
     table_name = {identifier}
     comparison_operator = _{
-        "!=" | ">" | "<" | "<=" | ">=" | "=="
+        "!=" | ">=" | "<=" | "<" | ">" | "=="
     }
     LIKE = {^"like"}
     IS = {^"is"}
