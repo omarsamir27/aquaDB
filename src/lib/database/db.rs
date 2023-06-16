@@ -1,7 +1,7 @@
 use crate::common::net::{receive_string, send_string};
 use crate::meta::catalogmgr::CatalogManager;
 // use crate::query::plan::{create_plan, QueryPlan};
-use crate::interface::message::{Message, Status};
+use crate::interface::message::{Message, RowMap, Status};
 use crate::query::executor::Executor;
 use crate::query::physical::PhysicalNode;
 use crate::schema::schema::Schema;
@@ -90,7 +90,7 @@ impl DatabaseInstance {
     }
     fn execute_cmd(&mut self, query: Sql) {
         match self.create_plan(query) {
-            Ok(plan) => {
+            Ok(mut plan) => {
                 if let QueryPlan::CreateTable(schema) = plan {
                     self.add_schema(schema);
                 } else {
@@ -109,17 +109,23 @@ impl DatabaseInstance {
                                 .send_msg_to(&mut self.conn)
                                 .unwrap_or_default(),
                         }
-                    } else if let QueryPlan::Select(s) = plan {
+                    } else if let QueryPlan::Select(ref mut s) = plan {
                         let types = s.get_type_map();
                         Message::FieldTypes(types)
                             .send_msg_to(&mut self.conn)
                             .unwrap_or_default();
-                        let results = s.collect::<Vec<_>>();
-                        let msg = Message::Results(results);
-                        msg.send_msg_to(&mut self.conn);
-                        Message::Status(Status::ResultsFinished)
-                            .send_msg_to(&mut self.conn)
-                            .unwrap_or_default()
+                        loop {
+                            let result : Vec<RowMap> = s.take(50).collect();
+                            if result.is_empty() {
+                                Message::Status(Status::ResultsFinished)
+                                    .send_msg_to(&mut self.conn)
+                                    .unwrap_or_default();
+                                break
+                            } else {
+                                let msg = Message::Results(result);
+                                msg.send_msg_to(&mut self.conn);
+                            }
+                        }
                     }
                 }
             }
