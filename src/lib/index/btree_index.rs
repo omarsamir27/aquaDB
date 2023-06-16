@@ -1440,6 +1440,7 @@ impl LeafNodePage {
     pub fn get_greater_than_or_equal(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let mut results = Vec::new();
 
+        let mut no_matches = true;
         let mut tuple_index = 0_u16;
         for tuple_pointer_index in tuple_index..self.heap_page.tuple_pointers.len() as u16 {
             let mut index_record = self.heap_page.get_multiple_fields(
@@ -1452,11 +1453,17 @@ impl LeafNodePage {
             );
             if index_record.remove("key").unwrap().unwrap() >= key {
                 tuple_index = tuple_pointer_index;
+                no_matches = false;
                 break;
             }
         }
 
-        results = self.get_index_records_from_position(tuple_index);
+        if no_matches {
+            results = self.get_index_records_from_position(self.heap_page.tuple_pointers.len() as u16);
+        }
+        else {
+            results = self.get_index_records_from_position(tuple_index);
+        }
 
         let mut next_block = if self.meta_data.next_node_blockid == 0 {
             None
@@ -1566,6 +1573,7 @@ impl LeafNodePage {
     pub fn get_greater_than(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let mut results = Vec::new();
 
+        let mut no_matches = true;
         let mut tuple_index = 0_u16;
         for tuple_pointer_index in tuple_index..self.heap_page.tuple_pointers.len() as u16 {
             let mut index_record = self.heap_page.get_multiple_fields(
@@ -1578,11 +1586,17 @@ impl LeafNodePage {
             );
             if index_record.remove("key").unwrap().unwrap() > key {
                 tuple_index = tuple_pointer_index;
+                no_matches = false;
                 break;
             }
         }
 
-        results = self.get_index_records_from_position(tuple_index);
+        if no_matches {
+            results = self.get_index_records_from_position(self.heap_page.tuple_pointers.len() as u16);
+        }
+        else {
+            results = self.get_index_records_from_position(tuple_index);
+        }
 
         let mut next_block = if self.meta_data.next_node_blockid == 0 {
             None
