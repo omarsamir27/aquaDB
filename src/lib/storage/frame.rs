@@ -94,7 +94,7 @@ impl Frame {
         }
     }
 
-    pub fn force_flush(&mut self,blkmgr:&mut BlockManager){
+    pub fn force_flush(&mut self, blkmgr: &mut BlockManager) {
         self.dirty = true;
         self.flush(blkmgr);
     }

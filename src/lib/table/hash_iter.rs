@@ -7,20 +7,20 @@ use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub struct  HashIter {
+pub struct HashIter {
     direct_access: DirectAccessor,
     index: HashIndex,
     rids: Vec<Rid>,
 }
 
 impl HashIter {
-    pub fn load_key(&mut self,key:&[u8]){
-        self.rids.extend(self.index.get_rids(key,self.direct_access.get_storage().borrow_mut()));
+    pub fn load_key(&mut self, key: &[u8]) {
+        self.rids.extend(
+            self.index
+                .get_rids(key, self.direct_access.get_storage().borrow_mut()),
+        );
     }
-    pub fn new(
-        direct_access: DirectAccessor,
-        index : HashIndex,
-    ) -> Self {
+    pub fn new(direct_access: DirectAccessor, index: HashIndex) -> Self {
         Self {
             direct_access,
             index,

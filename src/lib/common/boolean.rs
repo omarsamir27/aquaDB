@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use evalexpr::{FloatType, Node as ExprTree, Node, Operator, Value};
-use evalexpr::Value::Boolean;
-use crate::FieldId;
 use crate::schema::types::{NumericType, Type};
+use crate::FieldId;
+use evalexpr::Value::Boolean;
+use evalexpr::{FloatType, Node as ExprTree, Node, Operator, Value};
+use std::collections::HashMap;
 
 #[inline(always)]
 pub fn extract_used_variables(tree: &ExprTree) -> Vec<String> {
@@ -35,141 +35,164 @@ fn binary_expr_has_var(node: &ExprTree, var: &str) -> bool {
 }
 
 #[inline(always)]
-pub fn replace_vars_map(root: &mut ExprTree, map: &HashMap<String, FieldId>){
-    let mut iter  = root.children_mut();
-    iter.iter_mut().for_each(|n| replace_vars_map(n,map));
-    if let Operator::VariableIdentifierRead {identifier} = root.operator_mut(){
-        let v =map.get(identifier.as_str());
-        if v.is_some(){
-            let _ = std::mem::replace(root.operator_mut(), Operator::VariableIdentifierRead { identifier: v.unwrap().to_string()  });
+pub fn replace_vars_map(root: &mut ExprTree, map: &HashMap<String, FieldId>) {
+    let mut iter = root.children_mut();
+    iter.iter_mut().for_each(|n| replace_vars_map(n, map));
+    if let Operator::VariableIdentifierRead { identifier } = root.operator_mut() {
+        let v = map.get(identifier.as_str());
+        if v.is_some() {
+            let _ = std::mem::replace(
+                root.operator_mut(),
+                Operator::VariableIdentifierRead {
+                    identifier: v.unwrap().to_string(),
+                },
+            );
         }
     }
-
 }
 
-pub fn get_all_binary_clauses(root:&ExprTree) -> Vec<Node> {
-    fn add_to_vec(root: &ExprTree,data:&mut Vec<ExprTree>){
-        if is_binary_expr(root){
+pub fn get_all_binary_clauses(root: &ExprTree) -> Vec<Node> {
+    fn add_to_vec(root: &ExprTree, data: &mut Vec<ExprTree>) {
+        if is_binary_expr(root) {
             data.push(root.clone());
             return;
         }
         let mut iter = root.children();
-        for n in iter{
-            add_to_vec(n,data);
+        for n in iter {
+            add_to_vec(n, data);
         }
-
     }
     let mut iter = root.children();
     let mut bin_clauses = vec![];
-    for n in iter{
-        add_to_vec(n,&mut bin_clauses);
+    for n in iter {
+        add_to_vec(n, &mut bin_clauses);
     }
     bin_clauses
 }
 
-pub fn get_single_binary_clause(root:&ExprTree) -> (Operator,Value){
+pub fn get_single_binary_clause(root: &ExprTree) -> (Operator, Value) {
     let op = root.operator().clone();
-    let val = root.children().iter().filter(|n| {
-        matches!(n.operator(),Operator::Const {..})
-    }).map(|n| {
-        if let Operator::Const {value} = n.operator(){
-            value.clone()
-        }else {
-            unreachable!()
-        }
-        }
-    ).next().unwrap();
-    (op,val)
+    let val = root
+        .children()
+        .iter()
+        .filter(|n| matches!(n.operator(), Operator::Const { .. }))
+        .map(|n| {
+            if let Operator::Const { value } = n.operator() {
+                value.clone()
+            } else {
+                unreachable!()
+            }
+        })
+        .next()
+        .unwrap();
+    (op, val)
 }
 
-pub fn set_node_true(root:&mut ExprTree,node:&ExprTree){
-    let mut iter  = root.children_mut();
-    iter.iter_mut().for_each(|n| set_node_true(n,node));
-    if *root == *node{
+pub fn set_node_true(root: &mut ExprTree, node: &ExprTree) {
+    let mut iter = root.children_mut();
+    iter.iter_mut().for_each(|n| set_node_true(n, node));
+    if *root == *node {
         set_true(root);
     }
 }
-fn set_node_const(node:&mut ExprTree,val:evalexpr::Operator){
-    std::mem::replace(node.operator_mut(),val);
+fn set_node_const(node: &mut ExprTree, val: evalexpr::Operator) {
+    std::mem::replace(node.operator_mut(), val);
     std::mem::take(node.children_mut());
 }
 
-fn set_true(node:&mut ExprTree){
-    set_node_const(node,Operator::Const{value:Boolean(true)})
+fn set_true(node: &mut ExprTree) {
+    set_node_const(
+        node,
+        Operator::Const {
+            value: Boolean(true),
+        },
+    )
 }
 
-fn set_false(node:&mut ExprTree){
-    set_node_const(node,Operator::Const{value:Boolean(false)})
+fn set_false(node: &mut ExprTree) {
+    set_node_const(
+        node,
+        Operator::Const {
+            value: Boolean(false),
+        },
+    )
 }
 
-pub fn simplify(root:&mut ExprTree){
-    let mut iter  = root.children_mut();
-    for n in iter{
+pub fn simplify(root: &mut ExprTree) {
+    let mut iter = root.children_mut();
+    for n in iter {
         simplify(n);
         // if !is_binary_expr(n){
         //     simplify(n);
         // }
     }
     let op = root.operator().clone();
-    iter  = root.children_mut();
-    if op == Operator::And{
-        if iter.iter().any(is_false){
+    iter = root.children_mut();
+    if op == Operator::And {
+        if iter.iter().any(is_false) {
             set_false(root);
             return;
         }
         iter.retain(|child| !is_true(child));
-        if iter.is_empty(){
+        if iter.is_empty() {
             set_true(root);
         }
-    }
-    else if op == Operator::Or{
-        if iter.iter().any(is_true){
+    } else if op == Operator::Or {
+        if iter.iter().any(is_true) {
             set_true(root);
             return;
         }
         iter.retain(|child| !is_false(child));
-        if iter.is_empty(){
+        if iter.is_empty() {
             set_false(root);
         }
     }
 }
 
 #[inline(always)]
-fn is_const_val(node:&ExprTree,val:evalexpr::Operator) -> bool{
+fn is_const_val(node: &ExprTree, val: evalexpr::Operator) -> bool {
     *node.operator() == val && node.children().is_empty()
 }
 
-fn is_true(node:&ExprTree) -> bool{
-    is_const_val(node,Operator::Const {value: Boolean(true)})
+fn is_true(node: &ExprTree) -> bool {
+    is_const_val(
+        node,
+        Operator::Const {
+            value: Boolean(true),
+        },
+    )
 }
 
-fn is_false(node:&ExprTree) -> bool{
-    is_const_val(node,Operator::Const {value: Boolean(false)})
+fn is_false(node: &ExprTree) -> bool {
+    is_const_val(
+        node,
+        Operator::Const {
+            value: Boolean(false),
+        },
+    )
 }
 
-pub fn value_as_bytes(val:&evalexpr::Value,key_type:Type) -> Vec<u8>{
-    match val{
+pub fn value_as_bytes(val: &evalexpr::Value, key_type: Type) -> Vec<u8> {
+    match val {
         Value::String(a) => a.as_bytes().to_vec(),
-        Value::Float(f) => {
-            match key_type{
-                Type::Numeric(n) => match n{
-                    NumericType::Single => (*f as f32).to_ne_bytes().to_vec(),
-                    NumericType::Double => ((*f).to_ne_bytes()).to_vec(),
-                    _ => unreachable!()
-                },
-               _ => unreachable!()
-            }
-        }
+        Value::Float(f) => match key_type {
+            Type::Numeric(n) => match n {
+                NumericType::Single => (*f as f32).to_ne_bytes().to_vec(),
+                NumericType::Double => ((*f).to_ne_bytes()).to_vec(),
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        },
         Value::Int(i) => match key_type {
-            Type::Numeric(n) => match n{
+            Type::Numeric(n) => match n {
                 NumericType::SmallInt => (*i as i16).to_ne_bytes().to_vec(),
                 NumericType::Integer => (*i as i32).to_ne_bytes().to_vec(),
                 NumericType::BigInt => (*i as i64).to_ne_bytes().to_vec(),
                 NumericType::Serial => (*i as i32).to_ne_bytes().to_vec(),
-                _ => unreachable!()
-            }
-            _ => unreachable!()
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
         },
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }

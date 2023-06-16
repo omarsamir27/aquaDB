@@ -125,8 +125,7 @@ impl BufferManager {
         let mut frame = frame.borrow_mut();
         if frame.num_pins as i32 - 1 < 0 {
             frame.num_pins = 0;
-        }
-        else {
+        } else {
             frame.num_pins -= 1;
         }
         if frame.is_free() {
@@ -160,7 +159,7 @@ impl BufferManager {
             .frame_pool
             .iter()
             .enumerate()
-            .filter(|&(idx,frame)| frame.borrow().is_free())
+            .filter(|&(idx, frame)| frame.borrow().is_free())
             .max_by_key(|&(x, y)| y.borrow().lirs_weight(now));
         match victim {
             None => None,

@@ -360,10 +360,9 @@ fn partial_tokens_to_tokens(mut tokens: &[PartialToken]) -> EvalexprResult<Vec<T
                         Some(Token::Float(number))
                     } else if let Ok(boolean) = literal.parse::<bool>() {
                         Some(Token::Boolean(boolean))
-                    }else if literal.eq_ignore_ascii_case("like"){
+                    } else if literal.eq_ignore_ascii_case("like") {
                         Some(Token::LIKE)
-                    }
-                    else {
+                    } else {
                         // If there are two tokens following this one, check if the next one is
                         // a plus or a minus. If so, then attempt to parse all three tokens as a
                         // scientific notation number of the form `<coefficient>e{+,-}<exponent>`,
@@ -378,7 +377,7 @@ fn partial_tokens_to_tokens(mut tokens: &[PartialToken]) -> EvalexprResult<Vec<T
                                 {
                                     cutoff = 3;
                                     Some(Token::Float(number))
-                                }else {
+                                } else {
                                     Some(Token::Identifier(literal.to_string()))
                                 }
                             },

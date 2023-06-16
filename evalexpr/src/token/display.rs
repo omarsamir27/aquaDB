@@ -43,7 +43,7 @@ impl fmt::Display for Token {
             Comma => write!(f, ","),
             Semicolon => write!(f, ";"),
 
-            LIKE => write!(f,"LIKE"),
+            LIKE => write!(f, "LIKE"),
 
             // Values => write!(f, ""), Variables and Functions
             Identifier(identifier) => identifier.fmt(f),

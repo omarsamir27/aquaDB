@@ -1,6 +1,6 @@
 #![cfg(not(tarpaulin_include))]
 
-use std::fmt::{Display, Error, Formatter, write};
+use std::fmt::{write, Display, Error, Formatter};
 
 use crate::operator::*;
 
@@ -46,7 +46,7 @@ impl Display for Operator {
             },
             FunctionIdentifier { identifier } => write!(f, "{}", identifier),
 
-            LIKE => write!(f," LIKE ")
+            LIKE => write!(f, " LIKE "),
         }
     }
 }

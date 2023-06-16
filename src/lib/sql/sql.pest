@@ -73,7 +73,7 @@ projection_col = {!^"having" ~(table_name ~ ".")? ~ identifier}
     HAVING = {^"having" ~ conditional_expression}
     ORDER_BY = {^"order by" ~ project_on ~ (ASC | DSC)?}
     ASC = _{^"asc"}
-    DSC = _{^"dsc"}
+    DSC = _{^"desc"}
     project_on = { projection_col ~ ("," ~ projection_col)*  | "*"    }
 // }
 /// red

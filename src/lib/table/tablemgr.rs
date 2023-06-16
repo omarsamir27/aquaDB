@@ -1,12 +1,17 @@
 use crate::common::numerical::ByteMagic;
+use crate::database::plan_query::TableInfo;
+use crate::index::btree_index::BPTree;
 use crate::index::hash_index::HashIndex;
+use crate::index::Rid;
 use crate::index::{Index, IndexInfo};
 use crate::schema::schema::Layout;
+use crate::sql::create_table::IndexType;
 use crate::storage::blockid::BlockId;
 use crate::storage::free_space::FreeMap;
 use crate::storage::heap::{HeapPage, PageIter};
 use crate::storage::storagemgr::StorageManager;
 use crate::storage::tuple::Tuple;
+use crate::table::btree_iter::BtreeIter;
 use crate::table::direct_access::DirectAccessor;
 use crate::table::hash_iter::HashIter;
 use crate::table::heap_iter::TableIter;
@@ -14,11 +19,6 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
-use crate::database::plan_query::TableInfo;
-use crate::index::btree_index::{BPTree};
-use crate::sql::create_table::IndexType;
-use crate::table::btree_iter::BtreeIter;
-use crate::index::Rid;
 
 /// TableManager is an entity owned by a database that is responsible for executing operations
 /// against the heap pages that represents a database table on disk
@@ -30,7 +30,7 @@ pub struct TableManager {
     storage_mgr: Rc<RefCell<StorageManager>>,
     layout: Rc<Layout>,
     hash_indexes: HashMap<String, HashIndex>,
-    btree_indexes : HashMap<String,BPTree>
+    btree_indexes: HashMap<String, BPTree>,
 }
 
 impl TableManager {
@@ -45,33 +45,43 @@ impl TableManager {
         layout: Rc<Layout>,
         indexes: Vec<IndexInfo>,
     ) -> Self {
-            // let mut strg_mgr = storage_mgr.borrow_mut();
-            // for block in &blocks {
-            //     let blk_header = strg_mgr.read_raw(block, 4);
-            //     let space_start = blk_header.as_slice().extract_u16(0);
-            //     let space_end = blk_header.as_slice().extract_u16(2);
-            //     let space = (space_end - space_start);
-            //     if space != 0 {
-            //         map.add_blockspace(space, block);
-            //     };
-            // }
+        // let mut strg_mgr = storage_mgr.borrow_mut();
+        // for block in &blocks {
+        //     let blk_header = strg_mgr.read_raw(block, 4);
+        //     let space_start = blk_header.as_slice().extract_u16(0);
+        //     let space_end = blk_header.as_slice().extract_u16(2);
+        //     let space = (space_end - space_start);
+        //     if space != 0 {
+        //         map.add_blockspace(space, block);
+        //     };
+        // }
 
-        let mut  hash_idx = HashMap::new();
-        let mut  btree_idx = HashMap::new();
-        for idx in indexes{
-            match idx.index_type{
+        let mut hash_idx = HashMap::new();
+        let mut btree_idx = HashMap::new();
+        for idx in indexes {
+            match idx.index_type {
                 IndexType::Hash => {
                     hash_idx.insert(
                         idx.column.clone(),
-                        HashIndex::new(&idx.directory_file_path,idx.index_name,storage_mgr.borrow_mut().file_blks(idx.index_file_path),idx.column)
+                        HashIndex::new(
+                            &idx.directory_file_path,
+                            idx.index_name,
+                            storage_mgr.borrow_mut().file_blks(idx.index_file_path),
+                            idx.column,
+                        ),
                     );
                 }
                 IndexType::Btree => {
-                    let root = BlockId::new(idx.index_file_path.as_os_str().to_str().unwrap(),0);
+                    let root = BlockId::new(idx.index_file_path.as_os_str().to_str().unwrap(), 0);
                     let key_type = layout.get_type(&idx.column);
                     btree_idx.insert(
                         idx.column,
-                        BPTree::new(root, key_type , storage_mgr.clone(),idx.index_file_path.to_str().unwrap().to_string())
+                        BPTree::new(
+                            root,
+                            key_type,
+                            storage_mgr.clone(),
+                            idx.index_file_path.to_str().unwrap().to_string(),
+                        ),
                     );
                 }
             }
@@ -101,7 +111,7 @@ impl TableManager {
         filepath: PathBuf,
         layout: Rc<Layout>,
         indexes: Vec<IndexInfo>,
-        freemap_file : PathBuf
+        freemap_file: PathBuf,
     ) -> Self {
         let mut freemap = FreeMap::new(freemap_file);
         let mut blks = storage_mgr.borrow().file_blks(filepath.clone());
@@ -111,7 +121,10 @@ impl TableManager {
                     .borrow_mut()
                     .empty_heap_pages(filepath.to_str().unwrap(), 1),
             );
-            freemap.add_blockspace(HeapPage::default_free_space(storage_mgr.borrow().blk_size()) as u16,&blks[0]);
+            freemap.add_blockspace(
+                HeapPage::default_free_space(storage_mgr.borrow().blk_size()) as u16,
+                &blks[0],
+            );
             freemap.flush_map();
         }
         Self::new(blks, storage_mgr, freemap, layout, indexes)
@@ -186,7 +199,8 @@ impl TableManager {
             let blkid = storage_mgr.extend_file(self.table_blocks[0].filename.as_str());
             self.table_blocks.push(blkid.clone());
             let mut frame = storage_mgr.pin(blkid.clone()).unwrap();
-            let mut target_page = HeapPage::new_from_empty(frame.clone(), &blkid, self.layout.clone());
+            let mut target_page =
+                HeapPage::new_from_empty(frame.clone(), &blkid, self.layout.clone());
             let idx = target_page.insert_tuple(tuple);
             self.free_map
                 .add_blockspace(target_page.free_space(), &blkid);
@@ -200,7 +214,12 @@ impl TableManager {
                     .iter_mut()
                     .filter(|(field, _)| *field == k)
                     .for_each(|(_, v)| {
-                        v.insert_record(data, blk.block_num, slot as u16, self.storage_mgr.borrow_mut());
+                        v.insert_record(
+                            data,
+                            blk.block_num,
+                            slot as u16,
+                            self.storage_mgr.borrow_mut(),
+                        );
                         // v.flush_all(&mut self.storage_mgr.borrow_mut());
                     })
             }
@@ -235,8 +254,7 @@ impl TableManager {
             storage_mgr.unpin(frame);
         }
 
-
-        for (_,hash) in &self.hash_indexes{
+        for (_, hash) in &self.hash_indexes {
             hash.flush_all(&mut storage_mgr);
         }
         // for idx in self.indexes().values() {
@@ -265,8 +283,8 @@ impl TableManager {
     pub fn get_layout(&self) -> Rc<Layout> {
         self.layout.clone()
     }
-    
-    pub fn field_has_index(&self,field:&str) -> bool{
+
+    pub fn field_has_index(&self, field: &str) -> bool {
         self.hash_indexes.contains_key(field) || self.btree_indexes.contains_key(field)
     }
 
@@ -289,30 +307,24 @@ impl TableManager {
 
     pub fn hashscan_iter(&self, index_field: &str) -> Option<HashIter> {
         if let Some(idx) = self.hash_indexes.get(index_field) {
-            return Some(HashIter::new(
-                self.direct_accessor(),
-                idx.clone(),
-            ));
+            return Some(HashIter::new(self.direct_accessor(), idx.clone()));
         }
         None
     }
 
-    pub fn btree_iter(&self,index_field:&str,op:evalexpr::Operator) -> Option<BtreeIter>{
+    pub fn btree_iter(&self, index_field: &str, op: evalexpr::Operator) -> Option<BtreeIter> {
         if let Some(idx) = self.btree_indexes.get(index_field) {
-            return Some(BtreeIter::new(
-                self.direct_accessor(),
-                idx.clone(),
-                op
-            ));
+            return Some(BtreeIter::new(self.direct_accessor(), idx.clone(), op));
         }
         None
     }
 
-    pub fn planning_info(&self) -> TableInfo{
+    pub fn planning_info(&self) -> TableInfo {
         TableInfo::new(
             self.layout.type_map(),
             self.btree_indexes.keys().cloned().collect::<HashSet<_>>(),
-            self.hash_indexes.keys().cloned().collect::<HashSet<_>>())
+            self.hash_indexes.keys().cloned().collect::<HashSet<_>>(),
+        )
     }
 
     pub fn add_index_block(&mut self, blk: &BlockId) {

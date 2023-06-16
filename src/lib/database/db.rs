@@ -105,11 +105,9 @@ impl DatabaseInstance {
                                     .send_msg_to(&mut self.conn)
                                     .unwrap_or_default(),
                             },
-                            Err(e) => {
-                                Message::Status(Status::RecordNotInserted(e))
-                                    .send_msg_to(&mut self.conn)
-                                    .unwrap_or_default()
-                            }
+                            Err(e) => Message::Status(Status::RecordNotInserted(e))
+                                .send_msg_to(&mut self.conn)
+                                .unwrap_or_default(),
                         }
                     } else if let QueryPlan::Select(s) = plan {
                         let types = s.get_type_map();

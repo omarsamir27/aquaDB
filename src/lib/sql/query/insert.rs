@@ -26,12 +26,13 @@ impl SqlInsert {
         for (col_name, col_val) in self.record {
             if let Some(field) = fields.get(col_name.as_str()) {
                 if !field.nullable() && matches!(col_val, SqlValue::NULL) {
-                    return Err(format!("{} is NULL but NOT NULL Constraint",col_name));
+                    return Err(format!("{} is NULL but NOT NULL Constraint", col_name));
                 }
-                let bytes = Self::column_bytes(col_val, field.field_type()).map_err(|_| format!("Wrong data type:{}",col_name))?;
+                let bytes = Self::column_bytes(col_val, field.field_type())
+                    .map_err(|_| format!("Wrong data type:{}", col_name))?;
                 ret.push((col_name, bytes))
             } else {
-                return Err(format!("{} does not exist",col_name));
+                return Err(format!("{} does not exist", col_name));
             }
         }
         Ok(ret)
