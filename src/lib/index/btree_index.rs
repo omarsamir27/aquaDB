@@ -637,9 +637,6 @@ impl InternalNodePage {
             NodePage::Internal(ref mut target_node) => {
                 let free_space = self.heap_page.free_space() as i32 - 4;
                 let (split_key, split_block_num) = target_node.insert(key.clone(), value);
-                if target_node.heap_page.blk.block_num == 0 {
-                    dbg!("Freeing ROOT !!");
-                }
                 self.storage_manager
                     .borrow_mut()
                     .unpin(target_node.heap_page.frame.clone());
@@ -1287,12 +1284,38 @@ impl LeafNodePage {
                 self.heap_page.rewrite_tuple_pointers_to_frame();
             }
 
-            self.meta_data.next_node_blockid = new_block.block_num;
-            self.heap_page.write_special_area(self.meta_data.to_bytes());
+            if self.meta_data.next_node_blockid != 0 {
+                let old_next =
+                    BlockId::new(self.index_file.as_str(), self.meta_data.next_node_blockid);
+                let old_next_frame = self
+                    .storage_manager
+                    .borrow_mut()
+                    .pin(old_next.clone())
+                    .unwrap();
+                let mut old_next_heap =
+                    HeapPage::new(old_next_frame.clone(), &old_next, self.leaf_layout.clone());
+                let mut old_next_node = LeafNodePage::new(
+                    old_next_heap.clone(),
+                    self.key_type,
+                    self.storage_manager.clone(),
+                    self.leaf_layout.clone(),
+                    self.index_file.clone(),
+                );
+                old_next_node.meta_data.prev_node_blockid = new_block.block_num;
+                old_next_heap.write_special_area(old_next_node.meta_data.to_bytes());
+                self.storage_manager
+                    .borrow_mut()
+                    .unpin(old_next_heap.frame.clone());
+            }
+
             let right_meta_data = LeafMetaData {
-                next_node_blockid: 0,
+                next_node_blockid: self.meta_data.next_node_blockid,
                 prev_node_blockid: self.heap_page.blk.block_num,
             };
+
+            self.meta_data.next_node_blockid = new_block.block_num;
+            self.heap_page.write_special_area(self.meta_data.to_bytes());
+
             right_heap_page.write_special_area(right_meta_data.to_bytes());
             self.storage_manager
                 .borrow_mut()
@@ -1304,10 +1327,9 @@ impl LeafNodePage {
         return (None, None);
     }
 
-    // Search for a key in the leaf node and return the associated values
-    fn search(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_matches(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let mut results = Vec::new();
-
+        let mut last_index = 0_u16;
         for tuple_pointer_index in 0..self.heap_page.tuple_pointers.len() as u16 {
             let mut index_record = self.heap_page.get_multiple_fields(
                 vec![
@@ -1322,11 +1344,93 @@ impl LeafNodePage {
                     index_record.remove("block_num").unwrap().unwrap().to_u64(),
                     index_record.remove("slot_num").unwrap().unwrap().to_u16(),
                 );
+                last_index = tuple_pointer_index;
+                results.push(rid);
+            }
+        }
+        if !results.is_empty() {
+            Some(results)
+        }
+        else {
+            None
+        }
+    }
+
+    // Search for a key in the leaf node and return the associated values
+    fn search(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+        let mut results = Vec::new();
+        let mut last_index = 0_u16;
+        for tuple_pointer_index in 0..self.heap_page.tuple_pointers.len() as u16 {
+            let mut index_record = self.heap_page.get_multiple_fields(
+                vec![
+                    "key".to_string(),
+                    "block_num".to_string(),
+                    "slot_num".to_string(),
+                ],
+                tuple_pointer_index,
+            );
+            if index_record.remove("key").unwrap().unwrap() == key {
+                let rid = Rid::new(
+                    index_record.remove("block_num").unwrap().unwrap().to_u64(),
+                    index_record.remove("slot_num").unwrap().unwrap().to_u16(),
+                );
+                last_index = tuple_pointer_index;
                 results.push(rid);
             }
         }
 
         if !results.is_empty() {
+            if last_index == self.heap_page.tuple_pointers.len() as u16 - 1{
+                let mut next_block_num = self.meta_data.next_node_blockid;
+                while next_block_num != 0 {
+                    let block_id = BlockId::new(self.index_file.as_str(), next_block_num);
+                    let next_frame = self
+                        .storage_manager
+                        .borrow_mut()
+                        .pin(block_id.clone())
+                        .unwrap();
+                    let next_heap = HeapPage::new(next_frame.clone(), &block_id, self.leaf_layout.clone());
+                    let next_leaf = LeafNodePage::new(
+                        next_heap,
+                        self.key_type,
+                        self.storage_manager.clone(),
+                        self.leaf_layout.clone(),
+                        self.index_file.clone(),
+                    );
+                    let mut new_results = next_leaf.get_matches(key.clone());
+                    if new_results.is_some() {
+                        results.append(&mut new_results.unwrap());
+                        next_block_num = next_leaf.meta_data.next_node_blockid;
+                    }
+                    else {
+                        break
+                    }
+                }
+            }
+            let mut prev_block_num = self.meta_data.prev_node_blockid;
+            while prev_block_num != 0 {
+                let block_id = BlockId::new(self.index_file.as_str(), prev_block_num);
+                let prev_frame = self
+                    .storage_manager
+                    .borrow_mut()
+                    .pin(block_id.clone())
+                    .unwrap();
+                let prev_heap = HeapPage::new(prev_frame.clone(), &block_id, self.leaf_layout.clone());
+                let prev_leaf = LeafNodePage::new(
+                    prev_heap,
+                    self.key_type,
+                    self.storage_manager.clone(),
+                    self.leaf_layout.clone(),
+                    self.index_file.clone(),
+                );
+                let mut new_results = prev_leaf.get_matches(key.clone());
+                if new_results.is_some() {
+                    results.append(&mut new_results.unwrap());
+                    prev_block_num = prev_leaf.meta_data.prev_node_blockid;
+                } else {
+                    break
+                }
+            }
             Some(results)
         } else {
             None
@@ -1540,49 +1644,79 @@ impl LeafNodePage {
             }
         }
 
-        results = self.get_index_records_from_position_backwards(tuple_index);
-
-        let mut prev_block = if self.meta_data.prev_node_blockid == 0 {
-            None
-        } else {
-            Some(BlockId {
-                block_num: self.meta_data.prev_node_blockid,
-                filename: self.index_file.clone(),
-            })
-        };
-
-        while prev_block.is_some() {
-            let block_id = prev_block.unwrap();
-            let prev_frame = self
-                .storage_manager
-                .borrow_mut()
-                .pin(block_id.clone())
-                .unwrap();
-            let prev_heap = HeapPage::new(prev_frame.clone(), &block_id, self.leaf_layout.clone());
-            let prev_leaf = LeafNodePage::new(
-                prev_heap,
-                self.key_type,
-                self.storage_manager.clone(),
-                self.leaf_layout.clone(),
-                self.index_file.clone(),
-            );
-            let new_results = prev_leaf.get_index_records_from_position_backwards(
-                prev_leaf.heap_page.tuple_pointers.len() as u16 - 1,
-            );
-
-            if prev_leaf.meta_data.prev_node_blockid == 0 {
-                prev_block = None;
+        if tuple_index == self.heap_page.tuple_pointers.len() as u16 - 1 {
+            if self.meta_data.prev_node_blockid != 0 {
+                let prev_block =
+                    BlockId::new(self.index_file.as_str(), self.meta_data.prev_node_blockid);
+                let prev_frame = self
+                    .storage_manager
+                    .borrow_mut()
+                    .pin(prev_block.clone())
+                    .unwrap();
+                let prev_heap = HeapPage::new(prev_frame, &prev_block, self.leaf_layout.clone());
+                let prev_node = LeafNodePage::new(
+                    prev_heap.clone(),
+                    self.key_type,
+                    self.storage_manager.clone(),
+                    self.leaf_layout.clone(),
+                    self.index_file.clone(),
+                );
+                let prev_results = (prev_node.get_less_than(key));
+                self.storage_manager.borrow_mut().unpin(prev_heap.frame);
+                if prev_results.is_some() {
+                    prev_results
+                } else {
+                    None
+                }
             } else {
-                prev_block = Some(BlockId {
-                    block_num: prev_leaf.meta_data.prev_node_blockid,
+                None
+            }
+        } else {
+            results = self.get_index_records_from_position_backwards(tuple_index);
+
+            let mut prev_block = if self.meta_data.prev_node_blockid == 0 {
+                None
+            } else {
+                Some(BlockId {
+                    block_num: self.meta_data.prev_node_blockid,
                     filename: self.index_file.clone(),
                 })
-            }
-            self.storage_manager.borrow_mut().unpin(prev_frame);
-            results.extend(new_results);
-        }
+            };
 
-        Some(results)
+            while prev_block.is_some() {
+                let block_id = prev_block.unwrap();
+                let prev_frame = self
+                    .storage_manager
+                    .borrow_mut()
+                    .pin(block_id.clone())
+                    .unwrap();
+                let prev_heap =
+                    HeapPage::new(prev_frame.clone(), &block_id, self.leaf_layout.clone());
+                let prev_leaf = LeafNodePage::new(
+                    prev_heap,
+                    self.key_type,
+                    self.storage_manager.clone(),
+                    self.leaf_layout.clone(),
+                    self.index_file.clone(),
+                );
+                let new_results = prev_leaf.get_index_records_from_position_backwards(
+                    prev_leaf.heap_page.tuple_pointers.len() as u16 - 1,
+                );
+
+                if prev_leaf.meta_data.prev_node_blockid == 0 {
+                    prev_block = None;
+                } else {
+                    prev_block = Some(BlockId {
+                        block_num: prev_leaf.meta_data.prev_node_blockid,
+                        filename: self.index_file.clone(),
+                    })
+                }
+                self.storage_manager.borrow_mut().unpin(prev_frame);
+                results.extend(new_results);
+            }
+
+            Some(results)
+        }
     }
 
     pub fn get_index_records_from_position(&self, pos: u16) -> Vec<Rid> {
@@ -1623,5 +1757,12 @@ impl LeafNodePage {
             records.push(rid);
         }
         records
+    }
+
+    fn print_all_leaf_records(&self) {
+        for record_index in 0..self.heap_page.tuple_pointers.len() as u16 {
+            let mut index_record = self.heap_page.get_field("key", record_index).unwrap();
+            dbg!("{}", index_record);
+        }
     }
 }
