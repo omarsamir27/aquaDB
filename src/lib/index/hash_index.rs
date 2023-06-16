@@ -448,10 +448,7 @@ impl HashIndex {
         self.reinsert_record(idx_record, &mut storage_mgr);
         storage_mgr.unpin(frame_one);
         storage_mgr.unpin(frame_two);
-        self.flush_directory();
-        storage_mgr.show_available_slots();
-        dbg!("_______________________________________");
-    }
+        self.flush_directory();    }
 
     /// Get all the rids of the matched index records with the search key.
     pub fn get_rids(&self, search_key: &[u8], mut storage_mgr: RefMut<StorageManager>) -> Vec<Rid> {
