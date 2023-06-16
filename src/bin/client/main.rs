@@ -10,6 +10,7 @@ use tabled::Table;
 use aqua::FieldId;
 
 fn main() {
+    let var = include_str!()
     let mut socket = TcpStream::connect("127.0.0.1:2710").unwrap();
     for line in stdin().lines() {
         if let Ok(line) = line {

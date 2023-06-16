@@ -1,5 +1,8 @@
+use crate::common::numerical::ByteMagic;
+use crate::index::btree_index::BPTree;
 use crate::index::hash_index::HashIndex;
 use crate::schema::schema::FieldIndex;
+use crate::schema::types::Type;
 use crate::sql::create_table::IndexType;
 use crate::storage::blockid::BlockId;
 use crate::storage::storagemgr::StorageManager;
@@ -8,12 +11,9 @@ use std::cell::{RefCell, RefMut};
 use std::path::{Path, PathBuf};
 use std::process::id;
 use std::rc::Rc;
-use crate::common::numerical::ByteMagic;
-use crate::index::btree_index::BPTree;
-use crate::schema::types::Type;
 
-pub mod hash_index;
 pub mod btree_index;
+pub mod hash_index;
 
 const GLOBAL_DEPTH: u8 = 4;
 
@@ -55,7 +55,7 @@ pub enum Index {
 }
 
 impl Index {
-    pub fn init_index(index_info: IndexInfo,storage:Rc<RefCell<StorageManager>>) {
+    pub fn init_index(index_info: IndexInfo, storage: Rc<RefCell<StorageManager>>) {
         match index_info.index_type {
             IndexType::Hash => HashIndex::init(
                 index_info.index_file_path.as_path(),
@@ -63,7 +63,11 @@ impl Index {
                 GLOBAL_DEPTH,
             ),
             IndexType::Btree => {
-                BPTree::init(index_info.key_type,storage,index_info.index_file_path.to_str().unwrap().to_string());
+                BPTree::init(
+                    index_info.key_type,
+                    storage,
+                    index_info.index_file_path.to_str().unwrap().to_string(),
+                );
             }
         }
     }
@@ -110,7 +114,7 @@ pub struct IndexInfo {
     pub column: String,
     pub index_file_path: PathBuf,
     pub directory_file_path: PathBuf,
-    pub key_type : Type
+    pub key_type: Type,
 }
 
 impl IndexInfo {
@@ -121,7 +125,7 @@ impl IndexInfo {
         column: String,
         index_file_path: PathBuf,
         directory_file_path: PathBuf,
-        key_type : Type
+        key_type: Type,
     ) -> Self {
         let index_file_path =
             Path::new(&AQUADIR()).join(Path::new("base").join(db_name).join(index_file_path));
@@ -133,7 +137,7 @@ impl IndexInfo {
             column,
             index_file_path,
             directory_file_path,
-            key_type
+            key_type,
         }
     }
 }
@@ -173,7 +177,6 @@ impl IndexInfo {
 //         )
 //     }
 // }
-
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rid {

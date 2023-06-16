@@ -150,8 +150,8 @@ impl ContextWithMutableVariables for HashMapContext {
 
     fn update_or_set_value(&mut self, identifier: String, value: Value) -> EvalexprResult<()> {
         if let Some(existing_value) = self.variables.get_mut(&identifier) {
-                *existing_value = value;
-                return Ok(());
+            *existing_value = value;
+            return Ok(());
         }
         // Implicit else, because `self.variables` and `identifier` are not unborrowed in else
         self.variables.insert(identifier, value);

@@ -92,7 +92,7 @@ pub enum Operator {
     },
 
     /// Like Operator
-    LIKE
+    LIKE,
 }
 
 impl Operator {
@@ -336,35 +336,41 @@ impl Operator {
             },
             Eq => {
                 expect_operator_argument_amount(arguments.len(), 2)?;
-                if arguments[0].is_empty() && !arguments[1].is_empty() || !arguments[0].is_empty() && arguments[1].is_empty() {
+                if arguments[0].is_empty() && !arguments[1].is_empty()
+                    || !arguments[0].is_empty() && arguments[1].is_empty()
+                {
                     Ok(Value::Boolean(false))
-                }else if arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(true))
-                }else{
-                Ok(Value::Boolean(arguments[0] == arguments[1]))}
+                } else {
+                    Ok(Value::Boolean(arguments[0] == arguments[1]))
+                }
             },
             Neq => {
                 expect_operator_argument_amount(arguments.len(), 2)?;
-                if arguments[0].is_empty() && !arguments[1].is_empty() || !arguments[0].is_empty() && arguments[1].is_empty() {
+                if arguments[0].is_empty() && !arguments[1].is_empty()
+                    || !arguments[0].is_empty() && arguments[1].is_empty()
+                {
                     Ok(Value::Boolean(true))
-                }else if arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(false))
-                }else{
-                Ok(Value::Boolean(arguments[0] != arguments[1]))}
+                } else {
+                    Ok(Value::Boolean(arguments[0] != arguments[1]))
+                }
             },
             Gt => {
                 expect_operator_argument_amount(arguments.len(), 2)?;
                 // expect_number_or_string(&arguments[0])?;
                 // expect_number_or_string(&arguments[1])?;
 
-                if arguments[0].is_empty() && !arguments[1].is_empty(){
+                if arguments[0].is_empty() && !arguments[1].is_empty() {
                     Ok(Value::Boolean(false))
-                }else if !arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if !arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(true))
-                }else if arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(false))
-                }
-                else if let (Ok(a), Ok(b)) = (arguments[0].as_string(), arguments[1].as_string()) {
+                } else if let (Ok(a), Ok(b)) = (arguments[0].as_string(), arguments[1].as_string())
+                {
                     Ok(Value::Boolean(a > b))
                 } else if let (Ok(a), Ok(b)) = (arguments[0].as_int(), arguments[1].as_int()) {
                     Ok(Value::Boolean(a > b))
@@ -379,13 +385,14 @@ impl Operator {
                 // expect_number_or_string(&arguments[0])?;
                 // expect_number_or_string(&arguments[1])?;
 
-                if arguments[0].is_empty() && !arguments[1].is_empty(){
+                if arguments[0].is_empty() && !arguments[1].is_empty() {
                     Ok(Value::Boolean(true))
-                }else if !arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if !arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(false))
-                }else if arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(false))
-                }else if let (Ok(a), Ok(b)) = (arguments[0].as_string(), arguments[1].as_string()) {
+                } else if let (Ok(a), Ok(b)) = (arguments[0].as_string(), arguments[1].as_string())
+                {
                     Ok(Value::Boolean(a < b))
                 } else if let (Ok(a), Ok(b)) = (arguments[0].as_int(), arguments[1].as_int()) {
                     Ok(Value::Boolean(a < b))
@@ -400,13 +407,14 @@ impl Operator {
                 // expect_number_or_string(&arguments[0])?;
                 // expect_number_or_string(&arguments[1])?;
 
-                if arguments[0].is_empty() && !arguments[1].is_empty(){
+                if arguments[0].is_empty() && !arguments[1].is_empty() {
                     Ok(Value::Boolean(false))
-                }else if !arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if !arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(true))
-                }else if arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(true))
-                }else if let (Ok(a), Ok(b)) = (arguments[0].as_string(), arguments[1].as_string()) {
+                } else if let (Ok(a), Ok(b)) = (arguments[0].as_string(), arguments[1].as_string())
+                {
                     Ok(Value::Boolean(a >= b))
                 } else if let (Ok(a), Ok(b)) = (arguments[0].as_int(), arguments[1].as_int()) {
                     Ok(Value::Boolean(a >= b))
@@ -421,13 +429,14 @@ impl Operator {
                 // expect_number_or_string(&arguments[0])?;
                 // expect_number_or_string(&arguments[1])?;
 
-                if arguments[0].is_empty() && !arguments[1].is_empty(){
+                if arguments[0].is_empty() && !arguments[1].is_empty() {
                     Ok(Value::Boolean(true))
-                }else if !arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if !arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(false))
-                }else if arguments[0].is_empty() && arguments[1].is_empty() {
+                } else if arguments[0].is_empty() && arguments[1].is_empty() {
                     Ok(Value::Boolean(true))
-                }else if let (Ok(a), Ok(b)) = (arguments[0].as_string(), arguments[1].as_string()) {
+                } else if let (Ok(a), Ok(b)) = (arguments[0].as_string(), arguments[1].as_string())
+                {
                     Ok(Value::Boolean(a <= b))
                 } else if let (Ok(a), Ok(b)) = (arguments[0].as_int(), arguments[1].as_int()) {
                     Ok(Value::Boolean(a <= b))
@@ -507,11 +516,13 @@ impl Operator {
             },
             LIKE => {
                 expect_operator_argument_amount(arguments.len(), 2)?;
-                    // let arguments = arguments.as_tuple()?;
-                    let needle = arguments[0].as_string()?;
-                    let haystack = arguments[1].as_string()?;
-                    Ok(Value::Boolean(wildmatch::WildMatch::new(&haystack).matches(&needle)))
-            }
+                // let arguments = arguments.as_tuple()?;
+                let needle = arguments[0].as_string()?;
+                let haystack = arguments[1].as_string()?;
+                Ok(Value::Boolean(
+                    wildmatch::WildMatch::new(&haystack).matches(&needle),
+                ))
+            },
         }
 
         // "like" | "LIKE" => Some(Function::new(|argument| {

@@ -9,7 +9,9 @@ use crate::sql::parser::Rule::{conditional_expression, foreign_key};
 use crate::sql::query::delete::SqlDelete;
 use crate::sql::query::insert::SqlInsert;
 use crate::sql::query::query::{SqlQuery as QUERY, SqlValue};
-use crate::sql::query::select::{FromClause, Grouping, Join, JoinClause, JoinType, Ordering, ProjectionTarget, SqlSelect};
+use crate::sql::query::select::{
+    FromClause, Grouping, Join, JoinClause, JoinType, Ordering, ProjectionTarget, SqlSelect,
+};
 use crate::sql::query::update::SqlUpdate;
 use crate::sql::Sql;
 use pest::error::ErrorVariant;
@@ -104,12 +106,10 @@ impl SqlParser {
         //     }
         // }
         // Ok(txt)
-        Ok(
-            match_nodes!(
-                input.into_children();
-                [conditional_expression(ce)] => ce
-            )
-        )
+        Ok(match_nodes!(
+            input.into_children();
+            [conditional_expression(ce)] => ce
+        ))
         // println!("{}",input.as_str());
         // let  clause = input.as_str().to_string();
         // let mut re = RegexBuilder::new("or").case_insensitive(true).build().unwrap();
@@ -119,41 +119,46 @@ impl SqlParser {
         // Ok(x)
     }
     fn conditional_expression(input: Node) -> Result<String> {
-       //  let PRATT_PARSER: PrattParser<Rule> = {
-       //      use pest::pratt_parser::{Assoc::*, Op};
-       //      use Rule::*;
-       //
-       //      // Precedence is defined lowest to highest
-       //      PrattParser::new()
-       //          // Addition and subtract have equal precedence
-       //          .op(Op::infix(OR, Left))
-       //          .op(Op::infix(AND, Left))
-       //  };
-       // // fn parse_me(pairs:Pairs<Rule>,pratt: &PrattParser<Rule>)
-        let mut txt = input.as_str().to_string().replace(" AND "," && ").replace(" and "," && ").replace(" OR "," || ").replace(" or "," || ");
-       //  let mut input = input
-       //      .into_children()
-       //      .into_pairs()
-       //      .flatten()
-       //      .collect::<Vec<_>>();
-       //  for n in input {
-       //      dbg!(&n);
-       //      let rule = n.as_rule();
-       //      if rule == Rule::OR {
-       //          let span = n.as_span();
-       //          let (start, end) = (span.start(), span.end());
-       //          txt.replace_range(start..end, "||")
-       //      }
-       //      else if rule == Rule::AND{
-       //          let span = n.as_span();
-       //          let (start, end) = (span.start(), span.end());
-       //          dbg!(start);
-       //          dbg!(end);
-       //          txt.replace_range(start..end, "&&")
-       //      }
-       //  }
+        //  let PRATT_PARSER: PrattParser<Rule> = {
+        //      use pest::pratt_parser::{Assoc::*, Op};
+        //      use Rule::*;
+        //
+        //      // Precedence is defined lowest to highest
+        //      PrattParser::new()
+        //          // Addition and subtract have equal precedence
+        //          .op(Op::infix(OR, Left))
+        //          .op(Op::infix(AND, Left))
+        //  };
+        // // fn parse_me(pairs:Pairs<Rule>,pratt: &PrattParser<Rule>)
+        let mut txt = input
+            .as_str()
+            .to_string()
+            .replace(" AND ", " && ")
+            .replace(" and ", " && ")
+            .replace(" OR ", " || ")
+            .replace(" or ", " || ");
+        //  let mut input = input
+        //      .into_children()
+        //      .into_pairs()
+        //      .flatten()
+        //      .collect::<Vec<_>>();
+        //  for n in input {
+        //      dbg!(&n);
+        //      let rule = n.as_rule();
+        //      if rule == Rule::OR {
+        //          let span = n.as_span();
+        //          let (start, end) = (span.start(), span.end());
+        //          txt.replace_range(start..end, "||")
+        //      }
+        //      else if rule == Rule::AND{
+        //          let span = n.as_span();
+        //          let (start, end) = (span.start(), span.end());
+        //          dbg!(start);
+        //          dbg!(end);
+        //          txt.replace_range(start..end, "&&")
+        //      }
+        //  }
 
-        
         Ok(txt)
     }
     fn join_type(input: Node) -> Result<JoinType> {
@@ -181,7 +186,7 @@ impl SqlParser {
             // [table_name(t1),table_name(t2),conditional_expression(c)] => JoinClause::new(t1,t2,JoinType::Inner,c)
         ))
     }
-    fn join_r(input:Node) -> Result<Join>{
+    fn join_r(input: Node) -> Result<Join> {
         Ok(match_nodes!(
             input.into_children();
             [join_type(jt),table_name(t2),conditional_expression(c)] => Join::new(t2,jt,Some(c)),
@@ -313,7 +318,10 @@ impl SqlParser {
         Ok(SqlValue::Numeric(input.as_str().to_string()))
     }
     fn string_literal(input: Node) -> Result<SqlValue> {
-        let input = input.as_str().trim_start_matches('\"').trim_end_matches('\"');
+        let input = input
+            .as_str()
+            .trim_start_matches('\"')
+            .trim_end_matches('\"');
         Ok(SqlValue::Text(input.to_string()))
     }
     fn insert_vals(input: Node) -> Result<Vec<SqlValue>> {

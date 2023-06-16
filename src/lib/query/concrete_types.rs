@@ -60,20 +60,19 @@ impl ConcreteType {
             SchemaType::Boolean => Boolean(bytes[0] == 1),
         }
     }
-    pub fn to_bytes(self) -> Option<Vec<u8>>{
+    pub fn to_bytes(self) -> Option<Vec<u8>> {
         let bytes = Vec::from(self);
-        if bytes.is_empty(){
+        if bytes.is_empty() {
             None
-        }
-        else {
+        } else {
             Some(bytes)
         }
     }
 }
 
-impl From<ConcreteType> for Vec<u8>{
+impl From<ConcreteType> for Vec<u8> {
     fn from(value: ConcreteType) -> Self {
-        match value{
+        match value {
             SmallInt(x) => x.to_ne_bytes().to_vec(),
             Integer(x) => x.to_ne_bytes().to_vec(),
             BigInt(x) => x.to_ne_bytes().to_vec(),
@@ -82,8 +81,14 @@ impl From<ConcreteType> for Vec<u8>{
             Serial(x) => x.to_ne_bytes().to_vec(),
             VarChar(x) => x.as_bytes().to_vec(),
             Char(x) => x.as_bytes().to_vec(),
-            Boolean(x) => {if x { vec![1] }else { vec![0] }},
-            ConcreteType::NULL => vec![]
+            Boolean(x) => {
+                if x {
+                    vec![1]
+                } else {
+                    vec![0]
+                }
+            }
+            ConcreteType::NULL => vec![],
         }
     }
 }

@@ -23,10 +23,8 @@ pub struct PageHeader {
     pub special_area_offset: usize,
 }
 
-
 impl PageHeader {
-    
-    fn disk_space() -> usize{
+    fn disk_space() -> usize {
         6
     }
     /// Read the first 4 bytes of a Heap Page 2 by 2 to assign them to the start and end attributes
@@ -89,10 +87,10 @@ pub struct HeapPage {
 
 impl HeapPage {
     /// used with TRUE heap pages only,not for indexes
-    pub fn default_free_space(blk_size:usize) -> usize{
+    pub fn default_free_space(blk_size: usize) -> usize {
         blk_size - PageHeader::disk_space()
     }
-    
+
     /// Creates a new Heap Page given a reference of a frame in the memory, a block id and the layout
     /// of the tuples inside the block.
     ///
@@ -243,22 +241,25 @@ impl HeapPage {
     /// A helper function used by new_from_empty to create an empty HeapPage
     pub fn init_heap(frame: &FrameRef, special_area: u16) {
         let mut frame = frame.borrow_mut();
-        let mut header : Vec<u8> = Vec::new();
-        if special_area == 0{
+        let mut header: Vec<u8> = Vec::new();
+        if special_area == 0 {
             header = [
                 6_u16.to_ne_bytes(),
                 ((frame.page.payload.len()) as u16 - 1).to_ne_bytes(),
                 ((frame.page.payload.len()) as u16 - 1).to_ne_bytes(),
-            ].concat();
+            ]
+            .concat();
         } else {
             header = [
                 6_u16.to_ne_bytes(),
                 ((frame.page.payload.len()) as u16 - special_area - 1).to_ne_bytes(),
                 ((frame.page.payload.len()) as u16 - special_area).to_ne_bytes(),
-            ].concat();
+            ]
+            .concat();
         }
         frame.update_replace_stats();
-        frame.write(header.as_slice())}
+        frame.write(header.as_slice())
+    }
 
     /// Creates an empty Heap Page and returns it
     pub fn new_from_empty(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>) -> Self {
@@ -267,7 +268,12 @@ impl HeapPage {
     }
 
     /// Creates an empty Heap Page for Btree index and returns it
-    pub fn new_from_empty_special(frame: FrameRef, blk: &BlockId, layout: Rc<Layout>, special_area: u16) -> Self {
+    pub fn new_from_empty_special(
+        frame: FrameRef,
+        blk: &BlockId,
+        layout: Rc<Layout>,
+        special_area: u16,
+    ) -> Self {
         HeapPage::init_heap(&frame, special_area);
         HeapPage::new(frame, blk, layout)
     }
@@ -344,8 +350,7 @@ impl HeapPage {
 
         let mut space_end = if self.header.special_area_offset == 4095 {
             4095
-        }
-        else {
+        } else {
             self.header.special_area_offset as u16 - 1
         };
 
@@ -400,22 +405,31 @@ impl HeapPage {
 
     pub fn get_special_area(&self) -> Vec<u8> {
         self.frame.borrow_mut().update_replace_stats();
-        let special_area_vector = self.frame.borrow().page.payload[self.header.special_area_offset..].to_vec();
-        if special_area_vector.len() == 1{
+        let special_area_vector =
+            self.frame.borrow().page.payload[self.header.special_area_offset..].to_vec();
+        if special_area_vector.len() == 1 {
             Vec::new()
-        }
-        else {
+        } else {
             special_area_vector
         }
     }
-    
+
     pub fn write_special_area(&mut self, special_area_bytes: Vec<u8>) {
-        self.frame.borrow_mut().write_at(special_area_bytes.as_slice(), self.header.special_area_offset as u64);
+        self.frame.borrow_mut().write_at(
+            special_area_bytes.as_slice(),
+            self.header.special_area_offset as u64,
+        );
     }
-    
-    pub fn rewrite_tuple_pointers_to_frame(&mut self){
-        let tuple_pointers_bytes = self.tuple_pointers.iter().flat_map(|pointer| pointer.clone().to_bytes()).collect::<Vec<u8>>();
-        self.frame.borrow_mut().write_at(tuple_pointers_bytes.as_slice(), 6)
+
+    pub fn rewrite_tuple_pointers_to_frame(&mut self) {
+        let tuple_pointers_bytes = self
+            .tuple_pointers
+            .iter()
+            .flat_map(|pointer| pointer.clone().to_bytes())
+            .collect::<Vec<u8>>();
+        self.frame
+            .borrow_mut()
+            .write_at(tuple_pointers_bytes.as_slice(), 6)
     }
 }
 

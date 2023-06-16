@@ -1,11 +1,11 @@
 use crate::sql::create_table::CreateTable;
 use crate::sql::query::query::SqlQuery;
 
+mod conditional;
 pub mod create_table;
 pub mod eval;
 pub mod parser;
 pub mod query;
-mod conditional;
 
 #[derive(Debug)]
 pub enum Sql {

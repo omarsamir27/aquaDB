@@ -1,12 +1,14 @@
-use evalexpr::{ContextWithMutableVariables, FloatType, HashMapContext, IntType, IterateVariablesContext, Value};
-use crate::FieldId;
-use super::{TypeMap, MergedRow};
-use std::collections::HashMap;
+use super::{MergedRow, TypeMap};
 use crate::common::numerical::ByteMagic;
 use crate::query::concrete_types::ConcreteType;
 use crate::schema::types::{NumericType, Type};
+use crate::FieldId;
+use evalexpr::{
+    ContextWithMutableVariables, FloatType, HashMapContext, IntType, IterateVariablesContext, Value,
+};
+use std::collections::HashMap;
 
-pub fn fill_ctx_map(ctx:&mut HashMapContext, row: &MergedRow,type_map:&TypeMap) {
+pub fn fill_ctx_map(ctx: &mut HashMapContext, row: &MergedRow, type_map: &TypeMap) {
     for table_var in ctx.iter_variable_names().collect::<Vec<_>>() {
         let field_id = table_var.parse::<FieldId>().unwrap();
         let val = row.get(&field_id).unwrap();
@@ -33,17 +35,17 @@ pub fn data_to_value(data: Option<&Vec<u8>>, schema_type: Type) -> Value {
     }
 }
 
-pub fn row_to_merged_row(table:&str,row:HashMap<String,Option<Vec<u8>>>)->MergedRow{
-    row.into_iter().map(|(k,v)| (FieldId::new(table,&k),v) ).collect()
+pub fn row_to_merged_row(table: &str, row: HashMap<String, Option<Vec<u8>>>) -> MergedRow {
+    row.into_iter()
+        .map(|(k, v)| (FieldId::new(table, &k), v))
+        .collect()
 }
 
-pub fn merge(left:&MergedRow, right: &MergedRow) -> MergedRow{
+pub fn merge(left: &MergedRow, right: &MergedRow) -> MergedRow {
     let mut left = left.clone();
     let right = right.clone();
     left.extend(right);
     left
 }
 
-pub fn qualify_type_map(){
-    
-}
+pub fn qualify_type_map() {}

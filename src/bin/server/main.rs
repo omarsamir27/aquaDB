@@ -1,14 +1,14 @@
 #![allow(non_snake_case)]
 mod init;
 
+use aqua::common::boolean::{set_node_true, simplify};
 use aqua::database::server::DatabaseServer;
 use aqua::sql::parser::{parse_query, Rule, SqlParser};
-use std::env;
-use std::process::exit;
 use evalexpr::build_operator_tree;
 use pest::Parser;
 use pest_ascii_tree::print_ascii_tree;
-use aqua::common::boolean::{set_node_true, simplify};
+use std::env;
+use std::process::exit;
 // use ptree::print_tree;
 use aqua::query::algebra::LogicalNode;
 use aqua::query::concrete_types::ConcreteType;

@@ -1,7 +1,10 @@
+use super::MergedRow;
 use crate::common::fileops::read_file;
 use crate::query::concrete_types::ConcreteType;
 use crate::query::tuple_table::TableErrors::{InvalidColumn, MissingFields};
+use crate::schema::schema::Field;
 use crate::schema::types::Type;
+use crate::{FieldId, AQUADIR, AQUA_TMP_DIR};
 use rand::{random, thread_rng, Rng};
 use std::borrow::BorrowMut;
 use std::cmp::max;
@@ -13,9 +16,6 @@ use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::path::Path;
 use thiserror::Error;
-use crate::{AQUA_TMP_DIR, AQUADIR, FieldId};
-use crate::schema::schema::Field;
-use super::MergedRow;
 
 #[derive(Debug, Error)]
 pub enum TableErrors {
@@ -52,61 +52,63 @@ impl Iterator for TupleTableIter {
     type Item = MergedRow;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.table.data.is_empty(){
-            if self.table.segments.is_empty(){
-                return None
+        if self.table.data.is_empty() {
+            if self.table.segments.is_empty() {
+                return None;
             }
             self.table.load_segment(0);
         }
-        if self.next_row == self.table.num_rows as usize{
-            if self.next_segment >= self.table.segments.len(){
-                return None
+        if self.next_row == self.table.num_rows as usize {
+            if self.next_segment >= self.table.segments.len() {
+                return None;
             }
             self.table.load_segment(self.next_segment);
-            self.next_segment +=1;
+            if self.table.data.is_empty() {
+                return None;
+            }
+            self.next_segment += 1;
             self.next_row = 0;
         }
-        // if self.next_segment == self.table.segments.len(){
-        //     return None
-        // }
         let row = self.table.data[self.next_row].clone();
-        self.next_row +=1;
+        self.next_row += 1;
         Some(self.row_to_merged_row(row))
-
     }
-
 }
 
 #[derive(Debug)]
 pub struct TupleTableIter {
     table: TupleTable,
     next_row: usize,
-    next_segment:usize,
-    index_map : HashMap<usize,FieldId>
+    next_segment: usize,
+    index_map: HashMap<usize, FieldId>,
 }
-impl TupleTableIter{
-    fn new(table:TupleTable) -> Self{
-        let index_map = table.index_type_map.iter().map(|(k,(idx,_))| (*idx,k.clone())).collect();
-        Self{table,next_row: 0 ,next_segment:1,index_map}
-    }
-    pub fn step_back(&mut self){
-        if self.next_row != 0{
-            self.next_row -=1;
-        }else {
-            self.table.load_segment(self.next_segment -2);
-            self.next_segment -=1;
+impl TupleTableIter {
+    fn new(table: TupleTable) -> Self {
+        let index_map = table
+            .index_type_map
+            .iter()
+            .map(|(k, (idx, _))| (*idx, k.clone()))
+            .collect();
+        Self {
+            table,
+            next_row: 0,
+            next_segment: 1,
+            index_map,
         }
     }
-    fn row_to_merged_row(&self,row:Row) -> MergedRow{
-        row
-            .into_iter()
+    pub fn step_back(&mut self) {
+        if self.next_row != 0 {
+            self.next_row -= 1;
+        } else {
+            self.table.load_segment(self.next_segment - 2);
+            self.next_segment -= 1;
+        }
+    }
+    fn row_to_merged_row(&self, row: Row) -> MergedRow {
+        row.into_iter()
             .enumerate()
-            .map(|(idx,col)|
-                (
-                    self.index_map.get(&idx).unwrap().clone(),
-                    col.to_bytes()
-                )
-            ).collect()
+            .map(|(idx, col)| (self.index_map.get(&idx).unwrap().clone(), col.to_bytes()))
+            .collect()
     }
 }
 
@@ -123,7 +125,7 @@ pub struct TupleTable {
     current_memory_use: usize,
 }
 
-impl IntoIterator for TupleTable{
+impl IntoIterator for TupleTable {
     type Item = MergedRow;
     type IntoIter = TupleTableIter;
 
@@ -164,9 +166,6 @@ impl TupleTable {
             .open(path.clone())
             .unwrap();
         let mut current_segment_data = std::mem::take(&mut self.data);
-
-        /////// sort test
-        // current_segment_data.sort_unstable_by(|r1, r2| r1[0].cmp(r2.get(0).unwrap()));
 
         bincode::encode_into_std_write(
             current_segment_data,
@@ -219,10 +218,6 @@ impl TupleTable {
         self.num_rows = self.data.len() as u32;
         self.current_segment = Some(segment);
     }
-    // fn remove_one_row(&mut self){
-    //     self.num_rows -=1;
-    //     self.data.emove(0)
-    // }
     pub fn print_all(&mut self) {
         for row in self.data.iter() {
             println!("{}", RowPrint(row));
@@ -248,44 +243,49 @@ impl TupleTable {
         self.print_all()
     }
 
-    pub fn sort(&mut self, sort_key: &FieldId) {
+    pub fn sort(&mut self, sort_key: &FieldId, desc: bool) {
         let key_index = self.index_type_map.get(sort_key).unwrap().0;
         if self.segments.is_empty() {
-            self.data
-                .sort_unstable_by(|r1, r2| r1[key_index].cmp(&r2[key_index]));
+            self.data.sort_unstable_by(|r1, r2| {
+                let order = r1[key_index].cmp(&r2[key_index]);
+                if !desc {
+                    order
+                } else {
+                    order.reverse()
+                }
+            });
         } else {
-            self.external_merge(key_index)
+            self.external_merge(key_index, desc)
         }
     }
 
-    fn external_merge(&mut self, key_index: usize) {
+    fn external_merge(&mut self, key_index: usize, desc: bool) {
         self.num_rows = 0;
         self.current_memory_use = 0;
         let mut runs = vec![];
+        self.purge_mem_disk();
         let mut disk_segments = mem::take(&mut self.segments);
-        let (current_seg, current_data) = (self.current_segment, mem::take(&mut self.data));
-        let mut purge_run = SortingRun::memory_purge_run(
-            self.name.as_str(),
-            key_index,
-            current_data,
-            disk_segments.remove(0),
-        );
-        runs.push(purge_run);
-        dbg!(disk_segments.len());
         while !disk_segments.is_empty() {
-            let run = SortingRun::init(disk_segments.split_off(disk_segments.len() - 2), key_index);
+            let mut cutoff = disk_segments.len() as isize - 2;
+            if cutoff < 1 {
+                cutoff = 0;
+            }
+            let mut run =
+                SortingRun::init(disk_segments.split_off(cutoff as usize), key_index, desc);
             runs.push(run);
         }
+
         while runs.len() > 1 {
-            runs = runs.chunks_mut(2).map(SortingRun::merge).collect();
+            runs = runs
+                .chunks_mut(2)
+                .map(|run| SortingRun::merge(run, desc))
+                .collect();
         }
         let mut sorted = runs.remove(0);
-        let mut rng = thread_rng();
         self.segments = (mem::take(&mut sorted.segments))
             .into_iter()
             .collect::<Vec<File>>();
-        // self.segments.reverse();
-        // self.data = (mem::take(&mut sorted.current_data)).into_iter().collect();
+
         self.purge_mem_disk();
     }
 }
@@ -298,6 +298,14 @@ struct SortingRun {
     current_seg: Option<File>,
 }
 impl SortingRun {
+    fn new(key_index: usize) -> Self {
+        Self {
+            key_index,
+            segments: VecDeque::new(),
+            current_data: VecDeque::new(),
+            current_seg: None,
+        }
+    }
     fn memory_purge_run(
         table_name: &str,
         key_index: usize,
@@ -337,7 +345,7 @@ impl SortingRun {
             current_seg: None,
         }
     }
-    fn init(mut segments: Vec<File>, key_index: usize) -> Self {
+    fn init(mut segments: Vec<File>, key_index: usize, desc: bool) -> Self {
         let config = bincode::config::standard();
         let mut data: Vec<Row> = vec![];
         let mut disk_buff = vec![];
@@ -347,7 +355,14 @@ impl SortingRun {
             data.append(&mut bincode::decode_from_slice(&disk_buff, config).unwrap().0);
             disk_buff.clear();
         }
-        data.sort_unstable_by(|r1, r2| r1[key_index].cmp(&r2[key_index]));
+        data.sort_unstable_by(|r1, r2| {
+            let order = r1[key_index].cmp(&r2[key_index]);
+            if !desc {
+                order
+            } else {
+                order.reverse()
+            }
+        });
         let mut run_segments = VecDeque::new();
         let part_size = data.len() / segments.len();
         let mut data_iter = data.chunks(part_size);
@@ -419,9 +434,35 @@ impl SortingRun {
         }
     }
 
-    fn merge(mut runs: &mut [SortingRun]) -> Self {
+    fn finalize(&mut self, random: u64) {
+        let mem_buff =
+            bincode::encode_to_vec(&self.current_data, bincode::config::standard()).unwrap();
+        let tmp_dir = AQUA_TMP_DIR();
+        let path = format!("tmp{random}");
+        let path = tmp_dir.join(path.as_str());
+        let mut segment = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path)
+            .unwrap();
+        segment.write_all(&mem_buff).unwrap();
+        segment.rewind();
+        self.segments.push_back(segment);
+        self.current_data.clear();
+    }
+
+    fn merge(mut runs: &mut [SortingRun], desc: bool) -> Self {
         let mut rng = thread_rng();
         let sort_key = runs[0].key_index;
+        if runs.len() == 1 {
+            return SortingRun {
+                current_data: VecDeque::new(),
+                current_seg: None,
+                key_index: sort_key,
+                segments: mem::take(&mut runs[0].segments),
+            };
+        }
         let mut removed = HashSet::new();
         let mut output_run = SortingRun {
             current_data: VecDeque::new(),
@@ -440,7 +481,12 @@ impl SortingRun {
                 .enumerate()
                 .filter(|(idx, _)| !removed.contains(idx))
                 .min_by(|(_, run1), (_, run2)| {
-                    run1.peek_row()[sort_key].cmp(&run2.peek_row()[sort_key])
+                    let order = run1.peek_row()[sort_key].cmp(&run2.peek_row()[sort_key]);
+                    if !desc {
+                        order
+                    } else {
+                        order.reverse()
+                    }
                 })
                 .unwrap();
             let (row, seg) = least_run.get_row();
@@ -452,6 +498,47 @@ impl SortingRun {
                 removed.insert(idx);
             }
         }
+        output_run.finalize(rng.gen());
         output_run
+    }
+    // fn print_run(&mut self){
+    //     println!("RUN PRINT");
+    //     let config = bincode::config::standard();
+    //     let sort_key = self.key_index;
+    //     for seg in &mut self.segments{
+    //         let mut disk_buff = vec![];
+    //         let mut data : Vec<Row> = Vec::new();
+    //         seg.read_to_end(&mut disk_buff);
+    //         seg.rewind();
+    //         let v = seg.metadata().unwrap();
+    //         data.append(&mut bincode::decode_from_slice(&disk_buff, config).unwrap().0);
+    //         for v in &data{
+    //             println!("{}",v[sort_key]);
+    //         }
+    //     }
+    //     println!("RUN FINISH");
+    // }
+    fn split_into_two(self) -> (Self, Self) {
+        let Self {
+            key_index,
+            mut segments,
+            current_data,
+            current_seg,
+        } = self;
+        let split2 = segments.split_off(segments.len() / 2);
+        (
+            Self {
+                key_index,
+                segments,
+                current_data: VecDeque::new(),
+                current_seg: None,
+            },
+            Self {
+                key_index,
+                segments: split2,
+                current_data: VecDeque::new(),
+                current_seg: None,
+            },
+        )
     }
 }

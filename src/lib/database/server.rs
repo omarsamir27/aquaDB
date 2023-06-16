@@ -55,10 +55,9 @@ impl DatabaseServer {
             Err(_) => return,
         };
         let cmd = command.split_ascii_whitespace().collect::<Vec<_>>();
-        if cmd[0].eq_ignore_ascii_case("sync"){
+        if cmd[0].eq_ignore_ascii_case("sync") {
             self.sync();
-        }
-        else if cmd.len() != 3 {
+        } else if cmd.len() != 3 {
             // send_string(&mut conn, "What do you want??").unwrap();
             Message::Status(Status::BadCommand).send_msg_to(&mut conn);
         }
@@ -107,7 +106,7 @@ impl DatabaseServer {
             Message::Status(Status::BadCommand).send_msg_to(&mut conn);
         }
     }
-    fn sync(&self){
+    fn sync(&self) {
         self.storage.borrow_mut().flush_all();
     }
 
