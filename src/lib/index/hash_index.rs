@@ -9,6 +9,7 @@ use crate::storage::buffermgr::FrameRef;
 use crate::storage::storagemgr::StorageManager;
 // use crate::table::tablemgr::{TableIter, TableManager};
 use crate::RcRefCell;
+use pest::pratt_parser::Op;
 use positioned_io2::WriteAt;
 use sdbm::sdbm_hash;
 use std::cell::{RefCell, RefMut};
@@ -23,7 +24,6 @@ use std::path::{Path, PathBuf};
 use std::process::id;
 use std::ptr::addr_of_mut;
 use std::rc::Rc;
-use pest::pratt_parser::Op;
 
 const IDX_RECORD_SIZE: usize = 15;
 const GLOBAL_DEPTH: u8 = 4;
@@ -81,7 +81,6 @@ pub struct BucketDirectory {
 
 impl BucketDirectory {
     pub fn new(mut index_dir_file: &Path) -> Self {
-
         let mut buffer = fs::read(index_dir_file).unwrap();
         let buffer = buffer.as_slice();
         let size = buffer.len();
@@ -344,7 +343,8 @@ impl HashIndex {
             } else {
                 let block = storage_mgr.extend_file(self.blocks[0].filename.as_str());
                 let frame = storage_mgr.pin(block.clone()).unwrap();
-                let mut new_bucket_page = BucketPage::new_from_empty(frame.clone(), bucket_page.depth, None);
+                let mut new_bucket_page =
+                    BucketPage::new_from_empty(frame.clone(), bucket_page.depth, None);
                 new_bucket_page.insert_record(&idx_record);
                 bucket_page.set_overflow(block.block_num);
                 storage_mgr.unpin(frame);
@@ -352,7 +352,6 @@ impl HashIndex {
             }
         }
         storage_mgr.unpin(bucket_page.frame);
-
     }
 
     /// Reinserting the records after splitting a bucket.
@@ -376,7 +375,8 @@ impl HashIndex {
             } else {
                 let block = storage_mgr.extend_file(self.blocks[0].filename.as_str());
                 let frame = storage_mgr.pin(block.clone()).unwrap();
-                let mut new_bucket_page = BucketPage::new_from_empty(frame.clone(), bucket_page.depth, None);
+                let mut new_bucket_page =
+                    BucketPage::new_from_empty(frame.clone(), bucket_page.depth, None);
                 new_bucket_page.insert_record(&idx_record);
                 bucket_page.set_overflow(block.block_num);
                 storage_mgr.unpin(frame);
@@ -428,15 +428,25 @@ impl HashIndex {
         self.bucket_dir
             .insert_bucket(bucket_one_id, block_one.block_num);
         let frame_one = storage_mgr.pin(block_one.clone()).unwrap();
-        frame_one.borrow_mut().page.write_bytes(vec![0; 4096].as_slice(), 0);
-        let bucket_split_one = BucketPage::new_from_empty(frame_one.clone(), bucket_page.depth + 1, Some(bucket_one_id));
+        frame_one
+            .borrow_mut()
+            .page
+            .write_bytes(vec![0; 4096].as_slice(), 0);
+        let bucket_split_one = BucketPage::new_from_empty(
+            frame_one.clone(),
+            bucket_page.depth + 1,
+            Some(bucket_one_id),
+        );
         let mut block_two = storage_mgr.extend_file(filename);
-        let bucket_two_id = bucket_one_id
-            + 2_u32.pow(bucket_page.depth as u32);
+        let bucket_two_id = bucket_one_id + 2_u32.pow(bucket_page.depth as u32);
         self.bucket_dir
             .insert_bucket(bucket_two_id, block_two.block_num);
         let frame_two = storage_mgr.pin(block_two.clone()).unwrap();
-        let bucket_split_two = BucketPage::new_from_empty(frame_two.clone(), bucket_page.depth + 1, Some(bucket_two_id));
+        let bucket_split_two = BucketPage::new_from_empty(
+            frame_two.clone(),
+            bucket_page.depth + 1,
+            Some(bucket_two_id),
+        );
 
         self.blocks.push(block_one);
         self.blocks.push(block_two);
@@ -449,8 +459,6 @@ impl HashIndex {
         storage_mgr.unpin(frame_one);
         storage_mgr.unpin(frame_two);
         self.flush_directory();
-        storage_mgr.show_available_slots();
-        dbg!("_______________________________________");
     }
 
     /// Get all the rids of the matched index records with the search key.

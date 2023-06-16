@@ -45,7 +45,7 @@ impl FromLogicalNode<Logical::Select> for Physical::Select{
         let Logical::Select{ condition,context_vars,child,fields_map } = value;
         let child_is_base_rel = child.is_base_relation();
         let mut ctx_map = HashMapContext::new();
-        let shortcut = if context_vars.len() == 1 && child_is_base_rel {
+        let shortcut = if context_vars.len() == 1 && child_is_base_rel && boolean::get_all_binary_clauses(&condition).len() == 1 {
             let children = condition.children();
             if children.len() == 1{
                 let key_type = fields_map.get(&context_vars[0]).unwrap();

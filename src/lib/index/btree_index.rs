@@ -637,9 +637,6 @@ impl InternalNodePage {
             NodePage::Internal(ref mut target_node) => {
                 let free_space = self.heap_page.free_space() as i32 - 4;
                 let (split_key, split_block_num) = target_node.insert(key.clone(), value);
-                if target_node.heap_page.blk.block_num == 0 {
-                    dbg!("Freeing ROOT !!");
-                }
                 self.storage_manager
                     .borrow_mut()
                     .unpin(target_node.heap_page.frame.clone());
@@ -1330,10 +1327,9 @@ impl LeafNodePage {
         return (None, None);
     }
 
-    // Search for a key in the leaf node and return the associated values
-    fn search(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+    fn get_matches(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
         let mut results = Vec::new();
-
+        let mut last_index = 0_u16;
         for tuple_pointer_index in 0..self.heap_page.tuple_pointers.len() as u16 {
             let mut index_record = self.heap_page.get_multiple_fields(
                 vec![
@@ -1348,11 +1344,93 @@ impl LeafNodePage {
                     index_record.remove("block_num").unwrap().unwrap().to_u64(),
                     index_record.remove("slot_num").unwrap().unwrap().to_u16(),
                 );
+                last_index = tuple_pointer_index;
+                results.push(rid);
+            }
+        }
+        if !results.is_empty() {
+            Some(results)
+        } else {
+            None
+        }
+    }
+
+    // Search for a key in the leaf node and return the associated values
+    fn search(&self, key: Vec<u8>) -> Option<Vec<Rid>> {
+        let mut results = Vec::new();
+        let mut last_index = 0_u16;
+        for tuple_pointer_index in 0..self.heap_page.tuple_pointers.len() as u16 {
+            let mut index_record = self.heap_page.get_multiple_fields(
+                vec![
+                    "key".to_string(),
+                    "block_num".to_string(),
+                    "slot_num".to_string(),
+                ],
+                tuple_pointer_index,
+            );
+            if index_record.remove("key").unwrap().unwrap() == key {
+                let rid = Rid::new(
+                    index_record.remove("block_num").unwrap().unwrap().to_u64(),
+                    index_record.remove("slot_num").unwrap().unwrap().to_u16(),
+                );
+                last_index = tuple_pointer_index;
                 results.push(rid);
             }
         }
 
         if !results.is_empty() {
+            if last_index == self.heap_page.tuple_pointers.len() as u16 - 1 {
+                let mut next_block_num = self.meta_data.next_node_blockid;
+                while next_block_num != 0 {
+                    let block_id = BlockId::new(self.index_file.as_str(), next_block_num);
+                    let next_frame = self
+                        .storage_manager
+                        .borrow_mut()
+                        .pin(block_id.clone())
+                        .unwrap();
+                    let next_heap =
+                        HeapPage::new(next_frame.clone(), &block_id, self.leaf_layout.clone());
+                    let next_leaf = LeafNodePage::new(
+                        next_heap,
+                        self.key_type,
+                        self.storage_manager.clone(),
+                        self.leaf_layout.clone(),
+                        self.index_file.clone(),
+                    );
+                    let mut new_results = next_leaf.get_matches(key.clone());
+                    if new_results.is_some() {
+                        results.append(&mut new_results.unwrap());
+                        next_block_num = next_leaf.meta_data.next_node_blockid;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            let mut prev_block_num = self.meta_data.prev_node_blockid;
+            while prev_block_num != 0 {
+                let block_id = BlockId::new(self.index_file.as_str(), prev_block_num);
+                let prev_frame = self
+                    .storage_manager
+                    .borrow_mut()
+                    .pin(block_id.clone())
+                    .unwrap();
+                let prev_heap =
+                    HeapPage::new(prev_frame.clone(), &block_id, self.leaf_layout.clone());
+                let prev_leaf = LeafNodePage::new(
+                    prev_heap,
+                    self.key_type,
+                    self.storage_manager.clone(),
+                    self.leaf_layout.clone(),
+                    self.index_file.clone(),
+                );
+                let mut new_results = prev_leaf.get_matches(key.clone());
+                if new_results.is_some() {
+                    results.append(&mut new_results.unwrap());
+                    prev_block_num = prev_leaf.meta_data.prev_node_blockid;
+                } else {
+                    break;
+                }
+            }
             Some(results)
         } else {
             None
@@ -1565,9 +1643,6 @@ impl LeafNodePage {
                 break;
             }
         }
-
-        self.print_all_leaf_records();
-        println!("_________________________________________________");
 
         if tuple_index == self.heap_page.tuple_pointers.len() as u16 - 1 {
             if self.meta_data.prev_node_blockid != 0 {
