@@ -37,73 +37,65 @@ impl DatabaseServer {
     }
     fn dispatch(&self, mut conn: TcpStream) {
         conn.set_nonblocking(false);
-        // let mut msg_len = [0;8];
-        // conn.read_exact(&mut msg_len).unwrap();
-        // let num_bytes = u64::from_be_bytes(msg_len);
-        // let mut msg = vec![0; num_bytes as usize];
-        // conn.read_exact(&mut msg);
-        // let mut command = String::from_utf8(msg).unwrap();
-        // let command = match receive_string(&mut conn) {
-        //     Ok(s) => s,
-        //     Err(_) => return,
-        // };
-        let command = match Message::receive_msg(&mut conn) {
-            Ok(msg) => match msg.get_query() {
-                Ok(cmd) => cmd,
-                _ => return,
-            },
-            Err(_) => return,
-        };
-        let cmd = command.split_ascii_whitespace().collect::<Vec<_>>();
-        if cmd[0].eq_ignore_ascii_case("sync") {
-            self.sync();
-        } else if cmd.len() != 3 {
-            // send_string(&mut conn, "What do you want??").unwrap();
-            Message::Status(Status::BadCommand).send_msg_to(&mut conn);
-        }
-        if cmd[0].eq_ignore_ascii_case("create") && cmd[1].eq_ignore_ascii_case("db") {
-            match self.catalog.borrow_mut().create_database(cmd[2]) {
-                // Ok(()) => send_string(
-                //     &mut conn,
-                //     &format!("Database {} created successfully", cmd[2]),
-                // )
-                // .unwrap(),
-                // Err(s) => send_string(&mut conn, &s).unwrap()
-                Ok(()) => Message::Status(Status::DatabaseCreated(cmd[2].to_string()))
-                    .send_msg_to(&mut conn)
-                    .unwrap_or_default(),
-                Err(s) => Message::Status(Status::DatabaseNotCreated(cmd[2].to_string(), s))
-                    .send_msg_to(&mut conn)
-                    .unwrap_or_default(),
+        loop {
+            let command = match Message::receive_msg(&mut conn) {
+                Ok(msg) => match msg.get_query() {
+                    Ok(cmd) => cmd,
+                    _ => return,
+                },
+                Err(_) => return,
+            };
+            let cmd = command.split_ascii_whitespace().collect::<Vec<_>>();
+            if cmd[0].eq_ignore_ascii_case("sync") {
+                self.sync();
+            } else if cmd.len() != 3 {
+                // send_string(&mut conn, "What do you want??").unwrap();
+                Message::Status(Status::BadCommand).send_msg_to(&mut conn);
             }
-        } else if cmd[0].eq_ignore_ascii_case("connect") && cmd[1].eq_ignore_ascii_case("db") {
-            let has_db = self.catalog.borrow().has_db(cmd[2]);
-            if has_db {
-                // send_string(
-                //     &mut conn,
-                //     &format!("Now Connected to Database {} successfully", cmd[2]),
-                // );
-                Message::Status(Status::DatabaseConnection(cmd[2].to_string()))
-                    .send_msg_to(&mut conn)
-                    .unwrap_or_default();
-                let mut db_instance = DatabaseInstance::new(
-                    cmd[2],
-                    self.storage.clone(),
-                    self.catalog.clone(),
-                    conn.try_clone().unwrap(),
-                );
-                db_instance.handle_connection();
-                db_instance.flush_everything();
+            if cmd[0].eq_ignore_ascii_case("create") && cmd[1].eq_ignore_ascii_case("db") {
+                match self.catalog.borrow_mut().create_database(cmd[2]) {
+                    // Ok(()) => send_string(
+                    //     &mut conn,
+                    //     &format!("Database {} created successfully", cmd[2]),
+                    // )
+                    // .unwrap(),
+                    // Err(s) => send_string(&mut conn, &s).unwrap()
+                    Ok(()) => Message::Status(Status::DatabaseCreated(cmd[2].to_string()))
+                        .send_msg_to(&mut conn)
+                        .unwrap_or_default(),
+                    Err(s) => Message::Status(Status::DatabaseNotCreated(cmd[2].to_string(), s))
+                        .send_msg_to(&mut conn)
+                        .unwrap_or_default(),
+                }
+            } else if cmd[0].eq_ignore_ascii_case("connect") && cmd[1].eq_ignore_ascii_case("db") {
+                let has_db = self.catalog.borrow().has_db(cmd[2]);
+                if has_db {
+                    // send_string(
+                    //     &mut conn,
+                    //     &format!("Now Connected to Database {} successfully", cmd[2]),
+                    // );
+                    Message::Status(Status::DatabaseConnection(cmd[2].to_string()))
+                        .send_msg_to(&mut conn)
+                        .unwrap_or_default();
+                    let mut db_instance = DatabaseInstance::new(
+                        cmd[2],
+                        self.storage.clone(),
+                        self.catalog.clone(),
+                        conn.try_clone().unwrap(),
+                    );
+                    db_instance.handle_connection();
+                    db_instance.flush_everything();
+                } else {
+                    // send_string(&mut conn, "WOTT");
+                    Message::Status(Status::DatabaseNotFound(cmd[2].to_string()))
+                        .send_msg_to(&mut conn)
+                        .unwrap_or_default();
+                }
             } else {
-                // send_string(&mut conn, "WOTT");
-                Message::Status(Status::DatabaseNotFound(cmd[2].to_string()))
-                    .send_msg_to(&mut conn)
-                    .unwrap_or_default();
+                // send_string(&mut conn, "What do you want??");
+                // conn.write_fmt(format_args!("What do you want??")).unwrap();
+                Message::Status(Status::BadCommand).send_msg_to(&mut conn);
             }
-        } else {
-            // send_string(&mut conn, "What do you want??");
-            // conn.write_fmt(format_args!("What do you want??")).unwrap();
-            Message::Status(Status::BadCommand).send_msg_to(&mut conn);
         }
     }
     fn sync(&self) {

@@ -94,28 +94,20 @@ impl FromLogicalNode<Logical::Select> for Physical::Select {
                                 ))),
                                 val,
                             ))
-                        } else if let Some(mut btree) = tbl_mgr.btree_iter(&field, Eq) {
-                            Some((
+                        } else { tbl_mgr.btree_iter(&field, Eq).map(|mut btree| (
                                 PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(
                                     table, btree,
                                 ))),
                                 val,
-                            ))
-                        } else {
-                            None
-                        }
+                            )) }
                     }
                     Lt | Gt | Leq | Geq => {
-                        if let Some(mut btree) = tbl_mgr.btree_iter(&field, op) {
-                            Some((
+                        tbl_mgr.btree_iter(&field, op).map(|mut btree| (
                                 PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(
                                     table, btree,
                                 ))),
                                 val,
                             ))
-                        } else {
-                            None
-                        }
                     }
                     _ => None,
                 }
