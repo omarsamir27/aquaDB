@@ -217,15 +217,21 @@ impl SqlParser {
         let iter = clause.split_once(' ').unwrap();
         Ok(iter.1.to_string())
     }
+    fn ASC(_input: Node) -> Result<bool> {
+        Ok(false)
+    }
+    fn DESC(_input: Node) -> Result<bool> {
+        Ok(true)
+    }
     fn ORDER_BY(input: Node) -> Result<Ordering> {
         let len = input.as_str().len();
         let text = input.as_str();
-        let descending = text[len - 3..].eq_ignore_ascii_case("dsc");
-        let cols = match_nodes!(
+        match_nodes!(
             input.into_children();
-            [project_on(p)] => p
-        );
-        Ok(Ordering::new(cols, descending))
+            [project_on(p)] => Ok(Ordering::new(p, false)),
+            [project_on(p),ASC(_)] => Ok(Ordering::new(p, false)),
+            [project_on(p),DESC(_)] => Ok(Ordering::new(p, true)),
+        )
     }
     fn SqlSelect(input: Node) -> Result<SqlSelect> {
         let text = input.as_str().to_uppercase();

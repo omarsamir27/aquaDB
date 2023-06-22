@@ -15,16 +15,21 @@ type DuplexChannel = ui_msg::DuplexChannel<UiMessage>;
 pub fn start_backend(entry_window_channel: DuplexChannel) -> JoinHandle<()> {
     thread::spawn(move || loop {
         if let Ok(msg) = entry_window_channel.recv_ch1() {
+            if msg == UiMessage::Terminate {
+                break;
+            }
             if let Some(connect_string) = msg.get_server_connect() {
                 if let Some(mut socket) = handle_connect(&entry_window_channel, connect_string) {
                     loop {
                         if let Ok(msg) = entry_window_channel.recv_ch1() {
+                            if msg == UiMessage::BackToStart {
+                                break;
+                            }
                             let ui_req = msg.get_ui_request().unwrap();
                             let msg = Message::Query(ui_req.to_string());
                             msg.send_msg_to(&mut socket).unwrap();
                             if let Ok(server_recv) = Message::receive_msg(&mut socket) {
                                 handle_msg(&entry_window_channel, server_recv, &mut socket);
-
                             }
                         }
                     }
@@ -32,8 +37,9 @@ pub fn start_backend(entry_window_channel: DuplexChannel) -> JoinHandle<()> {
                     continue;
                 }
             }
+        } else {
+            break;
         }
-        else { println!("OUT"); break }
     })
 }
 
@@ -54,7 +60,7 @@ fn handle_connect(channel: &DuplexChannel, connect_string: &str) -> Option<TcpSt
 fn handle_msg(channel: &DuplexChannel, msg: Message, socket: &mut TcpStream) {
     match msg {
         Message::Status(s) => handle_status(channel, s, socket),
-        Message::FieldTypes(f) => handle_results(channel,f, socket),
+        Message::FieldTypes(f) => handle_results(channel, f, socket),
         _ => {}
     }
 }

@@ -1459,9 +1459,9 @@ impl LeafNodePage {
         }
 
         if no_matches {
-            results = self.get_index_records_from_position(self.heap_page.tuple_pointers.len() as u16);
-        }
-        else {
+            results =
+                self.get_index_records_from_position(self.heap_page.tuple_pointers.len() as u16);
+        } else {
             results = self.get_index_records_from_position(tuple_index);
         }
 
@@ -1592,9 +1592,9 @@ impl LeafNodePage {
         }
 
         if no_matches {
-            results = self.get_index_records_from_position(self.heap_page.tuple_pointers.len() as u16);
-        }
-        else {
+            results =
+                self.get_index_records_from_position(self.heap_page.tuple_pointers.len() as u16);
+        } else {
             results = self.get_index_records_from_position(tuple_index);
         }
 

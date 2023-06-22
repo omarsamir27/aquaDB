@@ -46,6 +46,7 @@ pest_ascii_tree = "0.1.0"
 #genawaiter = "0.99.1"
 fltk = { version = "^1.4.5", features = ["fltk-bundled"] }
 fltk-table = "0.3.0"
+fltk-theme = "0.7.0"
 crossbeam = "0.8.2"
 
 [dev-dependencies]

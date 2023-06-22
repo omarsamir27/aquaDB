@@ -46,20 +46,23 @@ impl DatabaseServer {
                 Err(_) => return,
             };
             let cmd = command.split_ascii_whitespace().collect::<Vec<_>>();
+            if cmd.is_empty() {
+                continue;
+            }
             if cmd[0].eq_ignore_ascii_case("sync") {
                 self.sync();
+                Message::Status(Status::Generic(String::from(
+                    "Database Server Synchronized",
+                )))
+                .send_msg_to(&mut conn)
+                .unwrap_or_default();
+                continue;
             } else if cmd.len() != 3 {
-                // send_string(&mut conn, "What do you want??").unwrap();
                 Message::Status(Status::BadCommand).send_msg_to(&mut conn);
+                continue;
             }
             if cmd[0].eq_ignore_ascii_case("create") && cmd[1].eq_ignore_ascii_case("db") {
                 match self.catalog.borrow_mut().create_database(cmd[2]) {
-                    // Ok(()) => send_string(
-                    //     &mut conn,
-                    //     &format!("Database {} created successfully", cmd[2]),
-                    // )
-                    // .unwrap(),
-                    // Err(s) => send_string(&mut conn, &s).unwrap()
                     Ok(()) => Message::Status(Status::DatabaseCreated(cmd[2].to_string()))
                         .send_msg_to(&mut conn)
                         .unwrap_or_default(),
@@ -70,10 +73,6 @@ impl DatabaseServer {
             } else if cmd[0].eq_ignore_ascii_case("connect") && cmd[1].eq_ignore_ascii_case("db") {
                 let has_db = self.catalog.borrow().has_db(cmd[2]);
                 if has_db {
-                    // send_string(
-                    //     &mut conn,
-                    //     &format!("Now Connected to Database {} successfully", cmd[2]),
-                    // );
                     Message::Status(Status::DatabaseConnection(cmd[2].to_string()))
                         .send_msg_to(&mut conn)
                         .unwrap_or_default();
@@ -84,16 +83,13 @@ impl DatabaseServer {
                         conn.try_clone().unwrap(),
                     );
                     db_instance.handle_connection();
-                    db_instance.flush_everything();
+                    // db_instance.flush_everything();
                 } else {
-                    // send_string(&mut conn, "WOTT");
                     Message::Status(Status::DatabaseNotFound(cmd[2].to_string()))
                         .send_msg_to(&mut conn)
                         .unwrap_or_default();
                 }
             } else {
-                // send_string(&mut conn, "What do you want??");
-                // conn.write_fmt(format_args!("What do you want??")).unwrap();
                 Message::Status(Status::BadCommand).send_msg_to(&mut conn);
             }
         }
@@ -129,5 +125,11 @@ impl DatabaseServer {
         //         sleep(Duration::from_micros(200));
         //     }
         // }
+    }
+}
+
+impl Drop for DatabaseServer {
+    fn drop(&mut self) {
+        self.sync();
     }
 }

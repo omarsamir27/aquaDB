@@ -94,21 +94,25 @@ impl FromLogicalNode<Logical::Select> for Physical::Select {
                                 ))),
                                 val,
                             ))
-                        } else { tbl_mgr.btree_iter(&field, Eq).map(|mut btree| (
-                                PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(
-                                    table, btree,
-                                ))),
-                                val,
-                            )) }
+                        } else {
+                            tbl_mgr.btree_iter(&field, Eq).map(|mut btree| {
+                                (
+                                    PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(
+                                        table, btree,
+                                    ))),
+                                    val,
+                                )
+                            })
+                        }
                     }
-                    Lt | Gt | Leq | Geq => {
-                        tbl_mgr.btree_iter(&field, op).map(|mut btree| (
-                                PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(
-                                    table, btree,
-                                ))),
-                                val,
-                            ))
-                    }
+                    Lt | Gt | Leq | Geq => tbl_mgr.btree_iter(&field, op).map(|mut btree| {
+                        (
+                            PhysicalNode::AccessPath(Box::new(AccessMethod::BtreeIter(
+                                table, btree,
+                            ))),
+                            val,
+                        )
+                    }),
                     _ => None,
                 }
             } else {

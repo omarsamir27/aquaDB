@@ -60,15 +60,8 @@ impl DatabaseInstance {
         }
     }
     pub fn handle_connection(&mut self) {
-        // ctrlc::set_handler(|| self.flush_everything());
-        // let mut executor = Executor::new(MAX_WORKING_MEMORY, &mut self.tables);
-        // executor.simulate_join("names".to_string(), "jobs".to_string(), "id".to_string());
         self.conn.set_nonblocking(false);
         loop {
-            // let query = match receive_string(&mut self.conn) {
-            //     Ok(s) => s,
-            //     Err(_) => return,
-            // };
             let query = match Message::receive_msg(&mut self.conn) {
                 Ok(msg) => match msg.get_query() {
                     Ok(s) => s,
@@ -76,12 +69,14 @@ impl DatabaseInstance {
                 },
                 Err(_) => return,
             };
-            if query.eq_ignore_ascii_case("exit") {
+            if query.eq_ignore_ascii_case("exit db") {
+                Message::Status(Status::Generic(format!("Exit DB {}", self.name)))
+                    .send_msg_to(&mut self.conn)
+                    .unwrap_or_default();
                 return;
             }
             match parse_query(&query) {
                 Ok(parsed) => self.execute_cmd(parsed),
-                // Err(e) => send_string(&mut self.conn, &format!("{:?}", e)).unwrap(),
                 Err(e) => Message::Status(Status::Generic(e.to_string()))
                     .send_msg_to(&mut self.conn)
                     .unwrap_or_default(),
@@ -115,12 +110,12 @@ impl DatabaseInstance {
                             .send_msg_to(&mut self.conn)
                             .unwrap_or_default();
                         loop {
-                            let result : Vec<RowMap> = s.take(50).collect();
+                            let result: Vec<RowMap> = s.take(50).collect();
                             if result.is_empty() {
                                 Message::Status(Status::ResultsFinished)
                                     .send_msg_to(&mut self.conn)
                                     .unwrap_or_default();
-                                break
+                                break;
                             } else {
                                 let msg = Message::Results(result);
                                 msg.send_msg_to(&mut self.conn);
