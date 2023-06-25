@@ -1,4 +1,4 @@
-use crate::common::numerical::ByteMagic;
+use crate::common::numerical::{ByteMagic, MultiFieldCmp};
 use crate::query::concrete_types::ConcreteType::{
     BigInt, Boolean, Char, Double, Integer, Serial, Single, SmallInt, VarChar,
 };
@@ -378,5 +378,47 @@ impl Ord for ConcreteType {
                 _ => unreachable!(),
             },
         }
+    }
+}
+
+impl MultiFieldCmp for &[ConcreteType] {
+    type Item = Self;
+
+    fn multi_cmp(&self, other: Self::Item, desc_vec: &[bool]) -> Ordering {
+        let zipped = self.iter().zip(other.iter()).zip(desc_vec.iter());
+        for ((first, second), desc) in zipped {
+            match first.cmp(second) {
+                Equal => continue,
+                ord if *desc => return ord.reverse(),
+                ord => return ord,
+            }
+        }
+        Equal
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::common::numerical::MultiFieldCmp;
+    use crate::query::concrete_types::ConcreteType;
+
+    #[test]
+    fn test_multicmp() {
+        let first = [
+            ConcreteType::Integer(1),
+            ConcreteType::Integer(3),
+            ConcreteType::VarChar(String::from("hello")),
+        ]
+        .to_vec();
+        let second = [
+            ConcreteType::Integer(1),
+            ConcreteType::Integer(3),
+            ConcreteType::VarChar(String::from("world")),
+        ]
+        .to_vec();
+        let desc = vec![false, true, true];
+        let mut rows = vec![first.clone(), second.clone()];
+        rows.sort_by(|a, b| a.as_slice().multi_cmp(b, &desc));
+        assert_eq!(rows, vec![second, first])
     }
 }

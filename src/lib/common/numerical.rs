@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use crate::schema::types::Type;
 use evalexpr::Value;
 
@@ -6,6 +7,11 @@ const USIZE_LENGTH: usize = 4;
 
 #[cfg(target_pointer_width = "64")]
 const USIZE_LENGTH: usize = 8;
+
+pub trait MultiFieldCmp:Ord{
+    type Item;
+    fn multi_cmp(&self,other:Self::Item,desc_vec:&[bool]) -> Ordering;
+}
 
 /// Helper trait on byte slices to reinterpret the bytes at an offset as distinct data types
 pub trait ByteMagic {
