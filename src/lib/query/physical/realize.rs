@@ -174,7 +174,7 @@ impl FromLogicalNode<Logical::Sorting> for Physical::Sort {
             fields_map,
         } = value;
         let child = PhysicalNode::from_logic(*child, planner_info, db_tables);
-        Physical::Sort::new(fields_map, Box::new(child), sort_on.remove(0), descending)
+        Physical::Sort::new(fields_map, Box::new(child), sort_on, descending)
     }
 }
 

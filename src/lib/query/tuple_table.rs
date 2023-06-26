@@ -16,6 +16,7 @@ use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::path::Path;
 use thiserror::Error;
+use crate::common::numerical::MultiFieldCmp;
 
 #[derive(Debug, Error)]
 pub enum TableErrors {
@@ -30,6 +31,8 @@ type Column = ConcreteType;
 type Row = Vec<Column>;
 type RowMap = HashMap<FieldId, Option<Vec<u8>>>;
 type InsertResult = Result<(), TableErrors>;
+
+
 
 struct RowPrint<'a>(&'a Row);
 impl<'a> Display for RowPrint<'a> {
@@ -243,23 +246,28 @@ impl TupleTable {
         self.print_all()
     }
 
-    pub fn sort(&mut self, sort_key: &FieldId, desc: bool) {
-        let key_index = self.index_type_map.get(sort_key).unwrap().0;
+    fn get_cols_at(row: &Row, at:&[usize]) -> Row{
+        at.iter().map(|idx| row[*idx].clone()).collect()
+    }
+
+    pub fn sort_single(&mut self,sort_key:&FieldId,desc:bool){
+        self.sort(&[sort_key.clone()],&[desc])
+    }
+
+    pub fn sort(&mut self, sort_keys: &[FieldId], desc: &[bool]) {
+        let key_indexes = sort_keys.iter().map(|sort_key| self.index_type_map.get(sort_key).unwrap().0).collect::<Vec<_>>();
         if self.segments.is_empty() {
             self.data.sort_unstable_by(|r1, r2| {
-                let order = r1[key_index].cmp(&r2[key_index]);
-                if !desc {
-                    order
-                } else {
-                    order.reverse()
-                }
+                let first = Self::get_cols_at(r1,&key_indexes);
+                let second = Self::get_cols_at(r2,&key_indexes);
+                (&*first).multi_cmp(&second,desc)
             });
         } else {
-            self.external_merge(key_index, desc)
+            self.external_merge(key_indexes.clone(), desc)
         }
     }
 
-    fn external_merge(&mut self, key_index: usize, desc: bool) {
+    fn external_merge(&mut self, key_index: Vec<usize>, desc: &[bool]) {
         self.num_rows = 0;
         self.current_memory_use = 0;
         let mut runs = vec![];
@@ -271,7 +279,7 @@ impl TupleTable {
                 cutoff = 0;
             }
             let mut run =
-                SortingRun::init(disk_segments.split_off(cutoff as usize), key_index, desc);
+                SortingRun::init(disk_segments.split_off(cutoff as usize), key_index.clone(), desc);
             runs.push(run);
         }
 
@@ -292,60 +300,60 @@ impl TupleTable {
 
 #[derive(Debug)]
 struct SortingRun {
-    key_index: usize,
+    key_indexes: Vec<usize>,
     segments: VecDeque<File>,
     current_data: VecDeque<Row>,
     current_seg: Option<File>,
 }
 impl SortingRun {
-    fn new(key_index: usize) -> Self {
+    fn new(key_indexes: Vec<usize>) -> Self {
         Self {
-            key_index,
+            key_indexes,
             segments: VecDeque::new(),
             current_data: VecDeque::new(),
             current_seg: None,
         }
     }
-    fn memory_purge_run(
-        table_name: &str,
-        key_index: usize,
-        mut current_data: Vec<Row>,
-        mut disk_seg: File,
-    ) -> Self {
-        let mut rng = thread_rng();
-        let config = bincode::config::standard();
-        let mut disk_data = vec![];
-        disk_seg.read_to_end(&mut disk_data).unwrap();
-        disk_seg.rewind();
-        let mut disk_data: Vec<Row> = bincode::decode_from_slice(&disk_data, config).unwrap().0;
-        current_data.append(&mut disk_data);
-        current_data.sort_unstable_by(|r1, r2| r1[key_index].cmp(&r2[key_index]));
-        let len = current_data.len();
-        let mut dst = bincode::encode_to_vec(&current_data[..len / 2], config).unwrap();
-        let tmp_dir = AQUA_TMP_DIR();
-        let path = format!("tmp{}{}", table_name, rng.gen::<u64>());
-        let path = tmp_dir.join(path.as_str());
-        println!("{:?}", path.clone());
-        let mut segment = File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path.clone())
-            .unwrap();
-        segment.write_all(&dst).unwrap();
-        segment.rewind();
-        dst.clear();
-        dst = bincode::encode_to_vec(&current_data[len / 2..], config).unwrap();
-        disk_seg.write_all(&dst).unwrap();
-        disk_seg.rewind();
-        Self {
-            key_index,
-            segments: VecDeque::from([segment, disk_seg]),
-            current_data: VecDeque::new(),
-            current_seg: None,
-        }
-    }
-    fn init(mut segments: Vec<File>, key_index: usize, desc: bool) -> Self {
+    // fn memory_purge_run(
+    //     table_name: &str,
+    //     key_indexes: Vec<usize>,
+    //     mut current_data: Vec<Row>,
+    //     mut disk_seg: File,
+    // ) -> Self {
+    //     let mut rng = thread_rng();
+    //     let config = bincode::config::standard();
+    //     let mut disk_data = vec![];
+    //     disk_seg.read_to_end(&mut disk_data).unwrap();
+    //     disk_seg.rewind();
+    //     let mut disk_data: Vec<Row> = bincode::decode_from_slice(&disk_data, config).unwrap().0;
+    //     current_data.append(&mut disk_data);
+    //     current_data.sort_unstable_by(|r1, r2| r1[key_index].cmp(&r2[key_index]));
+    //     let len = current_data.len();
+    //     let mut dst = bincode::encode_to_vec(&current_data[..len / 2], config).unwrap();
+    //     let tmp_dir = AQUA_TMP_DIR();
+    //     let path = format!("tmp{}{}", table_name, rng.gen::<u64>());
+    //     let path = tmp_dir.join(path.as_str());
+    //     println!("{:?}", path.clone());
+    //     let mut segment = File::options()
+    //         .read(true)
+    //         .write(true)
+    //         .create(true)
+    //         .open(path.clone())
+    //         .unwrap();
+    //     segment.write_all(&dst).unwrap();
+    //     segment.rewind();
+    //     dst.clear();
+    //     dst = bincode::encode_to_vec(&current_data[len / 2..], config).unwrap();
+    //     disk_seg.write_all(&dst).unwrap();
+    //     disk_seg.rewind();
+    //     Self {
+    //         key_index,
+    //         segments: VecDeque::from([segment, disk_seg]),
+    //         current_data: VecDeque::new(),
+    //         current_seg: None,
+    //     }
+    // }
+    fn init(mut segments: Vec<File>, key_indexes: Vec<usize>, desc: &[bool]) -> Self {
         let config = bincode::config::standard();
         let mut data: Vec<Row> = vec![];
         let mut disk_buff = vec![];
@@ -356,12 +364,9 @@ impl SortingRun {
             disk_buff.clear();
         }
         data.sort_unstable_by(|r1, r2| {
-            let order = r1[key_index].cmp(&r2[key_index]);
-            if !desc {
-                order
-            } else {
-                order.reverse()
-            }
+            let first = TupleTable::get_cols_at(r1,&key_indexes);
+            let second = TupleTable::get_cols_at(r2,&key_indexes);
+            (&*first).multi_cmp(&second,desc)
         });
         let mut run_segments = VecDeque::new();
         let part_size = data.len() / segments.len();
@@ -373,7 +378,7 @@ impl SortingRun {
             run_segments.push_back(seg_file);
         }
         Self {
-            key_index,
+            key_indexes,
             segments: run_segments,
             current_data: VecDeque::new(),
             current_seg: None,
@@ -452,14 +457,14 @@ impl SortingRun {
         self.current_data.clear();
     }
 
-    fn merge(mut runs: &mut [SortingRun], desc: bool) -> Self {
+    fn merge(mut runs: &mut [SortingRun], desc: &[bool]) -> Self {
         let mut rng = thread_rng();
-        let sort_key = runs[0].key_index;
+        let sort_keys = runs[0].key_indexes.clone();
         if runs.len() == 1 {
             return SortingRun {
                 current_data: VecDeque::new(),
                 current_seg: None,
-                key_index: sort_key,
+                key_indexes: sort_keys,
                 segments: mem::take(&mut runs[0].segments),
             };
         }
@@ -467,7 +472,7 @@ impl SortingRun {
         let mut output_run = SortingRun {
             current_data: VecDeque::new(),
             current_seg: None,
-            key_index: sort_key,
+            key_indexes: sort_keys.clone(),
             segments: VecDeque::new(),
         };
         for run in runs.iter_mut() {
@@ -481,12 +486,17 @@ impl SortingRun {
                 .enumerate()
                 .filter(|(idx, _)| !removed.contains(idx))
                 .min_by(|(_, run1), (_, run2)| {
-                    let order = run1.peek_row()[sort_key].cmp(&run2.peek_row()[sort_key]);
-                    if !desc {
-                        order
-                    } else {
-                        order.reverse()
-                    }
+                    let r1 = run1.peek_row();
+                    let r2 = run2.peek_row();
+                    let first = TupleTable::get_cols_at(r1,&sort_keys);
+                    let second = TupleTable::get_cols_at(r2,&sort_keys);
+                    (&*first).multi_cmp(&second,desc)
+                    // let order = run1.peek_row()[sort_key].cmp(&run2.peek_row()[sort_key]);
+                    // if !desc {
+                    //     order
+                    // } else {
+                    //     order.reverse()
+                    // }
                 })
                 .unwrap();
             let (row, seg) = least_run.get_row();
@@ -518,27 +528,27 @@ impl SortingRun {
     //     }
     //     println!("RUN FINISH");
     // }
-    fn split_into_two(self) -> (Self, Self) {
-        let Self {
-            key_index,
-            mut segments,
-            current_data,
-            current_seg,
-        } = self;
-        let split2 = segments.split_off(segments.len() / 2);
-        (
-            Self {
-                key_index,
-                segments,
-                current_data: VecDeque::new(),
-                current_seg: None,
-            },
-            Self {
-                key_index,
-                segments: split2,
-                current_data: VecDeque::new(),
-                current_seg: None,
-            },
-        )
-    }
+    // fn split_into_two(self) -> (Self, Self) {
+    //     let Self {
+    //         key_index,
+    //         mut segments,
+    //         current_data,
+    //         current_seg,
+    //     } = self;
+    //     let split2 = segments.split_off(segments.len() / 2);
+    //     (
+    //         Self {
+    //             key_index,
+    //             segments,
+    //             current_data: VecDeque::new(),
+    //             current_seg: None,
+    //         },
+    //         Self {
+    //             key_index,
+    //             segments: split2,
+    //             current_data: VecDeque::new(),
+    //             current_seg: None,
+    //         },
+    //     )
+    // }
 }

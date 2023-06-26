@@ -76,11 +76,11 @@ impl Grouping {
 #[derive(Debug)]
 pub struct Ordering {
     pub criteria: Vec<ProjectionTarget>,
-    pub descending: bool,
+    pub descending: Vec<bool>,
 }
 
 impl Ordering {
-    pub fn new(criteria: Vec<ProjectionTarget>, descending: bool) -> Self {
+    pub fn new(criteria: Vec<ProjectionTarget>, descending: Vec<bool>) -> Self {
         Self {
             criteria,
             descending,

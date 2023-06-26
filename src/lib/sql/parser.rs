@@ -223,14 +223,26 @@ impl SqlParser {
     fn DESC(_input: Node) -> Result<bool> {
         Ok(true)
     }
-    fn ORDER_BY(input: Node) -> Result<Ordering> {
-        let len = input.as_str().len();
-        let text = input.as_str();
+    fn order_item(input:Node) -> Result<(ProjectionTarget,bool)>{
         match_nodes!(
             input.into_children();
-            [project_on(p)] => Ok(Ordering::new(p, false)),
-            [project_on(p),ASC(_)] => Ok(Ordering::new(p, false)),
-            [project_on(p),DESC(_)] => Ok(Ordering::new(p, true)),
+            [projection_col(p)] => Ok((p, false)),
+            [projection_col(p),ASC(_)] => Ok((p, false)),
+            [projection_col(p),DESC(_)] => Ok((p, true)),
+            )
+    }
+    fn ORDER_BY(input: Node) -> Result<Ordering> {
+        // let len = input.as_str().len();
+        // let text = input.as_str();
+        let mut fields = vec![];
+        let mut desc = vec![];
+        match_nodes!(
+            input.into_children();
+            [order_item(p)..] => {
+                let ordering : Vec<(ProjectionTarget,bool)> = p.collect();
+                ordering.into_iter().for_each(|(x,y)| {fields.push(x);desc.push(y)});
+                Ok(Ordering::new(fields,desc))
+            }
         )
     }
     fn SqlSelect(input: Node) -> Result<SqlSelect> {

@@ -172,13 +172,13 @@ impl Join {
 #[derive(Debug, Clone)]
 pub struct Sorting {
     pub sort_on: Vec<FieldId>,
-    pub descending: bool,
+    pub descending: Vec<bool>,
     pub child: Box<LogicalNode>,
     pub fields_map: HashMap<FieldId, Type>,
 }
 
 impl Sorting {
-    fn with_sort_cols(sort_on: Vec<FieldId>, descending: bool) -> Self {
+    fn with_sort_cols(sort_on: Vec<FieldId>, descending: Vec<bool>) -> Self {
         Self {
             sort_on,
             descending,
@@ -242,7 +242,7 @@ impl LogicalNode {
                 };
                 queue.push(LogicalNode::Sort(Sorting::with_sort_cols(
                     vec![field],
-                    false,
+                    vec![false],
                 )));
             } else if let Some(schema) = joined.as_ref() {
                 let (table, field) = schema
@@ -254,7 +254,7 @@ impl LogicalNode {
                 let field = FieldId { table, field };
                 queue.push(LogicalNode::Sort(Sorting::with_sort_cols(
                     vec![field],
-                    false,
+                    vec![false],
                 )));
             }
         } else if let Some(order) = sql.order_by {

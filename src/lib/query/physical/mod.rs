@@ -218,11 +218,11 @@ impl MergeJoin {
         self.left_table
             .as_mut()
             .unwrap()
-            .sort(&self.eq_fields.0, false);
+            .sort_single(&self.eq_fields.0, false);
         self.right_table
             .as_mut()
             .unwrap()
-            .sort(&self.eq_fields.1, false);
+            .sort_single(&self.eq_fields.1, false);
         self.left_iter = Some(self.left_table.take().unwrap().into_iter());
         self.right_iter = Some(self.right_table.take().unwrap().into_iter());
         self.current_left_row = self.left_iter.as_mut().unwrap().next();
@@ -482,15 +482,15 @@ pub struct Sort {
     child: Box<PhysicalNode>,
     table: Option<TupleTable>,
     table_iter: Option<TupleTableIter>,
-    field: FieldId,
+    fields: Vec<FieldId>,
     loaded: bool,
-    desc: bool,
+    desc: Vec<bool>,
 }
 
 impl Sort {
-    fn new(headers: TypeMap, child: Box<PhysicalNode>, field: FieldId, desc: bool) -> Self {
+    fn new(headers: TypeMap, child: Box<PhysicalNode>, fields: Vec<FieldId>, desc: Vec<bool>) -> Self {
         let table = Some(TupleTable::new(
-            &field.to_string(),
+            &fields[0].to_string(),
             headers.clone(),
             MAX_WORKING_MEM,
         ));
@@ -499,7 +499,7 @@ impl Sort {
             child,
             table,
             table_iter: None,
-            field,
+            fields,
             loaded: false,
             desc,
         }
@@ -509,7 +509,7 @@ impl Sort {
         for next in self.child.by_ref() {
             self.table.as_mut().unwrap().add_row_map(next);
         }
-        self.table.as_mut().unwrap().sort(&self.field, self.desc);
+        self.table.as_mut().unwrap().sort(&self.fields, &self.desc);
         self.table_iter
             .replace(self.table.take().unwrap().into_iter());
         self.loaded = true;
