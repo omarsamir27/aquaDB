@@ -1,5 +1,6 @@
 use super::MergedRow;
 use crate::common::fileops::read_file;
+use crate::common::numerical::MultiFieldCmp;
 use crate::query::concrete_types::ConcreteType;
 use crate::query::tuple_table::TableErrors::{InvalidColumn, MissingFields};
 use crate::schema::schema::Field;
@@ -16,7 +17,6 @@ use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::path::Path;
 use thiserror::Error;
-use crate::common::numerical::MultiFieldCmp;
 
 #[derive(Debug, Error)]
 pub enum TableErrors {
@@ -31,8 +31,6 @@ type Column = ConcreteType;
 type Row = Vec<Column>;
 type RowMap = HashMap<FieldId, Option<Vec<u8>>>;
 type InsertResult = Result<(), TableErrors>;
-
-
 
 struct RowPrint<'a>(&'a Row);
 impl<'a> Display for RowPrint<'a> {
@@ -138,6 +136,9 @@ impl IntoIterator for TupleTable {
 }
 
 impl TupleTable {
+    pub fn get_headers(&self) -> &TableHeaders {
+        &self.index_type_map
+    }
     pub fn new(name: &str, headers: HashMap<FieldId, Type>, max_memory: usize) -> Self {
         let num_cols = headers.len();
         let mut table_headers = TableHeaders::new();
@@ -246,21 +247,24 @@ impl TupleTable {
         self.print_all()
     }
 
-    fn get_cols_at(row: &Row, at:&[usize]) -> Row{
+    fn get_cols_at(row: &Row, at: &[usize]) -> Row {
         at.iter().map(|idx| row[*idx].clone()).collect()
     }
 
-    pub fn sort_single(&mut self,sort_key:&FieldId,desc:bool){
-        self.sort(&[sort_key.clone()],&[desc])
+    pub fn sort_single(&mut self, sort_key: &FieldId, desc: bool) {
+        self.sort(&[sort_key.clone()], &[desc])
     }
 
     pub fn sort(&mut self, sort_keys: &[FieldId], desc: &[bool]) {
-        let key_indexes = sort_keys.iter().map(|sort_key| self.index_type_map.get(sort_key).unwrap().0).collect::<Vec<_>>();
+        let key_indexes = sort_keys
+            .iter()
+            .map(|sort_key| self.index_type_map.get(sort_key).unwrap().0)
+            .collect::<Vec<_>>();
         if self.segments.is_empty() {
             self.data.sort_unstable_by(|r1, r2| {
-                let first = Self::get_cols_at(r1,&key_indexes);
-                let second = Self::get_cols_at(r2,&key_indexes);
-                (&*first).multi_cmp(&second,desc)
+                let first = Self::get_cols_at(r1, &key_indexes);
+                let second = Self::get_cols_at(r2, &key_indexes);
+                (&*first).multi_cmp(&second, desc)
             });
         } else {
             self.external_merge(key_indexes.clone(), desc)
@@ -278,8 +282,11 @@ impl TupleTable {
             if cutoff < 1 {
                 cutoff = 0;
             }
-            let mut run =
-                SortingRun::init(disk_segments.split_off(cutoff as usize), key_index.clone(), desc);
+            let mut run = SortingRun::init(
+                disk_segments.split_off(cutoff as usize),
+                key_index.clone(),
+                desc,
+            );
             runs.push(run);
         }
 
@@ -364,9 +371,9 @@ impl SortingRun {
             disk_buff.clear();
         }
         data.sort_unstable_by(|r1, r2| {
-            let first = TupleTable::get_cols_at(r1,&key_indexes);
-            let second = TupleTable::get_cols_at(r2,&key_indexes);
-            (&*first).multi_cmp(&second,desc)
+            let first = TupleTable::get_cols_at(r1, &key_indexes);
+            let second = TupleTable::get_cols_at(r2, &key_indexes);
+            (&*first).multi_cmp(&second, desc)
         });
         let mut run_segments = VecDeque::new();
         let part_size = data.len() / segments.len();
@@ -488,9 +495,9 @@ impl SortingRun {
                 .min_by(|(_, run1), (_, run2)| {
                     let r1 = run1.peek_row();
                     let r2 = run2.peek_row();
-                    let first = TupleTable::get_cols_at(r1,&sort_keys);
-                    let second = TupleTable::get_cols_at(r2,&sort_keys);
-                    (&*first).multi_cmp(&second,desc)
+                    let first = TupleTable::get_cols_at(r1, &sort_keys);
+                    let second = TupleTable::get_cols_at(r2, &sort_keys);
+                    (&*first).multi_cmp(&second, desc)
                     // let order = run1.peek_row()[sort_key].cmp(&run2.peek_row()[sort_key]);
                     // if !desc {
                     //     order

@@ -4,8 +4,11 @@ use crate::database::plan_query::PlannerInfo;
 use crate::meta::catalogmgr::CatalogManager;
 use crate::schema::schema::Schema;
 use crate::schema::types::Type;
-use crate::sql::query::select::{FromClause, JoinClause, JoinType, ProjectionTarget, SqlSelect};
-use crate::{sql, FieldId};
+use crate::sql::query::select::{
+    AggregateFunc, AggregateItem, Attribute, FromClause, JoinClause, JoinType, ProjectionTarget,
+    SqlSelect,
+};
+use crate::{sql, AggregateField, FieldId, TargetItem};
 use evalexpr::{build_operator_tree, HashMapContext};
 use std::borrow::Cow;
 use std::cell::Ref;
@@ -30,6 +33,7 @@ pub enum LogicalNode {
     Relation(BaseRelation),
     Sort(Sorting),
     DeDup(DeDuplicate),
+    GroupBy(GroupBy),
     Empty,
 }
 
@@ -45,6 +49,7 @@ impl LogicalNode {
             LogicalNode::Join(j) => j.chain(queue),
             LogicalNode::Sort(s) => s.chain(queue),
             LogicalNode::DeDup(d) => d.chain(queue),
+            LogicalNode::GroupBy(g) => g.chain(queue),
             _ => (),
         }
     }
@@ -61,6 +66,7 @@ impl LogicalNode {
             LogicalNode::Relation(a) => a.fields_map.clone(),
             LogicalNode::Sort(a) => a.fields_map.clone(),
             LogicalNode::DeDup(a) => a.fields_map.clone(),
+            LogicalNode::GroupBy(a) => a.fields_map.clone(),
             LogicalNode::Empty => unreachable!(),
         }
     }
@@ -221,10 +227,66 @@ impl BaseRelation {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct GroupBy {
+    pub group_on: Vec<FieldId>,
+    pub agg_ops: HashMap<FieldId, AggregateField>,
+    pub child: Box<LogicalNode>,
+    pub fields_map: HashMap<FieldId, Type>,
+}
+impl GroupBy {
+    fn chain(&mut self, queue: &mut Vec<LogicalNode>) {
+        let node = queue.pop().unwrap();
+        let child_map = node.get_fields_map();
+        let fields_map = child_map
+            .into_iter()
+            .map(|(k, v)| {
+                if let Some(agg) = self.agg_ops.get(&k) {
+                    let field_id = FieldId::from(agg.clone());
+                    let field_type = agg.get_result_type(v);
+                    (field_id, field_type)
+                } else {
+                    (k, v)
+                }
+            })
+            .collect();
+        mem::replace(self.child.as_mut(), node);
+        self.fields_map = fields_map;
+    }
+}
+
 impl LogicalNode {
-    pub fn translate_sql(sql: SqlSelect, planner_info: &PlannerInfo, db: &str) -> Result<Self, ()> {
+    pub fn translate_sql(
+        mut sql: SqlSelect,
+        planner_info: &PlannerInfo,
+        db: &str,
+    ) -> Result<Self, ()> {
         let mut queue = Vec::new();
         let (single, joined) = Self::get_schemas(planner_info, sql.from.clone(), db);
+        let grouping = if let Some(grouping) = sql.group_by.take() {
+            let agg_ops = sql.replace_aggregates_with_fields();
+            let mut agg_list = HashMap::new();
+            for AggregateItem { op, field } in agg_ops {
+                let mut field =
+                    Self::target_list(vec![ProjectionTarget::Attribute(field)], &single, &joined)?;
+                let field = field.pop().unwrap();
+                agg_list.insert(field.clone(), AggregateField { op, field });
+            }
+            let group_on = grouping
+                .criteria
+                .into_iter()
+                .map(|x| ProjectionTarget::Attribute(x))
+                .collect::<Vec<_>>();
+            let group_on = Self::target_list(group_on, &single, &joined)?;
+            Some(GroupBy {
+                agg_ops: agg_list,
+                group_on,
+                child: Default::default(),
+                fields_map: Default::default(),
+            })
+        } else {
+            None
+        };
         if sql.distinct {
             queue.push(LogicalNode::DeDup(DeDuplicate::default()));
             if let Some(order) = sql.order_by {
@@ -263,6 +325,9 @@ impl LogicalNode {
                 order_on,
                 order.descending,
             )));
+        }
+        if let Some(group) = grouping {
+            queue.push(LogicalNode::GroupBy(group));
         }
         let project = Project::with_fields(Self::target_list(sql.targets, &single, &joined)?);
         queue.push(LogicalNode::Project(project));
@@ -363,15 +428,15 @@ impl LogicalNode {
             }
             let mut fields = Vec::with_capacity(targets.len());
             for col in targets {
-                match col {
-                    ProjectionTarget::FullyQualified(table, field) => {
+                match col.get_attribute()? {
+                    Attribute::FullyQualified(table, field) => {
                         if table == *name && schema.contains_key(field.as_str()) {
                             fields.push(FieldId { table, field });
                         } else {
                             return Err(());
                         }
                     }
-                    ProjectionTarget::Shorthand(field) => {
+                    Attribute::Shorthand(field) => {
                         if schema.contains_key(field.as_str()) {
                             fields.push(FieldId {
                                 table: name.clone(),
@@ -381,12 +446,10 @@ impl LogicalNode {
                             return Err(());
                         }
                     }
-                    _ => return Err(()), // because an "*" list was eliminated up
                 }
             }
             return Ok(fields);
-        }
-        if let Some(schemas_map) = joined_schemas {
+        } else if let Some(schemas_map) = joined_schemas {
             if targets[0] == ProjectionTarget::AllFields {
                 let fields = schemas_map
                     .iter()
@@ -408,28 +471,29 @@ impl LogicalNode {
 
             let mut fields = Vec::with_capacity(targets.len() * 4);
             for col in targets {
-                if let ProjectionTarget::FullyQualified(table, field) = col {
-                    if schemas_map
-                        .get(&table)
-                        .ok_or(())?
-                        .contains_key(field.as_str())
-                    {
-                        fields.push(FieldId { table, field })
+                match col.get_attribute()? {
+                    Attribute::FullyQualified(table, field) => {
+                        if schemas_map
+                            .get(&table)
+                            .ok_or(())?
+                            .contains_key(field.as_str())
+                        {
+                            fields.push(FieldId { table, field })
+                        }
                     }
-                } else if let ProjectionTarget::Shorthand(field) = col {
-                    let mut matching_schemas = schemas_map
-                        .iter()
-                        .filter(|(k, v)| v.contains_key(field.as_str()))
-                        .map(|(k, v)| k)
-                        .collect::<Vec<_>>();
-                    if matching_schemas.len() == 1 {
-                        let table = matching_schemas.pop().unwrap();
-                        fields.push(FieldId {
-                            table: table.clone(),
-                            field,
-                        })
-                    } else {
-                        return Err(());
+                    Attribute::Shorthand(field) => {
+                        let mut matching_schemas = schemas_map
+                            .iter()
+                            .filter(|(k, v)| v.contains_key(field.as_str()))
+                            .map(|(k, v)| k)
+                            .collect::<Vec<_>>();
+                        if matching_schemas.len() == 1 {
+                            let table = matching_schemas.pop().unwrap();
+                            fields.push(FieldId {
+                                table: table.clone(),
+                                field,
+                            })
+                        }
                     }
                 }
             }
@@ -482,11 +546,7 @@ impl LogicalNode {
         let vars_len = variables.len();
         let targets = variables
             .into_iter()
-            .map_while(|v| {
-                v.parse::<ProjectionTarget>()
-                    .ok()
-                    .map(|t| (v.to_string(), t))
-            })
+            .map_while(|v| v.parse::<Attribute>().ok().map(|t| (v.to_string(), t)))
             .collect::<Vec<_>>();
         if targets.len() != vars_len {
             return Err(());
@@ -497,7 +557,7 @@ impl LogicalNode {
     }
 
     fn field_target_list(
-        targets: Vec<(String, ProjectionTarget)>,
+        targets: Vec<(String, Attribute)>,
         single_schema: &Option<(String, &HashMap<String, Type>)>,
         joined_schemas: &Option<HashMap<String, &HashMap<String, Type>>>,
     ) -> Result<HashMap<String, FieldId>, ()> {
@@ -505,14 +565,14 @@ impl LogicalNode {
             let mut fields = HashMap::new();
             for (original, col) in targets {
                 match col {
-                    ProjectionTarget::FullyQualified(table, field) => {
+                    Attribute::FullyQualified(table, field) => {
                         if table == *name && schema.contains_key(field.as_str()) {
                             fields.insert(original, FieldId { table, field });
                         } else {
                             return Err(());
                         }
                     }
-                    ProjectionTarget::Shorthand(field) => {
+                    Attribute::Shorthand(field) => {
                         if schema.contains_key(field.as_str()) {
                             fields.insert(
                                 original,
@@ -533,7 +593,7 @@ impl LogicalNode {
         if let Some(schemas_map) = joined_schemas {
             let mut fields = HashMap::new();
             for (original, col) in targets {
-                if let ProjectionTarget::FullyQualified(table, field) = col {
+                if let Attribute::FullyQualified(table, field) = col {
                     if schemas_map
                         .get(&table)
                         .ok_or(())?
@@ -541,7 +601,7 @@ impl LogicalNode {
                     {
                         fields.insert(original, FieldId { table, field });
                     }
-                } else if let ProjectionTarget::Shorthand(field) = col {
+                } else if let Attribute::Shorthand(field) = col {
                     let mut matching_schemas = schemas_map
                         .iter()
                         .filter(|(k, v)| v.contains_key(field.as_str()))

@@ -62,9 +62,22 @@
     WHERE = _{^"where"}
     where_clause = { WHERE ~ conditional_expression }
 // }
-order_item = {projection_col ~ (ASC | DESC)?}
+order_item = {project_item ~ (ASC | DESC)?}
 /// blue
-projection_col = {!^"having" ~(table_name ~ ".")? ~ identifier}
+projection_col = {(table_name ~ ".")? ~ identifier}
+
+aggregate_funcs = _{COUNT|MAX|MIN|AVG|SUM}
+
+COUNT = {^"count"}
+MAX = {^"max"}
+MIN = {^"min"}
+AVG = {^"avg"}
+SUM = {^"SUM"}
+
+/// green
+aggregate_col = { aggregate_funcs ~ "(" ~ projection_col ~ ")" }
+
+project_item = {aggregate_col | projection_col}
 // SELECT block
 // {
     SELECT = _{ ^"select" }
@@ -75,7 +88,7 @@ projection_col = {!^"having" ~(table_name ~ ".")? ~ identifier}
     ORDER_BY = {^"order by" ~ (order_item ~ ","?)+}
     ASC = {^"asc"}
     DESC = {^"desc"}
-    project_on = { projection_col ~ ("," ~ projection_col)*  | "*"    }
+    project_on = { project_item ~ ("," ~ project_item)*  | "*"    }
 // }
 /// red
 SqlSelect = {

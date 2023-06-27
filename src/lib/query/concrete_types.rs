@@ -9,6 +9,7 @@ use std::cmp::Ordering;
 use std::cmp::Ordering::{Equal, Greater, Less};
 use std::fmt::{write, Display, Formatter};
 use std::io::{Bytes, Read};
+use std::ops::{AddAssign, Div};
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum ConcreteType {
@@ -394,6 +395,69 @@ impl MultiFieldCmp for &[ConcreteType] {
             }
         }
         Equal
+    }
+}
+
+impl std::ops::Add for ConcreteType {
+    type Output = ConcreteType;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (SmallInt(l), SmallInt(r)) => BigInt(l as i64 + r as i64),
+            (Integer(l), Integer(r)) => BigInt(l as i64 + r as i64),
+            (BigInt(l), BigInt(r)) => BigInt(l + r),
+            (BigInt(l), SmallInt(r)) => BigInt(l + r as i64),
+            (BigInt(l), Integer(r)) => BigInt(l + r as i64),
+            (SmallInt(l), BigInt(r)) => BigInt(l as i64 + r),
+            (Integer(l), BigInt(r)) => BigInt(l as i64 + r),
+            (Single(l), Single(r)) => Double(l as f64 + r as f64),
+            (Double(l), Double(r)) => Double(l + r),
+            (Double(l), Single(r)) => Double(l + r as f64),
+            (Single(l), Double(r)) => Double(l as f64 + r),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl AddAssign for ConcreteType {
+    fn add_assign(&mut self, rhs: Self) {
+        let value = self.clone() + rhs;
+        *self = value
+    }
+}
+
+impl Div for ConcreteType {
+    type Output = ConcreteType;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (SmallInt(l), SmallInt(r)) => Double(l as f64 / r as f64),
+            (SmallInt(l), Integer(r)) => Double(l as f64 / r as f64),
+            (SmallInt(l), BigInt(r)) => Double(l as f64 / r as f64),
+            (SmallInt(l), Single(r)) => Double(l as f64 / r as f64),
+            (SmallInt(l), Double(r)) => Double(l as f64 / r as f64),
+            (Integer(l), SmallInt(r)) => Double(l as f64 / r as f64),
+            (Integer(l), Integer(r)) => Double(l as f64 / r as f64),
+            (Integer(l), BigInt(r)) => Double(l as f64 / r as f64),
+            (Integer(l), Single(r)) => Double(l as f64 / r as f64),
+            (Integer(l), Double(r)) => Double(l as f64 / r as f64),
+            (BigInt(l), SmallInt(r)) => Double(l as f64 / r as f64),
+            (BigInt(l), Integer(r)) => Double(l as f64 / r as f64),
+            (BigInt(l), BigInt(r)) => Double(l as f64 / r as f64),
+            (BigInt(l), Single(r)) => Double(l as f64 / r as f64),
+            (BigInt(l), Double(r)) => Double(l as f64 / r as f64),
+            (Single(l), SmallInt(r)) => Double(l as f64 / r as f64),
+            (Single(l), Integer(r)) => Double(l as f64 / r as f64),
+            (Single(l), BigInt(r)) => Double(l as f64 / r as f64),
+            (Single(l), Single(r)) => Double(l as f64 / r as f64),
+            (Single(l), Double(r)) => Double(l as f64 / r as f64),
+            (Double(l), SmallInt(r)) => Double(l as f64 / r as f64),
+            (Double(l), Integer(r)) => Double(l as f64 / r as f64),
+            (Double(l), BigInt(r)) => Double(l as f64 / r as f64),
+            (Double(l), Single(r)) => Double(l as f64 / r as f64),
+            (Double(l), Double(r)) => Double(l as f64 / r as f64),
+            _ => unreachable!(),
+        }
     }
 }
 

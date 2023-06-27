@@ -10,14 +10,15 @@ use crate::sql::query::delete::SqlDelete;
 use crate::sql::query::insert::SqlInsert;
 use crate::sql::query::query::{SqlQuery as QUERY, SqlValue};
 use crate::sql::query::select::{
-    FromClause, Grouping, Join, JoinClause, JoinType, Ordering, ProjectionTarget, SqlSelect,
+    AggregateFunc, AggregateItem, Attribute, FromClause, Grouping, Join, JoinClause, JoinType,
+    Ordering, ProjectionTarget, SqlSelect,
 };
 use crate::sql::query::update::SqlUpdate;
 use crate::sql::Sql;
 use pest::error::ErrorVariant;
 use pest::iterators::Pairs;
 use pest::pratt_parser::PrattParser;
-use pest_consume::{match_nodes, Error, Parser as PestParser};
+use pest_consume::{match_nodes, match_nodes_, Error, Parser as PestParser};
 
 type Result<T> = std::result::Result<T, Error<Rule>>;
 pub type Node<'i> = pest_consume::Node<'i, Rule, ()>;
@@ -44,11 +45,41 @@ impl SqlParser {
     fn table_name(input: Node) -> Result<String> {
         Ok(input.as_str().to_string())
     }
-    fn projection_col(input: Node) -> Result<ProjectionTarget> {
+    fn projection_col(input: Node) -> Result<Attribute> {
         Ok(match_nodes!(
             input.into_children();
-                        [identifier(i)] => ProjectionTarget::Shorthand(i),
-            [table_name(t),identifier(i)] => ProjectionTarget::FullyQualified(t,i),
+                        [identifier(i)] => Attribute::Shorthand(i),
+            [table_name(t),identifier(i)] => Attribute::FullyQualified(t,i),
+        ))
+    }
+    fn COUNT(_input: Node) -> Result<AggregateFunc> {
+        Ok(AggregateFunc::Count)
+    }
+    fn MIN(_input: Node) -> Result<AggregateFunc> {
+        Ok(AggregateFunc::Min)
+    }
+    fn MAX(_input: Node) -> Result<AggregateFunc> {
+        Ok(AggregateFunc::Max)
+    }
+    fn AVG(_input: Node) -> Result<AggregateFunc> {
+        Ok(AggregateFunc::Avg)
+    }
+
+    fn aggregate_col(input: Node) -> Result<AggregateItem> {
+        Ok(match_nodes_!(
+            input.into_children();
+            [COUNT(c),projection_col(p)] => AggregateItem::new(c,p),
+            [MIN(m),projection_col(p)] => AggregateItem::new(m,p),
+            [MAX(m),projection_col(p)] => AggregateItem::new(m,p),
+            [AVG(a),projection_col(p)] => AggregateItem::new(a,p),
+
+        ))
+    }
+    fn project_item(input: Node) -> Result<ProjectionTarget> {
+        Ok(match_nodes_!(
+            input.into_children();
+            [aggregate_col(a)] => ProjectionTarget::AggregateItem(a),
+            [projection_col(p)] => ProjectionTarget::Attribute(p)
         ))
     }
     fn project_on(input: Node) -> Result<Vec<ProjectionTarget>> {
@@ -57,7 +88,7 @@ impl SqlParser {
         } else {
             Ok(match_nodes!(
                 input.into_children();
-                [projection_col(ids)..] => ids.collect(),
+                [project_item(item)..] => item.collect(),
             ))
         }
     }
@@ -223,13 +254,13 @@ impl SqlParser {
     fn DESC(_input: Node) -> Result<bool> {
         Ok(true)
     }
-    fn order_item(input:Node) -> Result<(ProjectionTarget,bool)>{
+    fn order_item(input: Node) -> Result<(ProjectionTarget, bool)> {
         match_nodes!(
-            input.into_children();
-            [projection_col(p)] => Ok((p, false)),
-            [projection_col(p),ASC(_)] => Ok((p, false)),
-            [projection_col(p),DESC(_)] => Ok((p, true)),
-            )
+        input.into_children();
+        [project_item(p)] => Ok((p, false)),
+        [project_item(p),ASC(_)] => Ok((p, false)),
+        [project_item(p),DESC(_)] => Ok((p, true)),
+        )
     }
     fn ORDER_BY(input: Node) -> Result<Ordering> {
         // let len = input.as_str().len();
@@ -268,6 +299,11 @@ impl SqlParser {
                 where_clause(w),
                 GROUP_BY(g)
             ] => SqlSelect::new(distinct,p,t,Some(w),Some(g),None),
+            [
+                project_on(p),
+                table_expression(t),
+                GROUP_BY(g)
+            ] => SqlSelect::new(distinct,p,t,None,Some(g),None),
             [
                 project_on(p),
                 table_expression(t),

@@ -6,14 +6,17 @@ use utils::*;
 use super::tuple_table::TupleTable;
 use super::MergedRow;
 use crate::common::numerical::ByteMagic;
+use crate::query::algebra::GroupBy;
 use crate::query::concrete_types::ConcreteType;
 use crate::query::tuple_table::TupleTableIter;
 use crate::schema::schema::Field;
 use crate::schema::types::{NumericType, Type};
+use crate::sql::query::select::AggregateFunc;
 use crate::table::btree_iter::BtreeIter;
 use crate::table::hash_iter::HashIter;
 use crate::table::heap_iter::TableIter;
-use crate::FieldId;
+use crate::{AggregateField, FieldId};
+use chrono::format::Item;
 use evalexpr::Value::Float;
 use evalexpr::{
     ContextWithMutableVariables, FloatType, HashMapContext, IntType, IterateVariablesContext, Value,
@@ -80,6 +83,7 @@ pub enum PhysicalNode {
     AccessPath(Box<AccessMethod>),
     RemoveDuplicates(DeDup),
     Sort(Sort),
+    GroupBy(Grouper),
 }
 
 impl PhysicalNode {
@@ -98,6 +102,7 @@ impl PhysicalNode {
             PhysicalNode::AccessPath(_) => unreachable!(),
             PhysicalNode::RemoveDuplicates(a) => a.fields_map.clone(),
             PhysicalNode::Sort(a) => a.fields_map.clone(),
+            PhysicalNode::GroupBy(a) => a.fields_map.clone(),
         }
     }
 }
@@ -114,6 +119,7 @@ impl Iterator for PhysicalNode {
             PhysicalNode::AccessPath(a) => a.next(),
             PhysicalNode::RemoveDuplicates(a) => a.next(),
             PhysicalNode::Sort(a) => a.next(),
+            PhysicalNode::GroupBy(a) => a.next(),
         }
     }
 }
@@ -488,7 +494,12 @@ pub struct Sort {
 }
 
 impl Sort {
-    fn new(headers: TypeMap, child: Box<PhysicalNode>, fields: Vec<FieldId>, desc: Vec<bool>) -> Self {
+    fn new(
+        headers: TypeMap,
+        child: Box<PhysicalNode>,
+        fields: Vec<FieldId>,
+        desc: Vec<bool>,
+    ) -> Self {
         let table = Some(TupleTable::new(
             &fields[0].to_string(),
             headers.clone(),
@@ -524,5 +535,272 @@ impl Iterator for Sort {
             self.load();
         }
         self.table_iter.as_mut().unwrap().next()
+    }
+}
+
+#[derive(Debug)]
+pub struct Grouper {
+    group_on: Vec<FieldId>,
+    agg_ops: HashMap<FieldId, AggregateField>,
+    child: Box<PhysicalNode>,
+    fields_map: TypeMap,
+    results: Vec<MergedRow>,
+    loaded: bool,
+}
+
+impl Grouper {
+    // fn row_grouping_set(&self,row:&MergedRow) -> MergedRow{
+    //
+    // }
+    fn load(&mut self) {
+        let child_map = self.child.get_type_map();
+        let mut table = TupleTable::new("grouping", child_map.clone(), MAX_WORKING_MEM);
+        for mut row in self.child.by_ref() {
+            table.add_row_map(row);
+        }
+        let desc = vec![false; self.group_on.len()];
+        table.sort(&self.group_on, &desc);
+        let mut iter = table.into_iter();
+        let mut agg_fns = self
+            .agg_ops
+            .iter()
+            .map(|(k, v)| {
+                Box::<dyn AggregateFunction>::from((v.clone(), *child_map.get(k).unwrap()))
+            })
+            .collect::<Vec<_>>();
+        let current_row = iter.next().unwrap();
+        let grouping_set: HashSet<FieldId> = HashSet::from_iter(self.group_on.iter().cloned());
+        let mut current_group = current_row
+            .iter()
+            .filter(|(field, _)| grouping_set.contains(field))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<HashMap<_, _>>();
+        for row in iter {
+            if current_group.iter().all(|(k, v)| row.get(k).unwrap() == v) {
+                // same group , apply on aggregators
+                agg_fns.iter_mut().for_each(|func| func.apply(&row));
+            } else {
+                let mut group_result = current_group.clone();
+                group_result.extend(agg_fns.iter_mut().map(|func| func.finalize()));
+                self.results.push(group_result);
+                current_group
+                    .iter_mut()
+                    .for_each(|(k, v)| *v = row.get(k).unwrap().clone());
+                agg_fns.iter_mut().for_each(|func| func.apply(&row));
+            }
+        }
+        self.results.reverse();
+        self.loaded = true
+    }
+    pub fn new(
+        group_on: Vec<FieldId>,
+        agg_ops: HashMap<FieldId, AggregateField>,
+        child: Box<PhysicalNode>,
+        fields_map: TypeMap,
+    ) -> Self {
+        Self {
+            group_on,
+            agg_ops,
+            child,
+            fields_map,
+            results: vec![],
+            loaded: false,
+        }
+    }
+}
+impl Iterator for Grouper {
+    type Item = MergedRow;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.loaded {
+            self.load();
+            self.results.pop()
+        } else {
+            self.results.pop()
+        }
+    }
+}
+
+impl From<(AggregateField, Type)> for Box<dyn AggregateFunction> {
+    fn from(value: (AggregateField, Type)) -> Box<dyn AggregateFunction> {
+        match value.0.op {
+            AggregateFunc::Min => {
+                Box::new(Min::new((value.0.field, value.1))) as Box<dyn AggregateFunction>
+            }
+            AggregateFunc::Max => {
+                Box::new(Max::new((value.0.field, value.1))) as Box<dyn AggregateFunction>
+            }
+            AggregateFunc::Count => {
+                Box::new(Count::new((value.0.field, value.1))) as Box<dyn AggregateFunction>
+            }
+            AggregateFunc::Avg => {
+                Box::new(Avg::new((value.0.field, value.1))) as Box<dyn AggregateFunction>
+            }
+            AggregateFunc::Sum => {
+                Box::new(Sum::new((value.0.field, value.1))) as Box<dyn AggregateFunction>
+            }
+        }
+    }
+}
+
+trait AggregateFunction {
+    fn apply(&mut self, row: &MergedRow);
+    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>);
+    // fn reset(&mut self);
+}
+
+struct Count {
+    field: (FieldId, Type),
+    count: u64,
+}
+impl Count {
+    fn new(field: (FieldId, Type)) -> Self {
+        Self { field, count: 0 }
+    }
+}
+impl AggregateFunction for Count {
+    fn apply(&mut self, row: &MergedRow) {
+        self.count += 1;
+    }
+
+    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+        let count = self.count;
+        self.count = 0;
+        let agg = AggregateField::new(AggregateFunc::Count, self.field.0.clone());
+        (
+            FieldId::from(agg),
+            ConcreteType::BigInt(count as i64).to_bytes(),
+        )
+    }
+}
+struct Min {
+    field: (FieldId, Type),
+    current_min: Option<ConcreteType>,
+}
+
+impl Min {
+    fn new(field: (FieldId, Type)) -> Self {
+        Self {
+            field,
+            current_min: None,
+        }
+    }
+}
+impl AggregateFunction for Min {
+    fn apply(&mut self, row: &MergedRow) {
+        let value = row.get(&self.field.0).unwrap().as_ref().unwrap();
+        let value = ConcreteType::from_bytes(self.field.1, value);
+        if let Some(val) = &mut self.current_min {
+            if value < *val {
+                *val = value;
+            }
+        } else {
+            self.current_min = Some(value)
+        }
+    }
+
+    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+        let agg = AggregateField::new(AggregateFunc::Min, self.field.0.clone());
+        (
+            FieldId::from(agg),
+            self.current_min.take().unwrap().to_bytes(),
+        )
+    }
+}
+struct Max {
+    field: (FieldId, Type),
+    current_max: Option<ConcreteType>,
+}
+
+impl Max {
+    fn new(field: (FieldId, Type)) -> Self {
+        Self {
+            field,
+            current_max: None,
+        }
+    }
+}
+impl AggregateFunction for Max {
+    fn apply(&mut self, row: &MergedRow) {
+        let value = row.get(&self.field.0).unwrap().as_ref().unwrap();
+        let value = ConcreteType::from_bytes(self.field.1, value);
+        if let Some(val) = &mut self.current_max {
+            if value > *val {
+                *val = value;
+            }
+        } else {
+            self.current_max = Some(value)
+        }
+    }
+
+    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+        let agg = AggregateField::new(AggregateFunc::Max, self.field.0.clone());
+        (
+            FieldId::from(agg),
+            self.current_max.take().unwrap().to_bytes(),
+        )
+    }
+}
+
+struct Sum {
+    field: (FieldId, Type),
+    sum: Option<ConcreteType>,
+}
+
+impl Sum {
+    fn new(field: (FieldId, Type)) -> Self {
+        Self { field, sum: None }
+    }
+}
+impl AggregateFunction for Sum {
+    fn apply(&mut self, row: &MergedRow) {
+        let value = row.get(&self.field.0).unwrap().as_ref().unwrap();
+        let value = ConcreteType::from_bytes(self.field.1, value);
+        if let Some(val) = &mut self.sum {
+            *val += value;
+        } else {
+            self.sum = Some(value);
+        }
+    }
+
+    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+        let agg = AggregateField::new(AggregateFunc::Sum, self.field.0.clone());
+        (FieldId::from(agg), self.sum.take().unwrap().to_bytes())
+    }
+}
+
+struct Avg {
+    field: (FieldId, Type),
+    sum: Option<ConcreteType>,
+    count: u64,
+}
+
+impl Avg {
+    fn new(field: (FieldId, Type)) -> Self {
+        Self {
+            field,
+            sum: None,
+            count: 0,
+        }
+    }
+}
+impl AggregateFunction for Avg {
+    fn apply(&mut self, row: &MergedRow) {
+        self.count += 1;
+        let value = row.get(&self.field.0).unwrap().as_ref().unwrap();
+        let value = ConcreteType::from_bytes(self.field.1, value);
+        if let Some(val) = &mut self.sum {
+            *val += value;
+        } else {
+            self.sum = Some(value);
+        }
+    }
+
+    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+        let count = ConcreteType::BigInt(self.count as i64);
+        self.count = 0;
+        let avg = self.sum.take().unwrap() / count;
+        let agg = AggregateField::new(AggregateFunc::Avg, self.field.0.clone());
+        (FieldId::from(agg), avg.to_bytes())
     }
 }

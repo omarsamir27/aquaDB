@@ -5,6 +5,8 @@
 
 // extern crate core;
 
+use crate::schema::types::{NumericType, Type};
+use crate::sql::query::select::AggregateFunc;
 use bincode::{Decode, Encode};
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
@@ -62,5 +64,76 @@ impl FromStr for FieldId {
             table: table.to_string(),
             field: var.to_string(),
         })
+    }
+}
+
+impl From<FieldId> for TargetItem {
+    fn from(value: FieldId) -> Self {
+        Self::FieldId(value)
+    }
+}
+
+#[derive(Encode, Decode, Debug, Clone, Hash, Eq, PartialEq)]
+pub struct AggregateField {
+    op: AggregateFunc,
+    field: FieldId,
+}
+
+impl AggregateField {
+    pub fn new(op: AggregateFunc, field: FieldId) -> Self {
+        Self { op, field }
+    }
+    pub fn get_result_type(&self, field_type: Type) -> Type {
+        match self.op {
+            AggregateFunc::Min => field_type,
+            AggregateFunc::Max => field_type,
+            AggregateFunc::Count => Type::Numeric(NumericType::BigInt),
+            AggregateFunc::Avg => Type::Numeric(NumericType::Double),
+            AggregateFunc::Sum => match field_type {
+                Type::Numeric(n) => match n {
+                    NumericType::SmallInt
+                    | NumericType::Integer
+                    | NumericType::BigInt
+                    | NumericType::Serial => Type::Numeric(NumericType::BigInt),
+                    NumericType::Single | NumericType::Double => Type::Numeric(NumericType::Double),
+                },
+                _ => unreachable!(),
+            },
+        }
+    }
+}
+
+impl From<AggregateField> for TargetItem {
+    fn from(value: AggregateField) -> Self {
+        Self::AggregateField(value)
+    }
+}
+
+// this is mostly a hack to not modify most of the query planner
+impl From<AggregateField> for FieldId {
+    fn from(value: AggregateField) -> Self {
+        let AggregateField {
+            op,
+            field: FieldId { table, field },
+        } = value;
+        Self {
+            table,
+            field: format!("{}_{}", op.to_string(), field),
+        }
+    }
+}
+
+#[derive(Encode, Decode, Debug, Clone, Hash, Eq, PartialEq)]
+pub enum TargetItem {
+    FieldId(FieldId),
+    AggregateField(AggregateField),
+}
+
+impl TargetItem {
+    pub fn new_field_id(field_id: FieldId) -> Self {
+        Self::FieldId(field_id)
+    }
+    pub fn new_aggregate_field(field: AggregateField) -> Self {
+        Self::AggregateField(field)
     }
 }

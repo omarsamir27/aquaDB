@@ -39,6 +39,9 @@ impl FromLogicalNode<LogicalNode> for PhysicalNode {
             LogicalNode::DeDup(a) => {
                 Self::RemoveDuplicates(Physical::DeDup::from_logic(a, planner_info, db_tables))
             }
+            LogicalNode::GroupBy(a) => {
+                Self::GroupBy(Physical::Grouper::from_logic(a, planner_info, db_tables))
+            }
             LogicalNode::Empty => unreachable!(),
         }
     }
@@ -254,6 +257,23 @@ impl FromLogicalNode<Logical::Join> for PhysicalNode {
                 right_field_map,
             ))
         }
+    }
+}
+
+impl FromLogicalNode<Logical::GroupBy> for Physical::Grouper {
+    fn from_logic(
+        value: GroupBy,
+        planner_info: &mut PlannerInfo,
+        db_tables: &HashMap<String, TableManager>,
+    ) -> Self {
+        let GroupBy {
+            group_on,
+            agg_ops,
+            child,
+            fields_map,
+        } = value;
+        let child = Box::new(PhysicalNode::from_logic(*child, planner_info, db_tables));
+        Grouper::new(group_on, agg_ops, child, fields_map)
     }
 }
 
