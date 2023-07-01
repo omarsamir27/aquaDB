@@ -21,18 +21,18 @@ impl DatabaseInstance {
         let logical_plan =
             query::algebra::LogicalNode::translate_sql(query, &planner_info, self.name())
                 .map_err(|_| "Broken Query".to_string())?;
-        if cfg!(debug_assertions) {
+        // if cfg!(debug_assertions) {
             println!("Logical Plan:");
             dbg!(&logical_plan);
-            println!("--------------------------")
-        }
+            println!("--------------------------");
+        // }
         let mut planner_info = self.planner_info();
         let plan = PhysicalNode::from_logic(logical_plan, &mut planner_info, self.tables());
-        if cfg!(debug_assertions) {
+        // if cfg!(debug_assertions) {
             println!("Physical Plan:");
             dbg!(&plan);
-            println!("--------------------------")
-        }
+            println!("--------------------------");
+        // }
         Ok(plan)
     }
 

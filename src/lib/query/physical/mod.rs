@@ -554,6 +554,7 @@ impl Grouper {
     // }
     fn load(&mut self) {
         let child_map = self.child.get_type_map();
+        // dbg!(&child_map);
         let mut table = TupleTable::new("grouping", child_map.clone(), MAX_WORKING_MEM);
         for mut row in self.child.by_ref() {
             table.add_row_map(row);
@@ -572,7 +573,7 @@ impl Grouper {
         let grouping_set: HashSet<FieldId> = HashSet::from_iter(self.group_on.iter().cloned());
         let mut current_group = current_row
             .iter()
-            .filter(|(field, _)| grouping_set.contains(field))
+            .filter(|(field, _)| grouping_set.contains(field) || self.fields_map.contains_key(field))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<HashMap<_, _>>();
         for row in iter {
@@ -581,6 +582,7 @@ impl Grouper {
                 agg_fns.iter_mut().for_each(|func| func.apply(&row));
             } else {
                 let mut group_result = current_group.clone();
+                group_result.retain(|f,_| self.fields_map.contains_key(f));
                 group_result.extend(agg_fns.iter_mut().map(|func| func.finalize()));
                 self.results.push(group_result);
                 current_group

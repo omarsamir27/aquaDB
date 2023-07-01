@@ -23,10 +23,12 @@ use fltk_theme::{
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fs::read_to_string;
 use std::io::stdin;
 use std::mem;
 use std::net::TcpStream;
 use std::rc::Rc;
+use fltk::valuator::{Counter, ValueOutput};
 
 fn main() {
     let comms = DuplexChannel::default();
@@ -53,11 +55,15 @@ fn main() {
     entry_window.show();
 
     let mut main_window = window::Window::default().with_size(1000, 600);
+    main_window.make_resizable(true);
     let mut main_pack = Pack::new(0, 50, 700, 400, "").center_x(&main_window);
     main_pack.set_spacing(50);
     let mut query_input = Rc::new(RefCell::new(
         MultilineInput::new(0, -50, 600, 200, "").center_y(&main_pack),
     ));
+    let mut use_file_btn = Button::new(20,-50,20,50,"From File")
+        .with_label("From File")
+        .center_y(&main_pack);
     query_input.borrow_mut().set_wrap(true);
     let mut query_btn = Button::new(0, -50, 200, 50, "Send")
         .with_label("Send")
@@ -66,6 +72,9 @@ fn main() {
         .center_y(&main_pack)
         .with_align(Align::Center);
     status.set_wrap(true);
+    let mut counter = Rc::new(RefCell::new(Output::new(0,-75,50,50,"Executed")
+        .center_y(&main_pack)));
+    let mut  val_counter = Rc::new(RefCell::new(0));
     pack.end();
     main_window.end();
 
@@ -102,6 +111,8 @@ fn main() {
     let window2_comms = comms.clone();
     let ui_tx2 = ui_tx.clone();
     let query_input2 = query_input.clone();
+    let counter1 = counter.clone();
+    let val_counter1 = val_counter.clone();
     query_btn.handle(move |_, ev| match ev {
         Event::Push => {
             let value = query_input2.borrow().value();
@@ -114,17 +125,54 @@ fn main() {
                 window2_comms.send_ch1(msg_send).unwrap();
                 match window2_comms.recv_ch2().unwrap() {
                     UiMessage::DatabaseCreated(s) | UiMessage::GenericStatus(s) => {
-                        ui_tx2.send(UiControl::SetMainStatus(s))
+                        let mut count = val_counter1.borrow_mut();
+                        *count +=1;
+                        counter1.borrow_mut().set_value(&(count).to_string());
+                        ui_tx2.send(UiControl::SetMainStatus(s));
                     }
                     UiMessage::FieldsNames(fields) => {
+                        let mut count = val_counter1.borrow_mut();
+                        *count +=1;
+                        counter1.borrow_mut().set_value(&(count).to_string());
                         ui_tx2.send(UiControl::MainWinToResults(fields));
                     }
-                    _ => todo!(),
+                    _ => (),
                 }
             }
             true
         }
         _ => false,
+    });
+
+    let window2_comms2 = comms.clone();
+    let counter2 = counter.clone();
+    let ui_tx_file = ui_tx.clone();
+    use_file_btn.handle(move |_,ev| match ev{
+        Event::Push =>{
+            let file = dialog::file_chooser("Choose Dump File", "*.txt\t*.sql", ".", false).unwrap_or_default();
+            let contents = read_to_string(file).unwrap_or_default();
+            for v in contents.lines() {
+                let msg_send = UiMessage::UiRequest(v.to_string());
+                window2_comms2.send_ch1(msg_send).unwrap();
+                match window2_comms2.recv_ch2().unwrap() {
+                    UiMessage::DatabaseCreated(s) | UiMessage::GenericStatus(s) => {
+                        let mut count = val_counter.borrow_mut();
+                        *count +=1;
+                        counter2.borrow_mut().set_value(&(count).to_string());
+                        ui_tx_file.send(UiControl::SetMainStatus(s));
+                    }
+                    UiMessage::FieldsNames(fields) => {
+                        let mut count = val_counter.borrow_mut();
+                        *count +=1;
+                        counter2.borrow_mut().set_value(&(count).to_string());
+                        ui_tx_file.send(UiControl::MainWinToResults(fields));
+                    }
+                    _ => (),
+                }
+            }
+            true
+        },
+        _ => false
     });
 
     let ui_tx3 = ui_tx.clone();

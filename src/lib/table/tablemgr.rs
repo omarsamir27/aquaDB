@@ -257,6 +257,7 @@ impl TableManager {
         for (_, hash) in &self.hash_indexes {
             hash.flush_all(&mut storage_mgr);
         }
+        self.free_map.flush_map();
         // for idx in self.indexes().values() {
         //     idx.flush_all(&mut storage_mgr)
         // }

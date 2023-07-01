@@ -428,22 +428,43 @@ impl LogicalNode {
             }
             let mut fields = Vec::with_capacity(targets.len());
             for col in targets {
-                match col.get_attribute()? {
-                    Attribute::FullyQualified(table, field) => {
-                        if table == *name && schema.contains_key(field.as_str()) {
-                            fields.push(FieldId { table, field });
-                        } else {
-                            return Err(());
+                if let Ok(attr) =  col.get_attribute() {
+                    match attr {
+                        Attribute::FullyQualified(table, field) => {
+                            if table == *name && schema.contains_key(field.as_str()) {
+                                fields.push(FieldId { table, field });
+                            } else {
+                                return Err(());
+                            }
+                        }
+                        Attribute::Shorthand(field) => {
+                            if schema.contains_key(field.as_str()) {
+                                fields.push(FieldId {
+                                    table: name.clone(),
+                                    field,
+                                });
+                            } else {
+                                return Err(());
+                            }
                         }
                     }
-                    Attribute::Shorthand(field) => {
-                        if schema.contains_key(field.as_str()) {
-                            fields.push(FieldId {
-                                table: name.clone(),
-                                field,
-                            });
-                        } else {
-                            return Err(());
+                }
+                else if let AggregateItem{ op, field } = col.get_aggregate(){
+                    match field {
+                        Attribute::FullyQualified(table, field) => {
+                            if table == *name && schema.contains_key(field.as_str()) {
+                                fields.push(FieldId::from(AggregateField::new(op,FieldId::new(&table,&field))));
+                            } else {
+                                return Err(());
+                            }
+                        }
+                        Attribute::Shorthand(field) => {
+                            if schema.contains_key(field.as_str()) {
+                                fields.push(FieldId::from(AggregateField::new(op,FieldId::new(name,&field))));
+
+                            } else {
+                                return Err(());
+                            }
                         }
                     }
                 }
@@ -471,28 +492,59 @@ impl LogicalNode {
 
             let mut fields = Vec::with_capacity(targets.len() * 4);
             for col in targets {
-                match col.get_attribute()? {
-                    Attribute::FullyQualified(table, field) => {
-                        if schemas_map
-                            .get(&table)
-                            .ok_or(())?
-                            .contains_key(field.as_str())
-                        {
-                            fields.push(FieldId { table, field })
+                if let Ok(attr) = col.get_attribute() {
+                    match attr {
+                        Attribute::FullyQualified(table, field) => {
+                            if schemas_map
+                                .get(&table)
+                                .ok_or(())?
+                                .contains_key(field.as_str())
+                            {
+                                fields.push(FieldId { table, field })
+                            }
+                        }
+                        Attribute::Shorthand(field) => {
+                            let mut matching_schemas = schemas_map
+                                .iter()
+                                .filter(|(k, v)| v.contains_key(field.as_str()))
+                                .map(|(k, v)| k)
+                                .collect::<Vec<_>>();
+                            if matching_schemas.len() == 1 {
+                                let table = matching_schemas.pop().unwrap();
+                                fields.push(FieldId {
+                                    table: table.clone(),
+                                    field,
+                                })
+                            }
                         }
                     }
-                    Attribute::Shorthand(field) => {
-                        let mut matching_schemas = schemas_map
-                            .iter()
-                            .filter(|(k, v)| v.contains_key(field.as_str()))
-                            .map(|(k, v)| k)
-                            .collect::<Vec<_>>();
-                        if matching_schemas.len() == 1 {
-                            let table = matching_schemas.pop().unwrap();
-                            fields.push(FieldId {
-                                table: table.clone(),
-                                field,
-                            })
+                }
+                else if let AggregateItem{ op, field } = col.get_aggregate(){
+                    match field {
+                        Attribute::FullyQualified(table, field) => {
+                            if schemas_map
+                                .get(&table)
+                                .ok_or(())?
+                                .contains_key(field.as_str())
+                            {
+                                fields.push(FieldId::from(AggregateField::new(op,FieldId::new(&table,&field))));
+                            } else {
+                                return Err(());
+                            }
+                        }
+                        Attribute::Shorthand(field) => {
+                            let mut matching_schemas = schemas_map
+                                .iter()
+                                .filter(|(k, v)| v.contains_key(field.as_str()))
+                                .map(|(k, v)| k)
+                                .collect::<Vec<_>>();
+                            if matching_schemas.len() == 1 {
+                                let table = matching_schemas.pop().unwrap();
+                                fields.push(FieldId::from(AggregateField::new(op,FieldId::new(table,&field))));
+
+                            } else {
+                                return Err(());
+                            }
                         }
                     }
                 }

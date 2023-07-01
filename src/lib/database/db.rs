@@ -8,7 +8,7 @@ use crate::schema::schema::Schema;
 use crate::sql::parser::{parse_query, SqlParser};
 use crate::sql::query::query::SqlQuery;
 use crate::sql::Sql;
-use crate::storage;
+use crate::{AQUA_TMP_DIR, storage};
 use crate::storage::storagemgr::StorageManager;
 use crate::table::tablemgr::TableManager;
 use std::cell::RefCell;
@@ -183,6 +183,10 @@ impl DatabaseInstance {
 
 impl Drop for DatabaseInstance {
     fn drop(&mut self) {
-        self.flush_everything()
+        use std::fs;
+        self.flush_everything();
+        //TODO if concurrency is implemented this would be BAD
+        let path = AQUA_TMP_DIR();
+        fs::remove_dir_all(&path).and_then(|_| fs::create_dir(&path)).unwrap();
     }
 }
