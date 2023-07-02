@@ -243,6 +243,11 @@ impl HashIndex {
         }
         let mut global_depth = self.global_depth;
         let mut new_bucket_id = bucket_id;
+
+        if global_depth == GLOBAL_DEPTH {
+            return buckets;
+        }
+
         loop {
             global_depth -= 1;
             new_bucket_id = ((hash_val) % (2_u32.pow(global_depth as u32)));

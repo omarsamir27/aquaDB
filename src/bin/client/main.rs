@@ -78,11 +78,11 @@ fn main() {
     pack.end();
     main_window.end();
 
-    let mut results_window = window::Window::default().with_size(1000, 1500);
-    let mut results_pack = Pack::new(0, 50, 1000, 1500, "").center_x(&results_window);
+    let mut results_window = window::Window::default().with_size(1000, 1000);
+    let mut results_pack = Pack::new(0, 50, 1000, 1000, "").center_x(&results_window);
     results_window.make_resizable(true);
     let mut results_table = SmartTable::default()
-        .with_size(900, 900)
+        .with_size(900, 400)
         .with_align(Align::Center)
         .center_of(&results_pack);
     let mut close_results_btn = Button::new(0, -50, 400, 50, "Close")

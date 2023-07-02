@@ -19,7 +19,6 @@ use pest::error::ErrorVariant;
 use pest::iterators::Pairs;
 use pest::pratt_parser::PrattParser;
 use pest_consume::{match_nodes, match_nodes_, Error, Parser as PestParser};
-
 type Result<T> = std::result::Result<T, Error<Rule>>;
 pub type Node<'i> = pest_consume::Node<'i, Rule, ()>;
 
@@ -64,6 +63,9 @@ impl SqlParser {
     fn AVG(_input: Node) -> Result<AggregateFunc> {
         Ok(AggregateFunc::Avg)
     }
+    fn SUM(_input: Node) -> Result<AggregateFunc> {
+        Ok(AggregateFunc::Sum)
+    }
 
     fn aggregate_col(input: Node) -> Result<AggregateItem> {
         Ok(match_nodes_!(
@@ -72,6 +74,7 @@ impl SqlParser {
             [MIN(m),projection_col(p)] => AggregateItem::new(m,p),
             [MAX(m),projection_col(p)] => AggregateItem::new(m,p),
             [AVG(a),projection_col(p)] => AggregateItem::new(a,p),
+            [SUM(s), projection_col(p)] => AggregateItem::new(s, p)
 
         ))
     }
