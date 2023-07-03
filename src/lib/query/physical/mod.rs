@@ -561,6 +561,7 @@ impl Grouper {
         }
         let desc = vec![false; self.group_on.len()];
         table.sort(&self.group_on, &desc);
+        table.print_all();
         let mut iter = table.into_iter();
         let mut agg_fns = self
             .agg_ops
@@ -570,6 +571,7 @@ impl Grouper {
             })
             .collect::<Vec<_>>();
         let current_row = iter.next().unwrap();
+        agg_fns.iter_mut().for_each(|func| func.apply(&current_row));
         let grouping_set: HashSet<FieldId> = HashSet::from_iter(self.group_on.iter().cloned());
         let mut current_group = current_row
             .iter()

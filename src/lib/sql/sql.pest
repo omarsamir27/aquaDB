@@ -7,11 +7,12 @@
     /// purple
     numeric_constant = @{ ("+"|"-")? ~ ( (plain_number ~ "." ~ plain_number?) | ("." ~ plain_number ) | plain_number ) }
     /// red
-    text = { (ASCII_ALPHANUMERIC | " " | "*" | "?")+ }
+//     text = { (ASCII_ALPHANUMERIC | " " | "*" | "?" | LETTER)+ }
+    text = { !QUOTE ~ ANY}
     /// blue
     QUOTE = _{ "\"" }
     /// green
-    string_literal = @{ QUOTE ~ text ~ QUOTE }
+    string_literal = @{ QUOTE ~ text+ ~ QUOTE }
     TRUE  = {^"true"}
     FALSE = {^"false"}
     constant =  ${ numeric_constant | string_literal | TRUE | FALSE }
@@ -186,4 +187,5 @@ WHITESPACE = _{WHITE_SPACE}
 
 SqlQuery = { SqlSelect  | SqlDelete | SqlInsert | SqlUpdate }
 
+/// blue
 Sql = {SOI ~ (SqlQuery | SqlCreateTable) ~ EOI }

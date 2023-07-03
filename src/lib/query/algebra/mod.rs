@@ -326,10 +326,22 @@ impl LogicalNode {
                 order.descending,
             )));
         }
+        let mut projection_list = Self::target_list(sql.targets, &single, &joined)?;
         if let Some(group) = grouping {
+            let mut missing_fields = group
+                .group_on.iter()
+                .filter(|f| !projection_list.contains(f)).cloned().collect::<Vec<_>>();
+
+            if !missing_fields.is_empty(){
+                let project_list_root = projection_list.clone();
+                projection_list.append(&mut missing_fields);
+                let project = Project::with_fields(project_list_root);
+                queue.push(LogicalNode::Project(project));
+            }
             queue.push(LogicalNode::GroupBy(group));
+
         }
-        let project = Project::with_fields(Self::target_list(sql.targets, &single, &joined)?);
+        let project = Project::with_fields(projection_list);
         queue.push(LogicalNode::Project(project));
         if let Some(pred) = sql.where_clause {
             let mut pred_tree = build_operator_tree(pred.as_str()).map_err(|_| ())?;

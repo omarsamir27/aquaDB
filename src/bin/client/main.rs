@@ -27,6 +27,7 @@ use std::fs::read_to_string;
 use std::io::stdin;
 use std::mem;
 use std::net::TcpStream;
+use std::ops::BitAndAssign;
 use std::rc::Rc;
 use fltk::valuator::{Counter, ValueOutput};
 
@@ -82,7 +83,7 @@ fn main() {
     let mut results_pack = Pack::new(0, 50, 1000, 1000, "").center_x(&results_window);
     results_window.make_resizable(true);
     let mut results_table = SmartTable::default()
-        .with_size(900, 400)
+        .with_size(900, 700)
         .with_align(Align::Center)
         .center_of(&results_pack);
     let mut close_results_btn = Button::new(0, -50, 400, 50, "Close")
@@ -146,6 +147,7 @@ fn main() {
 
     let window2_comms2 = comms.clone();
     let counter2 = counter.clone();
+    let mut val_counter2 = val_counter.clone();
     let ui_tx_file = ui_tx.clone();
     use_file_btn.handle(move |_,ev| match ev{
         Event::Push =>{
@@ -156,13 +158,13 @@ fn main() {
                 window2_comms2.send_ch1(msg_send).unwrap();
                 match window2_comms2.recv_ch2().unwrap() {
                     UiMessage::DatabaseCreated(s) | UiMessage::GenericStatus(s) => {
-                        let mut count = val_counter.borrow_mut();
+                        let mut count = val_counter2.borrow_mut();
                         *count +=1;
                         counter2.borrow_mut().set_value(&(count).to_string());
                         ui_tx_file.send(UiControl::SetMainStatus(s));
                     }
                     UiMessage::FieldsNames(fields) => {
-                        let mut count = val_counter.borrow_mut();
+                        let mut count = val_counter2.borrow_mut();
                         *count +=1;
                         counter2.borrow_mut().set_value(&(count).to_string());
                         ui_tx_file.send(UiControl::MainWinToResults(fields));
@@ -226,7 +228,11 @@ fn main() {
                     status.set_value("");
                     main_window.show();
                 }
-                UiControl::SetMainStatus(s) => status.set_value(&s),
+                UiControl::SetMainStatus(s) => {
+                    // status.set_value(&s);
+                    status.append("\n");
+                    status.append(&s);
+                },
                 // UiControl::CloseUi => {
                 //     main_window.hide();
                 //     comms.send_ch1(UiMessage::Terminate).unwrap();
@@ -239,6 +245,8 @@ fn main() {
                     status.set_value("");
                     main_window.hide();
                     entry_window.show();
+                    counter.borrow_mut().set_value("0");
+                    val_counter.borrow_mut().bitand_assign(0);
                 }
             }
         }
@@ -262,6 +270,10 @@ fn set_results_table(table: &mut SmartTable, fields: &Vec<String>) {
         editable: false,
         ..Default::default()
     });
+    let col_width = table.width()/fields.len() as i32;
+    for i in 0..table.cols(){
+        table.set_col_width(i,col_width);
+    }
     for (i, field) in fields.iter().enumerate() {
         table.set_col_header_value(i as i32, field)
     }
