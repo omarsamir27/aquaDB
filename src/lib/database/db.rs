@@ -15,8 +15,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Read;
 use std::net::TcpStream;
+use std::ops::AddAssign;
 use std::rc::Rc;
 use std::time::Duration;
+use crate::index::Rid;
 
 type Storage = Rc<RefCell<StorageManager>>;
 type Catalog = Rc<RefCell<CatalogManager>>;
@@ -75,6 +77,61 @@ impl DatabaseInstance {
                     .unwrap_or_default();
                 return;
             }
+            if query.eq("BATCH"){
+                Message::Status(Status::Generic(String::from("BATCH INSERT MODE")))
+                    .send_msg_to(&mut self.conn).unwrap();
+
+                let inserts = match Message::receive_msg(&mut self.conn) {
+                    Ok(msg) => match msg.get_query() {
+                        Ok(s) => s,
+                        _ => return,
+                    },
+                    Err(_) => return,
+                };
+                let mut inserted_counter = 0;
+                let mut insert_plans = vec![];
+                for line in inserts.lines(){
+                    match parse_query(line){
+                        Ok(parsed) => {
+                            match self.create_plan(parsed){
+                                Ok(q) => {
+                                    if let QueryPlan::Insert(r,s) = &q{
+                                       match r{
+                                           Ok(_) => insert_plans.push(q),
+                                           Err(e) => Message::Status(Status::Generic(format!("Batch Planning Failed: {}",e))).send_msg_to(&mut self.conn).unwrap()
+                                       }
+                                    }
+                                }
+                                Err(e) => Message::Status(Status::Generic(format!("Batch Planning Failed: {}",e))).send_msg_to(&mut self.conn).unwrap()
+                            }
+                        }
+                        Err(e) => Message::Status(Status::Generic(format!("Batch Planning Failed: {}",e))).send_msg_to(&mut self.conn).unwrap()
+                    }
+                }
+                let mut executor = Executor::new(&mut self.tables);
+                let mut table_name = String::new();
+                for plan in insert_plans{
+                    if let QueryPlan::Insert(r,s) = plan{
+                        table_name = s.name().to_string();
+                        match executor.insert_record(r.unwrap(),s){
+                            Ok(_) => inserted_counter+=1,
+                            Err(e) => { Message::Status(Status::Generic(format!("Batch Insertion Failed at {} : {}", inserted_counter, e))).send_msg_to(&mut self.conn).unwrap();
+                                continue;
+                            }
+                        }
+
+                    }
+                }
+                Message::Status(Status::Generic(format!("Batch Success, Inserted: {}",inserted_counter))).send_msg_to(&mut self.conn).unwrap();
+                // let target = self.tables.get_mut(&table_name).unwrap();
+                // dbg!(&target.table_blocks);
+                // // let direct = target.direct_accessor();
+                // // dbg!(direct.get_tuple(Rid::new(9,0)));
+                // let iter = target.heapscan_iter();
+                // let v = iter.collect::<Vec<_>>();
+                // dbg!(v.len());
+                continue;
+            }
             match parse_query(&query) {
                 Ok(parsed) => self.execute_cmd(parsed),
                 Err(e) => Message::Status(Status::Generic(e.to_string()))
@@ -109,8 +166,10 @@ impl DatabaseInstance {
                         Message::FieldTypes(types)
                             .send_msg_to(&mut self.conn)
                             .unwrap_or_default();
+                        let mut total = 0;
                         loop {
                             let result: Vec<RowMap> = s.take(50).collect();
+                            total += result.len();
                             if result.is_empty() {
                                 Message::Status(Status::ResultsFinished)
                                     .send_msg_to(&mut self.conn)
@@ -167,6 +226,7 @@ impl DatabaseInstance {
             },
         }
     }
+    // fn batch_insert_planner();
     pub fn name(&self) -> &str {
         &self.name
     }

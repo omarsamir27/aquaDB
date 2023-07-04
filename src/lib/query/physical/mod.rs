@@ -561,7 +561,7 @@ impl Grouper {
         }
         let desc = vec![false; self.group_on.len()];
         table.sort(&self.group_on, &desc);
-        table.print_all();
+        // table.print_all();
         let mut iter = table.into_iter();
         let mut agg_fns = self
             .agg_ops
@@ -575,7 +575,7 @@ impl Grouper {
         let grouping_set: HashSet<FieldId> = HashSet::from_iter(self.group_on.iter().cloned());
         let mut current_group = current_row
             .iter()
-            .filter(|(field, _)| grouping_set.contains(field) || self.fields_map.contains_key(field))
+            .filter(|(field, _)| grouping_set.contains(field) )
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<HashMap<_, _>>();
         for row in iter {
@@ -585,7 +585,7 @@ impl Grouper {
             } else {
                 let mut group_result = current_group.clone();
                 group_result.retain(|f,_| self.fields_map.contains_key(f));
-                group_result.extend(agg_fns.iter_mut().map(|func| func.finalize()));
+                group_result.extend(agg_fns.iter_mut().flat_map(|func| func.finalize()));
                 self.results.push(group_result);
                 current_group
                     .iter_mut()
@@ -649,7 +649,7 @@ impl From<(AggregateField, Type)> for Box<dyn AggregateFunction> {
 
 trait AggregateFunction {
     fn apply(&mut self, row: &MergedRow);
-    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>);
+    fn finalize(&mut self) -> Vec<(FieldId, Option<Vec<u8>>)>;
     // fn reset(&mut self);
 }
 
@@ -667,19 +667,21 @@ impl AggregateFunction for Count {
         self.count += 1;
     }
 
-    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+    fn finalize(&mut self) -> Vec<(FieldId, Option<Vec<u8>>)> {
         let count = self.count;
         self.count = 0;
         let agg = AggregateField::new(AggregateFunc::Count, self.field.0.clone());
-        (
-            FieldId::from(agg),
-            ConcreteType::BigInt(count as i64).to_bytes(),
-        )
+        vec![
+            (
+                FieldId::from(agg),
+                ConcreteType::BigInt(count as i64).to_bytes(),
+            )
+        ]
     }
 }
 struct Min {
     field: (FieldId, Type),
-    current_min: Option<ConcreteType>,
+    current_min: Option<MergedRow>,
 }
 
 impl Min {
@@ -694,26 +696,33 @@ impl AggregateFunction for Min {
     fn apply(&mut self, row: &MergedRow) {
         let value = row.get(&self.field.0).unwrap().as_ref().unwrap();
         let value = ConcreteType::from_bytes(self.field.1, value);
-        if let Some(val) = &mut self.current_min {
-            if value < *val {
-                *val = value;
+        if self.current_min.is_some(){
+            if let Some(current_min_val) = self.current_min.as_ref().unwrap().get(&self.field.0).unwrap() {
+                let current_min_val = ConcreteType::from_bytes(self.field.1, current_min_val);
+                if value > current_min_val {
+                    self.current_min.replace(row.clone());
+                }
+            } else {
+                self.current_min = Some(row.clone())
             }
-        } else {
-            self.current_min = Some(value)
+        }
+        else {
+            self.current_min = Some(row.clone())
         }
     }
 
-    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+    fn finalize(&mut self) -> Vec<(FieldId, Option<Vec<u8>>)> {
         let agg = AggregateField::new(AggregateFunc::Min, self.field.0.clone());
-        (
-            FieldId::from(agg),
-            self.current_min.take().unwrap().to_bytes(),
-        )
+        let field =FieldId::from(agg);
+        let mut min_row = self.current_min.take().unwrap();
+        let min_val = min_row.remove(&self.field.0).unwrap();
+        min_row.insert(field,min_val);
+        min_row.into_iter().collect::<Vec<_>>()
     }
 }
 struct Max {
     field: (FieldId, Type),
-    current_max: Option<ConcreteType>,
+    current_max: Option<MergedRow>,
 }
 
 impl Max {
@@ -728,21 +737,28 @@ impl AggregateFunction for Max {
     fn apply(&mut self, row: &MergedRow) {
         let value = row.get(&self.field.0).unwrap().as_ref().unwrap();
         let value = ConcreteType::from_bytes(self.field.1, value);
-        if let Some(val) = &mut self.current_max {
-            if value > *val {
-                *val = value;
+        if self.current_max.is_some(){
+            if let Some(current_max_val) = self.current_max.as_ref().unwrap().get(&self.field.0).unwrap() {
+                let current_max_val = ConcreteType::from_bytes(self.field.1, current_max_val);
+                if value > current_max_val {
+                    self.current_max.replace(row.clone());
+                }
+            } else {
+                self.current_max = Some(row.clone())
             }
-        } else {
-            self.current_max = Some(value)
+        }
+        else {
+            self.current_max = Some(row.clone())
         }
     }
 
-    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+    fn finalize(&mut self) -> Vec<(FieldId, Option<Vec<u8>>)> {
         let agg = AggregateField::new(AggregateFunc::Max, self.field.0.clone());
-        (
-            FieldId::from(agg),
-            self.current_max.take().unwrap().to_bytes(),
-        )
+        let field =FieldId::from(agg);
+        let mut max_row = self.current_max.take().unwrap();
+        let max_val = max_row.remove(&self.field.0).unwrap();
+        max_row.insert(field,max_val);
+        max_row.into_iter().collect::<Vec<_>>()
     }
 }
 
@@ -767,9 +783,9 @@ impl AggregateFunction for Sum {
         }
     }
 
-    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+    fn finalize(&mut self) -> Vec<(FieldId, Option<Vec<u8>>)> {
         let agg = AggregateField::new(AggregateFunc::Sum, self.field.0.clone());
-        (FieldId::from(agg), self.sum.take().unwrap().to_bytes())
+        vec![(FieldId::from(agg), self.sum.take().unwrap().to_bytes())]
     }
 }
 
@@ -800,11 +816,11 @@ impl AggregateFunction for Avg {
         }
     }
 
-    fn finalize(&mut self) -> (FieldId, Option<Vec<u8>>) {
+    fn finalize(&mut self) -> Vec<(FieldId, Option<Vec<u8>>)> {
         let count = ConcreteType::BigInt(self.count as i64);
         self.count = 0;
         let avg = self.sum.take().unwrap() / count;
         let agg = AggregateField::new(AggregateFunc::Avg, self.field.0.clone());
-        (FieldId::from(agg), avg.to_bytes())
+        vec![(FieldId::from(agg), avg.to_bytes())]
     }
 }

@@ -23,6 +23,7 @@ impl Iterator for TableIter {
     fn next(&mut self) -> Option<Self::Item> {
         while self.current_block_index != (self.table_blocks.len()) {
             while self.current_tuple_index < self.current_page_pointer_count {
+                // dbg!((self.current_block_index,self.current_tuple_index,self.current_page_pointer_count));
                 let (pointer_exist, tuple_exist) = self
                     .current_page
                     .pointer_and_tuple_exist(self.current_tuple_index);
@@ -43,6 +44,7 @@ impl Iterator for TableIter {
             let block = &self.table_blocks[self.current_block_index];
             let frame = storage_mgr.pin(block.clone()).unwrap();
             self.current_page = HeapPage::new(frame, block, self.layout.clone());
+            self.current_page_pointer_count = self.current_page.pointer_count();
         }
         None
     }

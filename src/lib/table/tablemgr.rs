@@ -26,7 +26,7 @@ use std::rc::Rc;
 /// It internally uses the Heap Page interface for its responsibilities
 pub struct TableManager {
     pub free_map: FreeMap,
-    table_blocks: Vec<BlockId>,
+    pub table_blocks: Vec<BlockId>,
     storage_mgr: Rc<RefCell<StorageManager>>,
     layout: Rc<Layout>,
     hash_indexes: HashMap<String, HashIndex>,

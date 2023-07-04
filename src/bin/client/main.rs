@@ -23,9 +23,9 @@ use fltk_theme::{
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fs::read_to_string;
-use std::io::stdin;
-use std::mem;
+use std::fs::{File, read_to_string};
+use std::io::{BufRead, stdin};
+use std::{io, mem};
 use std::net::TcpStream;
 use std::ops::BitAndAssign;
 use std::rc::Rc;
@@ -151,27 +151,43 @@ fn main() {
     let ui_tx_file = ui_tx.clone();
     use_file_btn.handle(move |_,ev| match ev{
         Event::Push =>{
-            let file = dialog::file_chooser("Choose Dump File", "*.txt\t*.sql", ".", false).unwrap_or_default();
+            let file = dialog::file_chooser("Choose Dump File", "*.txt\t*.sql", "~", false).unwrap_or_default();
             let contents = read_to_string(file).unwrap_or_default();
-            for v in contents.lines() {
-                let msg_send = UiMessage::UiRequest(v.to_string());
-                window2_comms2.send_ch1(msg_send).unwrap();
-                match window2_comms2.recv_ch2().unwrap() {
-                    UiMessage::DatabaseCreated(s) | UiMessage::GenericStatus(s) => {
-                        let mut count = val_counter2.borrow_mut();
-                        *count +=1;
-                        counter2.borrow_mut().set_value(&(count).to_string());
-                        ui_tx_file.send(UiControl::SetMainStatus(s));
+            // let file = File::open(file).unwrap();
+            // let buff = io::BufReader::new(file);
+            let msg_send = UiMessage::UiRequest(contents);
+                    window2_comms2.send_ch1(msg_send).unwrap();
+                    match window2_comms2.recv_ch2().unwrap() {
+                        UiMessage::GenericStatus(s) => {
+                            let mut count = val_counter2.borrow_mut();
+                            *count += 1;
+                            counter2.borrow_mut().set_value(&(count).to_string());
+                            ui_tx_file.send(UiControl::SetMainStatus(s));
+                        },
+                        _ => ()
                     }
-                    UiMessage::FieldsNames(fields) => {
-                        let mut count = val_counter2.borrow_mut();
-                        *count +=1;
-                        counter2.borrow_mut().set_value(&(count).to_string());
-                        ui_tx_file.send(UiControl::MainWinToResults(fields));
-                    }
-                    _ => (),
-                }
-            }
+            // let mut good_line_counter = 0;
+            // for v in buff.lines() {
+            //     if let Ok(v) = v {
+            //         let msg_send = UiMessage::UiRequest(v.to_string());
+            //         window2_comms2.send_ch1(msg_send).unwrap();
+            //         match window2_comms2.recv_ch2().unwrap() {
+            //             UiMessage::DatabaseCreated(s) | UiMessage::GenericStatus(s) => {
+            //                 let mut count = val_counter2.borrow_mut();
+            //                 *count += 1;
+            //                 counter2.borrow_mut().set_value(&(count).to_string());
+            //                 ui_tx_file.send(UiControl::SetMainStatus(s));
+            //             }
+            //             UiMessage::FieldsNames(fields) => {
+            //                 let mut count = val_counter2.borrow_mut();
+            //                 *count += 1;
+            //                 counter2.borrow_mut().set_value(&(count).to_string());
+            //                 ui_tx_file.send(UiControl::MainWinToResults(fields));
+            //             }
+            //             _ => (),
+            //         }
+            //     }
+            // }
             true
         },
         _ => false
@@ -208,6 +224,7 @@ fn main() {
         }
     });
 
+    let mut status_lines = 0;
     while app.wait() {
         if let Some(msg) = ui_rx.recv() {
             match msg {
@@ -229,9 +246,14 @@ fn main() {
                     main_window.show();
                 }
                 UiControl::SetMainStatus(s) => {
+                    if status_lines > 500{
+                        status.set_value("");
+                        status_lines=0;
+                    }
                     // status.set_value(&s);
-                    status.append("\n");
                     status.append(&s);
+                    status.append("\n");
+                    status_lines+=1;
                 },
                 // UiControl::CloseUi => {
                 //     main_window.hide();
