@@ -63,7 +63,7 @@ impl DatabaseInstance {
     }
     pub fn handle_connection(&mut self) {
         self.conn.set_nonblocking(false);
-        loop {
+        'outer: loop {
             let query = match Message::receive_msg(&mut self.conn) {
                 Ok(msg) => match msg.get_query() {
                     Ok(s) => s,
@@ -91,6 +91,9 @@ impl DatabaseInstance {
                 let mut inserted_counter = 0;
                 let mut insert_plans = vec![];
                 for line in inserts.lines(){
+                    if line.is_empty() || line == "\n"{
+                        continue;
+                    }
                     match parse_query(line){
                         Ok(parsed) => {
                             match self.create_plan(parsed){
@@ -98,14 +101,21 @@ impl DatabaseInstance {
                                     if let QueryPlan::Insert(r,s) = &q{
                                        match r{
                                            Ok(_) => insert_plans.push(q),
-                                           Err(e) => Message::Status(Status::Generic(format!("Batch Planning Failed: {}",e))).send_msg_to(&mut self.conn).unwrap()
+                                           Err(e) => { Message::Status(Status::Generic(format!("Batch Planning Failed: {}", e))).send_msg_to(&mut self.conn).unwrap();
+                                               continue 'outer
+                                           }
                                        }
                                     }
                                 }
-                                Err(e) => Message::Status(Status::Generic(format!("Batch Planning Failed: {}",e))).send_msg_to(&mut self.conn).unwrap()
+                                Err(e) => {
+                                    Message::Status(Status::Generic(format!("Batch Planning Failed: {}", e))).send_msg_to(&mut self.conn).unwrap();
+                                    continue 'outer
+                                }
                             }
                         }
-                        Err(e) => Message::Status(Status::Generic(format!("Batch Planning Failed: {}",e))).send_msg_to(&mut self.conn).unwrap()
+                        Err(e) => { Message::Status(Status::Generic(format!("Batch Planning Failed: {}", e))).send_msg_to(&mut self.conn).unwrap();
+                            continue 'outer
+                        }
                     }
                 }
                 let mut executor = Executor::new(&mut self.tables);
