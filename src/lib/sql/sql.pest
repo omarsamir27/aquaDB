@@ -169,7 +169,7 @@ WHITESPACE = _{WHITE_SPACE}
     insert_cols = {"(" ~ (identifier ~ ","?)+ ~ ")"}
     insert_vals = {"(" ~ (sql_value ~ ","?)+ ~ ")"}
     sql_value = { NULL | constant }
-    /// green
+    /// blue
     SqlInsert = { ^"insert" ~ ^"into" ~ table_name ~ insert_cols ~  ^"values" ~ insert_vals  }
 //}
 

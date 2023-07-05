@@ -453,7 +453,7 @@ impl CatalogManager {
         schema.add_field("unique", Type::Boolean, false, false, None, None);
         schema.add_field(
             "foreign_table",
-            Type::Boolean,
+            Type::Character(VarChar),
             true,
             false,
             Some((table_name.to_string(), "tablename".to_string())),
@@ -461,7 +461,7 @@ impl CatalogManager {
         );
         schema.add_field(
             "foreign_field",
-            Type::Boolean,
+            Type::Character(VarChar),
             true,
             false,
             Some((table_name.to_string(), "fieldname".to_string())),
